@@ -467,7 +467,7 @@ CreateGUI() {
     CalibrationText := MyGui.Add("Text", "x20 y145 w320 h100 +Border", "Calibration is inactive.`n`nClick start to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
     
-    MyGui.Add("Text", "x20 y255 w320 h170", "Instructions:`nHover mouse over target and press SPACE.`n`nCalibration Steps (25 total):`n1-4. Attack, Builder Face, Gold/Elixir Storage Bar (Home)`n5-9. Upgrade More, Add/Remove Wall, Gold/Elixir Upgrade (Home)`n10-11. Find Match, Green Attack (Multiplayer/Army menus)`n12-14. Loot Area G/E, Next Match (Battle)`n15-22. Sides 1-4 Start/End (Battle)`n23-24. Return Left/Right (Battle End)`n25. Collector Coordinates (Home - press ENTER to finish).")
+    MyGui.Add("Text", "x20 y255 w320 h170", "Instructions:`nHover mouse over target and press SPACE.`n`nCalibration Steps (24 total):`n1-4. Attack, Builder Face, Gold/Elixir Storage Bar (Home)`n5-9. Upgrade More, Add/Remove Wall, Gold/Elixir Upgrade (Home)`n10-11. Find Match, Green Attack (Multiplayer/Army menus)`n12-14. Loot Area G/E, Next Match (Battle)`n15-22. Sides 1-4 Start/End (Battle)`n23. Return Home Button (Battle End)`n24. Collector Coordinates (Home - press ENTER to finish).")
     
     ; --- TAB 3: Farming ---
     Tab.UseTab(3)
@@ -720,28 +720,26 @@ UpdateCalibrationUI() {
             instructions := "Step 14/25: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
         case 15:
             ResetViewport()
-            instructions := "Step 15/25: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
+            instructions := "Step 15/24: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
         case 16:
-            instructions := "Step 16/25: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
+            instructions := "Step 16/24: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
         case 17:
-            instructions := "Step 17/25: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE."
+            instructions := "Step 17/24: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE."
         case 18:
-            instructions := "Step 18/25: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE."
+            instructions := "Step 18/24: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE."
         case 19:
-            instructions := "Step 19/25: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 19/24: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE."
         case 20:
-            instructions := "Step 20/25: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 20/24: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE."
         case 21:
-            instructions := "Step 21/25: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 21/24: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE."
         case 22:
-            instructions := "Step 22/25: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 22/24: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
         case 23:
-            instructions := "Step 23/25: Return Home Button Left Side (Battle End)`n`nHover mouse over the left-most green background area of the 'Return Home' button and press SPACE."
+            instructions := "Step 23/24: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
         case 24:
-            instructions := "Step 24/25: Return Home Button Right Side (Battle End)`n`nHover mouse over the right-most green background area of the 'Return Home' button and press SPACE."
-        case 25:
             ResetViewport()
-            instructions := "Step 25/25: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
+            instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
         default:
             instructions := "Calibration completed successfully!"
     }
@@ -1876,20 +1874,14 @@ Space:: {
             UpdateCalibrationUI()
             
         case 23:
+            ReturnHomeClickX := mx
+            ReturnHomeClickY := my
             ReturnHomeX1 := mx
             ReturnHomeY1 := my
-            ReturnHomeColor := PixelGetColor(mx, my)
-            LogMessage(Format("Calibrated Return Home Left Corner: {}, {} (Color: {})", mx, my, ReturnHomeColor))
-            CalibStep := 24
-            UpdateCalibrationUI()
-            
-        case 24:
             ReturnHomeX2 := mx
             ReturnHomeY2 := my
-            ReturnHomeClickX := (ReturnHomeX1 + ReturnHomeX2) // 2
-            ReturnHomeClickY := (ReturnHomeY1 + ReturnHomeY2) // 2
-            LogMessage(Format("Calibrated Return Home Right Corner: {}, {}", mx, my))
-            LogMessage(Format("Auto-set Click Point: {}, {}", ReturnHomeClickX, ReturnHomeClickY))
+            ReturnHomeColor := PixelGetColor(mx, my)
+            LogMessage(Format("Calibrated Return Home Button: {}, {} (Color: {})", mx, my, ReturnHomeColor))
             
             ; Auto-calculate cloud points based on window size
             WinGetClientPos ,, &w, &h, TargetWindowTitle
@@ -1908,10 +1900,10 @@ Space:: {
             
             ; Reset dynamic array for collectors
             CollectorCoords := []
-            CalibStep := 25
+            CalibStep := 24
             UpdateCalibrationUI()
             
-        case 25:
+        case 24:
             CollectorCoords.Push({x: mx, y: my})
             LogMessage(Format("Added Resource Collector #{}: {}, {}", CollectorCoords.Length, mx, my))
             UpdateCalibrationUI()
@@ -1919,7 +1911,7 @@ Space:: {
 }
 
 Enter:: {
-    if (CalibStep == 25) {
+    if (CalibStep == 24) {
         FinishCalibration()
     }
 }
