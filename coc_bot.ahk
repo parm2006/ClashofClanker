@@ -811,10 +811,10 @@ GetOCRText(relX, relY, relW, relH) {
     if !WinExist(TargetWindowTitle)
         return ""
         
-    WinGetPos &wx, &wy,,, TargetWindowTitle
+    WinGetClientPos &cx, &cy,,, TargetWindowTitle
     
-    scrX := wx + relX
-    scrY := wy + relY
+    scrX := cx + relX
+    scrY := cy + relY
     
     try {
         result := OCR.FromRect(scrX, scrY, relW, relH, {scale: 2})
@@ -1241,9 +1241,9 @@ StartBotLoop() {
     global Sides, Troop1Count, Troop2Count, Troop3Count
     ; Perform a screen-relative focus click in the right-middle grass area of the game window
     if WinExist(TargetWindowTitle) {
-        WinGetPos &wx, &wy, &ww, &wh, TargetWindowTitle
-        safeScrX := wx + (ww * 8) // 10
-        safeScrY := wy + (wh * 3) // 10
+        WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
+        safeScrX := cx + (cw * 8) // 10
+        safeScrY := cy + (ch * 3) // 10
         LogMessage(Format("Performing initial screen-relative focus click at {}, {}...", safeScrX, safeScrY))
         
         CoordMode "Mouse", "Screen"
