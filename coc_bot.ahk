@@ -684,6 +684,7 @@ CancelCalibration() {
     CalibStep := 0
     IsWaitingForReset := false
     SetTimer(RunCollectorReset, 0)
+    SetTimer(RunSidesReset, 0)
     CalibrationText.Value := "Calibration cancelled.`n`nClick start to try again."
     LogMessage("Calibration cancelled.")
     ToolTip()
@@ -698,6 +699,19 @@ RunCollectorReset() {
     IsWaitingForReset := false
     
     instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
+    CalibrationText.Value := instructions
+    ToolTip(instructions "`n`nPress ESC to cancel.")
+}
+
+RunSidesReset() {
+    global CalibStep, IsCalibrating, IsWaitingForReset, CalibrationText
+    if !IsCalibrating || CalibStep != 15
+        return
+        
+    ResetViewport()
+    IsWaitingForReset := false
+    
+    instructions := "Step 15/24: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
@@ -735,8 +749,9 @@ UpdateCalibrationUI() {
         case 14:
             instructions := "Step 14/24: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
         case 15:
-            ResetViewport()
-            instructions := "Step 15/24: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
+            IsWaitingForReset := true
+            instructions := "top left screen zoom out calibration"
+            SetTimer(RunSidesReset, -3000)
         case 16:
             instructions := "Step 16/24: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
         case 17:
@@ -770,6 +785,7 @@ FinishCalibration() {
     CalibStep := 0
     IsWaitingForReset := false
     SetTimer(RunCollectorReset, 0)
+    SetTimer(RunSidesReset, 0)
     ToolTip()
     
     SaveConfig()
