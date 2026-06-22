@@ -1262,19 +1262,22 @@ StartBotLoop() {
         ; Step 1: Click the bottom-left "Attack" button (from Home Village)
         LogMessage("Step 1: Clicking Attack...")
         ClickPoint(AttackBtnX, AttackBtnY)
-        if !SafeSleep(550) ; Wait for Multiplayer dialog to open
+        if !SafeSleep(150)
+            break
+        ClickPoint(AttackBtnX, AttackBtnY)
+        if !SafeSleep(1000) ; Wait for Multiplayer dialog to open fully (was 400)
             break
             
         ; Step 2: Click the gold "Find a Match" button (from Multiplayer dialog)
         LogMessage("Step 2: Clicking Find a Match...")
         ClickPoint(FindMatchBtnX, FindMatchBtnY)
-        if !SafeSleep(350) ; Wait for My Army dialog to open
+        if !SafeSleep(800) ; Wait for My Army dialog to open fully (was 350)
             break
             
         ; Step 3: Click the green "Attack!" button (from My Army dialog)
         LogMessage("Step 3: Clicking Green Attack...")
         ClickPoint(AttackStartBtnX, AttackStartBtnY)
-        if !SafeSleep(250) ; Wait for clouds transition to start
+        if !SafeSleep(500) ; Wait for clouds transition to start (was 250)
             break
             
     WaitForClouds:
