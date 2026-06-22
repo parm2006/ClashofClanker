@@ -1619,21 +1619,21 @@ ResetViewport() {
     }
         
     LogMessage("Viewport: Zooming all the way out...")
-    Loop 6 {
+    Loop 25 {
         Send "^{WheelDown}"
-        Sleep 80
+        Sleep 40
     }
-    Sleep 400
+    Sleep 300
     
     LogMessage("Viewport: Scrolling to top-left corner...")
     if (w && h) {
         cx := w // 2
         cy := h // 2
-        Loop 4 {
+        Loop 8 {
             if !IsRunning && !IsCalibrating
                 break
-            MouseClickDrag "Left", cx, cy, cx + (w * 0.25), cy + (h * 0.25), 5
-            Sleep 150
+            MouseClickDrag "Left", cx - (w * 0.2), cy - (h * 0.2), cx + (w * 0.2), cy + (h * 0.2), 3
+            Sleep 100
         }
     }
     Sleep 300
