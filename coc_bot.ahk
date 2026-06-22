@@ -723,6 +723,7 @@ UpdateCalibrationUI() {
         case 16:
             instructions := "Step 16/25: Return Home Button Right Side (Battle End)`n`nHover mouse over the right-most green background area of the 'Return Home' button and press SPACE."
         case 17:
+            ResetViewport()
             instructions := "Step 17/25: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
         case 18:
             instructions := "Step 18/25: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
@@ -739,6 +740,7 @@ UpdateCalibrationUI() {
         case 24:
             instructions := "Step 24/25: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
         case 25:
+            ResetViewport()
             instructions := "Step 25/25: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
         default:
             instructions := "Calibration completed successfully!"
@@ -1298,6 +1300,9 @@ StartBotLoop() {
         
         LogMessage("Step 5: Selected Side " sideIndex " for deployment.")
         
+        ; Reset viewport in battle so that the deployment lines align with calibration
+        ResetViewport()
+        
         ; Scan troop counts from the battle bar
         LogMessage("Scanning battle troop counts...")
         activeCounts := GetTroopCountsBattle()
@@ -1383,6 +1388,9 @@ StartBotLoop() {
         if !SafeSleep(2000)
             break
             
+        ; Reset viewport before resource collection
+        ResetViewport()
+        
         ; Collector resource farming
         CollectResources()
         if !IsRunning
@@ -1596,6 +1604,32 @@ IsAtHomeVillage() {
     if !EnsureWindowActive()
         return false
     return IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+}
+
+ResetViewport() {
+    if !EnsureWindowActive()
+        return
+        
+    LogMessage("Viewport: Zooming all the way out...")
+    Loop 6 {
+        Send "^{WheelDown}"
+        Sleep 80
+    }
+    Sleep 400
+    
+    LogMessage("Viewport: Scrolling to top-left corner...")
+    WinGetClientPos ,, &w, &h, TargetWindowTitle
+    if (w && h) {
+        cx := w // 2
+        cy := h // 2
+        Loop 4 {
+            if !IsRunning && !IsCalibrating
+                break
+            MouseClickDrag "Left", cx, cy, cx + (w * 0.25), cy + (h * 0.25), 5
+            Sleep 150
+        }
+    }
+    Sleep 300
 }
 
 ShowToolTip(message) {
