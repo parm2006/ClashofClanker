@@ -467,7 +467,7 @@ CreateGUI() {
     CalibrationText := MyGui.Add("Text", "x20 y145 w320 h100 +Border", "Calibration is inactive.`n`nClick start to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
     
-    MyGui.Add("Text", "x20 y255 w320 h170", "Instructions:`nHover mouse over target and press SPACE.`n`nCalibration Steps (24 total):`n1-4. Attack, Builder Face, Gold/Elixir Storage Bar (Home)`n5-9. Upgrade More, Add/Remove Wall, Gold/Elixir Upgrade (Home)`n10-11. Find Match, Green Attack (Multiplayer/Army menus)`n12-14. Loot Area G/E, Next Match (Battle)`n15-22. Sides 1-4 Start/End (Battle)`n23. Return Home Button (Battle End)`n24. Collector Coordinates (Home - press ENTER to finish).")
+    MyGui.Add("Text", "x20 y255 w320 h170", "Instructions:`nHover mouse over target and press SPACE.`n`nCalibration Steps (24 total):`n1-3. Gold/Elixir Storage Bar, Builder Face (Home)`n4-8. Upgrade More, Add/Remove Wall, Gold/Elixir Upgrade (Home)`n9-11. Attack, Find Match, Green Attack (Menus)`n12-14. Loot Area G/E, Next Match (Battle)`n15-22. Sides 1-4 Start/End (Battle)`n23. Return Home Button (Battle End)`n24. Collector Coordinates (Home - press ENTER to finish).")
     
     ; --- TAB 3: Farming ---
     Tab.UseTab(3)
@@ -691,11 +691,11 @@ UpdateCalibrationUI() {
     instructions := ""
     switch CalibStep {
         case 1:
-            instructions := "Step 1/24: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
+            instructions := "Step 1/24: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 2:
-            instructions := "Step 2/24: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 2/24: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 3:
-            instructions := "Step 3/24: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 3/24: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
         case 4:
             instructions := "Step 4/24: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
         case 5:
@@ -1702,6 +1702,20 @@ Space:: {
     
     switch CalibStep {
         case 1:
+            GoldBarThreshX := mx
+            GoldBarThreshY := my
+            LogMessage(Format("Calibrated Gold Bar Threshold Point: {}, {}", mx, my))
+            CalibStep := 2
+            UpdateCalibrationUI()
+            
+        case 2:
+            ElixirBarThreshX := mx
+            ElixirBarThreshY := my
+            LogMessage(Format("Calibrated Elixir Bar Threshold Point: {}, {}", mx, my))
+            CalibStep := 3
+            UpdateCalibrationUI()
+            
+        case 3:
             BuilderFaceX := mx
             BuilderFaceY := my
             BuilderAreaX := mx - 60
@@ -1709,20 +1723,6 @@ Space:: {
             BuilderAreaW := 120
             BuilderAreaH := 40
             LogMessage(Format("Calibrated Builder Face Coordinate: {}, {}", mx, my))
-            CalibStep := 2
-            UpdateCalibrationUI()
-            
-        case 2:
-            GoldBarThreshX := mx
-            GoldBarThreshY := my
-            LogMessage(Format("Calibrated Gold Bar Threshold Point: {}, {}", mx, my))
-            CalibStep := 3
-            UpdateCalibrationUI()
-            
-        case 3:
-            ElixirBarThreshX := mx
-            ElixirBarThreshY := my
-            LogMessage(Format("Calibrated Elixir Bar Threshold Point: {}, {}", mx, my))
             CalibStep := 4
             UpdateCalibrationUI()
             
