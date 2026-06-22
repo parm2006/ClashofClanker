@@ -1271,7 +1271,7 @@ StartBotLoop() {
         ; Step 2: Click the gold "Find a Match" button (from Multiplayer dialog)
         LogMessage("Step 2: Clicking Find a Match...")
         ClickPoint(FindMatchBtnX, FindMatchBtnY)
-        if !SafeSleep(800) ; Wait for My Army dialog to open fully (was 350)
+        if !SafeSleep(3500) ; Wait for My Army dialog to open (10x of original 350)
             break
             
         ; Step 3: Click the green "Attack!" button (from My Army dialog)
