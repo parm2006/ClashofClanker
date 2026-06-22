@@ -1610,6 +1610,16 @@ ResetViewport() {
     if !EnsureWindowActive()
         return
         
+    CoordMode "Mouse", "Client"
+    WinGetClientPos ,, &w, &h, TargetWindowTitle
+    if (w && h) {
+        safeX := (w * 8) // 10
+        safeY := (h * 3) // 10
+        LogMessage(Format("Viewport: Clicking to lock window focus at client {}, {}...", safeX, safeY))
+        Click safeX, safeY
+        Sleep 300
+    }
+        
     LogMessage("Viewport: Zooming all the way out...")
     Loop 6 {
         Send "^{WheelDown}"
@@ -1618,7 +1628,6 @@ ResetViewport() {
     Sleep 400
     
     LogMessage("Viewport: Scrolling to top-left corner...")
-    WinGetClientPos ,, &w, &h, TargetWindowTitle
     if (w && h) {
         cx := w // 2
         cy := h // 2
