@@ -19,10 +19,10 @@ global BattleLoadDelay := 1500
 global SpamDelay := 30
 
 ; --- Farming Thresholds & Toggles ---
-global MinGold := 300000
-global MinElixir := 300000
-global EnableLootSearch := false
-global EnableWallUpgrade := false
+global MinGold := 500000
+global MinElixir := 500000
+global EnableLootSearch := true
+global EnableWallUpgrade := true
 
 ; --- Troop Deployment Counts ---
 global Troop1Count := 14
@@ -186,10 +186,10 @@ LoadConfig() {
     BattleLoadDelay := Integer(IniRead("config.ini", "Settings", "BattleLoadDelay", 1500))
     SpamDelay := Integer(IniRead("config.ini", "Settings", "SpamDelay", 30))
 
-    MinGold := Integer(IniRead("config.ini", "Farming", "MinGold", 300000))
-    MinElixir := Integer(IniRead("config.ini", "Farming", "MinElixir", 300000))
-    EnableLootSearch := IniRead("config.ini", "Farming", "EnableLootSearch", "0") == "1"
-    EnableWallUpgrade := IniRead("config.ini", "Farming", "EnableWallUpgrade", "0") == "1"
+    MinGold := Integer(IniRead("config.ini", "Farming", "MinGold", 500000))
+    MinElixir := Integer(IniRead("config.ini", "Farming", "MinElixir", 500000))
+    EnableLootSearch := IniRead("config.ini", "Farming", "EnableLootSearch", "1") == "1"
+    EnableWallUpgrade := IniRead("config.ini", "Farming", "EnableWallUpgrade", "1") == "1"
     
     Troop1Count := Integer(IniRead("config.ini", "Farming", "Troop1Count", 14))
     Troop2Count := Integer(IniRead("config.ini", "Farming", "Troop2Count", 14))
