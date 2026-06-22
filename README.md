@@ -24,13 +24,36 @@ Because screen sizes and window placements differ, **you must calibrate the bot 
 ### Calibration Steps
 1. Double-click `coc_bot.ahk` to launch the bot GUI.
 2. Click **Start Calibration** in the GUI or press **`Ctrl + F1`**.
-3. Switch to the game window. Follow the onscreen tooltips to calibrate the 25 targets:
-   - **Steps 1–4 (Home Village)**: Attack Button, Builder Face, Gold Storage Bar, Elixir Storage Bar.
-   - **Steps 5–9 (Home Village Wall Upgrades)**: Upgrade More, Add Wall (+1), Remove Wall (-1), Gold Upgrade, Elixir Upgrade.
-   - **Steps 10–11 (Multiplayer Menus)**: Find Match, Green Attack button.
-   - **Steps 12–16 (In-Battle Metrics)**: Loot Gold Area, Loot Elixir Area, Next Match, Return Home Left, Return Home Right.
-   - **Steps 17–24 (Deployment Sides)**: Starting and ending points for Sides 1, 2, 3, and 4.
-   - **Step 25 (Resource Collectors)**: Hover over your Gold Mines, Elixir Collectors, or Dark Elixir Drills and press **`SPACE`** to add each one. Press **`ENTER`** to finish and save.
+3. Switch to the game window. Follow the onscreen tooltips to calibrate the 24 targets:
+   - **Steps 1–3 (Home Village - Storage & Focus)**: Gold Storage Bar Threshold, Elixir Storage Bar Threshold, Builder Face.
+   - **Steps 4–8 (Home Village - Wall Upgrades)**: Upgrade More, Add Wall (+1), Remove Wall (-1), Gold Upgrade, Elixir Upgrade.
+   - **Steps 9–11 (Navigation Menus)**: Attack, Find Match, Green Attack Start.
+   - **Steps 12–14 (In-Battle Metrics)**: Loot Gold Area, Loot Elixir Area, Next Match.
+   - **Steps 15–22 (Deployment Sides)**: Starting and ending points for Sides 1, 2, 3, and 4.
+   - **Step 23 (Battle End)**: Return Home Button.
+   - **Step 24 (Resource Collectors)**: Hover over your Gold Mines, Elixir Collectors, or Dark Elixir Drills and press **`SPACE`** to add each one. Press **`ENTER`** to finish and save.
+
+---
+
+## GUI Customization (Settings & Farming)
+
+The bot GUI includes tabs that allow you to customize configuration variables at runtime:
+
+### Farming Tab
+- **Enable Auto Loot Search**: Toggles OCR loot checking during matchmaking. Checked by default.
+- **Minimum Gold / Elixir Limits**: Sets the minimum threshold (default: `500,000` each). The bot will click 'Next Match' if the base doesn't meet either of these limits.
+- **Enable Auto Wall Upgrade**: Toggles automatic wall upgrading. Checked by default. When storage bar threshold points are full, the bot will automatically dump resources into upgrading walls.
+- **Resource Collection**: Displays the total count of registered resource collectors (Gold Mines, Elixir Collectors, DE Drills).
+
+### Settings Tab
+- **Delays (ms)**: Fine-tune timing durations:
+  - **Troop Spam Click Delay**: Cooldown between clicks during troop deployment.
+  - **Battle Load Delay**: How long to wait for the battle map to load before deploying.
+  - **Home Load Delay**: Wait duration when transitioning back to home village.
+- **Randomization Offsets (pixels)**: Adds human-like click variance:
+  - **Button Click Variance**: Random pixel variance added to button click positions.
+  - **Troop Deploy Variance**: Random pixel variance added when deploying troops.
+- **Troop Deployment Clicks**: Sets the number of clicks/spams for Troop 1, Troop 2, and Troop 3.
 
 ---
 
