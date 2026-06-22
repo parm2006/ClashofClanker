@@ -698,7 +698,7 @@ RunCollectorReset() {
     ResetViewport()
     IsWaitingForReset := false
     
-    instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
+    instructions := "Please don't move the screen."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
@@ -750,7 +750,7 @@ UpdateCalibrationUI() {
             instructions := "Step 14/24: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
         case 15:
             IsWaitingForReset := true
-            instructions := "top left screen zoom out calibration"
+            instructions := "Top-Left Screen Zoom-Out Calibration`n`nPlease Wait."
             SetTimer(RunSidesReset, -3000)
         case 16:
             instructions := "Step 16/24: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
@@ -769,9 +769,13 @@ UpdateCalibrationUI() {
         case 23:
             instructions := "Step 23/24: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
         case 24:
-            IsWaitingForReset := true
-            instructions := "top left screen zoom out calibration"
-            SetTimer(RunCollectorReset, -3000)
+            if (CollectorCoords.Length == 0) {
+                IsWaitingForReset := true
+                instructions := "Top-Left Screen Zoom-Out Calibration`n`nPlease Wait."
+                SetTimer(RunCollectorReset, -3000)
+            } else {
+                instructions := "Please don't move the screen."
+            }
         default:
             instructions := "Calibration completed successfully!"
     }
@@ -1676,7 +1680,7 @@ ResetViewport() {
     if (w && h) {
         cx := w // 2
         cy := h // 2
-        Loop 8 {
+        Loop 6 {
             if !IsRunning && !IsCalibrating
                 break
             MouseDragClient(cx - (w * 0.25), cy - (h * 0.25), cx + (w * 0.25), cy + (h * 0.25), 15)
