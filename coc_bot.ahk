@@ -1262,10 +1262,7 @@ StartBotLoop() {
         ; Step 1: Click the bottom-left "Attack" button (from Home Village)
         LogMessage("Step 1: Clicking Attack...")
         ClickPoint(AttackBtnX, AttackBtnY)
-        if !SafeSleep(150)
-            break
-        ClickPoint(AttackBtnX, AttackBtnY)
-        if !SafeSleep(400) ; Wait for Multiplayer dialog to open
+        if !SafeSleep(550) ; Wait for Multiplayer dialog to open
             break
             
         ; Step 2: Click the gold "Find a Match" button (from Multiplayer dialog)
