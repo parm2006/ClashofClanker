@@ -1017,7 +1017,7 @@ UpgradeWalls() {
         ; Scroll dropdown list down
         if !EnsureWindowActive()
             return
-        MouseClickDrag "Left", BuilderFaceX, 700, BuilderFaceX, 300, 15
+        MouseDragClient(BuilderFaceX, 700, BuilderFaceX, 300, 15)
         if !SafeSleep(800)
             return
             
@@ -1114,7 +1114,7 @@ UpgradeWallsCycle2() {
     ; 2. Scroll dropdown list down
     if !EnsureWindowActive()
         return false
-    MouseClickDrag "Left", BuilderFaceX, 700, BuilderFaceX, 300, 15
+    MouseDragClient(BuilderFaceX, 700, BuilderFaceX, 300, 15)
     if !SafeSleep(800)
         return false
         
@@ -1604,6 +1604,18 @@ IsAtHomeVillage() {
     return IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
 }
 
+MouseDragClient(x1, y1, x2, y2, speed := 15) {
+    CoordMode "Mouse", "Client"
+    MouseMove x1, y1, 0
+    Sleep 80
+    Click "Down"
+    Sleep 80
+    MouseMove x2, y2, speed
+    Sleep 80
+    Click "Up"
+    Sleep 100
+}
+
 ResetViewport() {
     if !EnsureWindowActive()
         return
@@ -1632,7 +1644,7 @@ ResetViewport() {
         Loop 8 {
             if !IsRunning && !IsCalibrating
                 break
-            MouseClickDrag "Left", cx - (w * 0.2), cy - (h * 0.2), cx + (w * 0.2), cy + (h * 0.2), 3
+            MouseDragClient(cx - (w * 0.25), cy - (h * 0.25), cx + (w * 0.25), cy + (h * 0.25), 15)
             Sleep 100
         }
     }
