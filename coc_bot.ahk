@@ -119,6 +119,7 @@ global Sides := [
 global IsRunning := false
 global IsCalibrating := false
 global CalibStep := 0
+global IsWaitingForReset := false
 
 ; ==============================================================================
 ; GUI ELEMENT REFERENCES
@@ -678,16 +679,31 @@ StartCalibration() {
 }
 
 CancelCalibration() {
-    global IsCalibrating, CalibStep, CalibrationText
+    global IsCalibrating, CalibStep, CalibrationText, IsWaitingForReset
     IsCalibrating := false
     CalibStep := 0
+    IsWaitingForReset := false
+    SetTimer(RunCollectorReset, 0)
     CalibrationText.Value := "Calibration cancelled.`n`nClick start to try again."
     LogMessage("Calibration cancelled.")
     ToolTip()
 }
 
+RunCollectorReset() {
+    global CalibStep, IsCalibrating, IsWaitingForReset, CollectorCoords, CalibrationText
+    if !IsCalibrating || CalibStep != 24
+        return
+        
+    ResetViewport()
+    IsWaitingForReset := false
+    
+    instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
+    CalibrationText.Value := instructions
+    ToolTip(instructions "`n`nPress ESC to cancel.")
+}
+
 UpdateCalibrationUI() {
-    global CalibStep, CalibrationText, CollectorCoords
+    global CalibStep, CalibrationText, CollectorCoords, IsWaitingForReset
     instructions := ""
     switch CalibStep {
         case 1:
@@ -738,8 +754,9 @@ UpdateCalibrationUI() {
         case 23:
             instructions := "Step 23/24: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
         case 24:
-            ResetViewport()
-            instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPress ENTER to finish and save."
+            IsWaitingForReset := true
+            instructions := "top left screen zoom out calibration"
+            SetTimer(RunCollectorReset, -3000)
         default:
             instructions := "Calibration completed successfully!"
     }
@@ -748,9 +765,11 @@ UpdateCalibrationUI() {
 }
 
 FinishCalibration() {
-    global IsCalibrating, CalibStep, TextCollectorCount, CollectorCoords
+    global IsCalibrating, CalibStep, TextCollectorCount, CollectorCoords, IsWaitingForReset
     IsCalibrating := false
     CalibStep := 0
+    IsWaitingForReset := false
+    SetTimer(RunCollectorReset, 0)
     ToolTip()
     
     SaveConfig()
@@ -1687,7 +1706,9 @@ ShiftPointTowardsCenter(x, y, shiftDist := 250) {
 
 #HotIf IsCalibrating
 Space:: {
-    global CalibStep, IsCalibrating, CollectorCoords
+    global CalibStep, IsCalibrating, CollectorCoords, IsWaitingForReset
+    if IsWaitingForReset
+        return
     CoordMode "Mouse", "Screen"
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
     global ReturnHomeX1, ReturnHomeY1, ReturnHomeX2, ReturnHomeY2, ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor
