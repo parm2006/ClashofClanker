@@ -698,7 +698,7 @@ RunCollectorReset() {
     ResetViewport()
     IsWaitingForReset := false
     
-    instructions := "Please don't move the screen."
+    instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
@@ -774,7 +774,7 @@ UpdateCalibrationUI() {
                 instructions := "Top-Left Screen Zoom-Out Calibration`n`nPlease Wait."
                 SetTimer(RunCollectorReset, -3000)
             } else {
-                instructions := "Please don't move the screen."
+                instructions := "Step 24/24: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
             }
         default:
             instructions := "Calibration completed successfully!"
