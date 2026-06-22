@@ -691,33 +691,33 @@ UpdateCalibrationUI() {
     instructions := ""
     switch CalibStep {
         case 1:
-            instructions := "Step 1/25: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
+            instructions := "Step 1/24: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
         case 2:
-            instructions := "Step 2/25: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
+            instructions := "Step 2/24: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 3:
-            instructions := "Step 3/25: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 3/24: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 4:
-            instructions := "Step 4/25: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 4/24: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
         case 5:
-            instructions := "Step 5/25: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
+            instructions := "Step 5/24: Add Wall (+1) Button (Upgrade More Screen)`n`nHover mouse over the '+1 Add Wall' button (click 'Upgrade More' manually to show it) and press SPACE."
         case 6:
-            instructions := "Step 6/25: Add Wall (+1) Button (Upgrade More Screen)`n`nHover mouse over the '+1 Add Wall' button (click 'Upgrade More' manually to show it) and press SPACE."
+            instructions := "Step 6/24: Remove Wall (-1) Button (Upgrade More Screen)`n`nHover mouse over the '-1 Remove Wall' button and press SPACE."
         case 7:
-            instructions := "Step 7/25: Remove Wall (-1) Button (Upgrade More Screen)`n`nHover mouse over the '-1 Remove Wall' button and press SPACE."
+            instructions := "Step 7/24: Gold Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Gold Upgrade button (showing the gold hammer/cost) and press SPACE."
         case 8:
-            instructions := "Step 8/25: Gold Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Gold Upgrade button (showing the gold hammer/cost) and press SPACE."
+            instructions := "Step 8/24: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
         case 9:
-            instructions := "Step 9/25: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
+            instructions := "Step 9/24: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
         case 10:
-            instructions := "Step 10/25: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
+            instructions := "Step 10/24: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
         case 11:
-            instructions := "Step 11/25: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
+            instructions := "Step 11/24: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
         case 12:
-            instructions := "Step 12/25: Multiplayer Gold Area (Matchmaking Search)`n`nHover mouse over the Gold count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 12/24: Multiplayer Gold Area (Matchmaking Search)`n`nHover mouse over the Gold count digits in a multiplayer match search and press SPACE."
         case 13:
-            instructions := "Step 13/25: Multiplayer Elixir Area (Matchmaking Search)`n`nHover mouse over the Elixir count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 13/24: Multiplayer Elixir Area (Matchmaking Search)`n`nHover mouse over the Elixir count digits in a multiplayer match search and press SPACE."
         case 14:
-            instructions := "Step 14/25: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
+            instructions := "Step 14/24: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
         case 15:
             ResetViewport()
             instructions := "Step 15/24: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
@@ -1702,13 +1702,6 @@ Space:: {
     
     switch CalibStep {
         case 1:
-            AttackBtnX := mx
-            AttackBtnY := my
-            LogMessage(Format("Calibrated Attack Button: {}, {}", mx, my))
-            CalibStep := 2
-            UpdateCalibrationUI()
-            
-        case 2:
             BuilderFaceX := mx
             BuilderFaceY := my
             BuilderAreaX := mx - 60
@@ -1716,55 +1709,62 @@ Space:: {
             BuilderAreaW := 120
             BuilderAreaH := 40
             LogMessage(Format("Calibrated Builder Face Coordinate: {}, {}", mx, my))
+            CalibStep := 2
+            UpdateCalibrationUI()
+            
+        case 2:
+            GoldBarThreshX := mx
+            GoldBarThreshY := my
+            LogMessage(Format("Calibrated Gold Bar Threshold Point: {}, {}", mx, my))
             CalibStep := 3
             UpdateCalibrationUI()
             
         case 3:
-            GoldBarThreshX := mx
-            GoldBarThreshY := my
-            LogMessage(Format("Calibrated Gold Bar Threshold Point: {}, {}", mx, my))
+            ElixirBarThreshX := mx
+            ElixirBarThreshY := my
+            LogMessage(Format("Calibrated Elixir Bar Threshold Point: {}, {}", mx, my))
             CalibStep := 4
             UpdateCalibrationUI()
             
         case 4:
-            ElixirBarThreshX := mx
-            ElixirBarThreshY := my
-            LogMessage(Format("Calibrated Elixir Bar Threshold Point: {}, {}", mx, my))
+            UpgradeMoreBtnX := mx
+            UpgradeMoreBtnY := my
+            LogMessage(Format("Calibrated Upgrade More Button: {}, {}", mx, my))
             CalibStep := 5
             UpdateCalibrationUI()
             
         case 5:
-            UpgradeMoreBtnX := mx
-            UpgradeMoreBtnY := my
-            LogMessage(Format("Calibrated Upgrade More Button: {}, {}", mx, my))
+            AddWall1X := mx
+            AddWall1Y := my
+            LogMessage(Format("Calibrated Add Wall (+1) Button: {}, {}", mx, my))
             CalibStep := 6
             UpdateCalibrationUI()
             
         case 6:
-            AddWall1X := mx
-            AddWall1Y := my
-            LogMessage(Format("Calibrated Add Wall (+1) Button: {}, {}", mx, my))
+            RemoveWallX := mx
+            RemoveWallY := my
+            LogMessage(Format("Calibrated Remove Wall (-1) Button: {}, {}", mx, my))
             CalibStep := 7
             UpdateCalibrationUI()
             
         case 7:
-            RemoveWallX := mx
-            RemoveWallY := my
-            LogMessage(Format("Calibrated Remove Wall (-1) Button: {}, {}", mx, my))
+            GoldUpgradeX := mx
+            GoldUpgradeY := my
+            LogMessage(Format("Calibrated Gold Upgrade Button: {}, {}", mx, my))
             CalibStep := 8
             UpdateCalibrationUI()
             
         case 8:
-            GoldUpgradeX := mx
-            GoldUpgradeY := my
-            LogMessage(Format("Calibrated Gold Upgrade Button: {}, {}", mx, my))
+            ElixirUpgradeX := mx
+            ElixirUpgradeY := my
+            LogMessage(Format("Calibrated Elixir Upgrade Button: {}, {}", mx, my))
             CalibStep := 9
             UpdateCalibrationUI()
             
         case 9:
-            ElixirUpgradeX := mx
-            ElixirUpgradeY := my
-            LogMessage(Format("Calibrated Elixir Upgrade Button: {}, {}", mx, my))
+            AttackBtnX := mx
+            AttackBtnY := my
+            LogMessage(Format("Calibrated Attack Button: {}, {}", mx, my))
             CalibStep := 10
             UpdateCalibrationUI()
             
