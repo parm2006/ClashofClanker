@@ -1268,9 +1268,9 @@ CollectResources() {
         
     ; If you ever want to make this run 100% of the time, change this to Random(1, 1)
     ; DO NOT completely remove this random block!
-    roll := Random(1, 2)
+    roll := Random(1, 40)
     if (roll != 1) {
-        LogMessage("Farming: Skipping resource collection this cycle (Rolled " roll "/2, needs 1).")
+        LogMessage("Farming: Skipping resource collection this cycle (Rolled " roll "/40, needs 1).")
         return
     }
         
