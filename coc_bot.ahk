@@ -185,6 +185,7 @@ LoadConfig() {
     global ReturnHomeX1, ReturnHomeX2, ReturnHomeY1, ReturnHomeY2, ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
+    global MVLogoX, MVLogoY, MVLogoColor
     global BuilderFaceX, BuilderFaceY, BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH
     global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
@@ -1181,8 +1182,9 @@ IsGoldBarFilled(x, y) {
         g := (actualHex >> 8) & 0xFF
         b := actualHex & 0xFF
         
-        ; Yellow/Gold color signature: high R and G, low B
-        return (r > 160) && (g > 120) && (b < 100)
+        ; Yellow/Gold color signature: high R and G, lower B
+        ; Made extremely lenient: Red and Green just need to be noticeably higher than Blue
+        return (r > 120) && (g > 100) && (r > b + 20) && (g > b + 10)
     }
     catch {
         return false
@@ -1200,8 +1202,9 @@ IsElixirBarFilled(x, y) {
         g := (actualHex >> 8) & 0xFF
         b := actualHex & 0xFF
         
-        ; Pink/Purple color signature: high R and B, low G
-        return (r > 150) && (g < 100) && (b > 120)
+        ; Pink/Purple color signature: high R and B, lower G
+        ; Made extremely lenient: Red and Blue just need to be noticeably higher than Green
+        return (r > 120) && (b > 100) && (r > g + 20) && (b > g + 10)
     }
     catch {
         return false
@@ -1209,41 +1212,53 @@ IsElixirBarFilled(x, y) {
 }
 
 AreBuildersBusy() {
-    global BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH
-    text := GetOCRText(BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH)
-    LogMessage("OCR Builder Scan: '" text "'")
+    ; The transparent background makes OCR impossible, and checking for red text doesn't work.
+    ; Instead of trying to read the builder count, we will simply assume a builder is free 
+    ; and let the bot attempt the upgrade. If a popup appears because 0 builders are free, 
+    ; our robust popup-dismissal clicks will handle it.
+    return false
+}
+
+ClickOkayIfPresent() {
+    global TargetWindowTitle
+    WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
     
-    text := StrReplace(text, " ", "")
-    text := StrReplace(text, "O", "0")
-    text := StrReplace(text, "o", "0")
+    ; Search the center area for the popup buttons
+    searchX := cx + (cw * 0.2)
+    searchY := cy + (ch * 0.4)
+    searchW := cw * 0.6
+    searchH := ch * 0.4
     
-    if InStr(text, "0/") {
-        return true
+    try {
+        result := OCR.FromRect(searchX, searchY, searchW, searchH, {scale: 1.5})
+        for line in result.Lines {
+            text := StrReplace(line.Text, " ", "")
+            if InStr(text, "Okay") || InStr(text, "0kay") || InStr(text, "Cancel") || InStr(text, "Cance") {
+                LogMessage("Farming: Detected Upgrade confirmation popup! Clicking Okay.")
+                ; The Okay button is always roughly 65% across and 70% down
+                okX := cx + (cw * 0.66)
+                okY := cy + (ch * 0.68)
+                ClickPoint(okX, okY)
+                return true
+            }
+        }
     }
     
-    RegExMatch(text, "(\d)/", &match)
-    if match {
-        available := Integer(match[1])
-        return available == 0
-    }
-    
-    if InStr(text, "0") {
-        return true
-    }
-    
-    return true ; Safe fallback: assume busy if unreadable
+    LogMessage("Farming: 'Okay' button not found. Dismissing popup safely.")
+    return false
 }
 
 IsCostRed(btnX, btnY) {
-    ; Create a small search window centered around the cost text above the button
-    x1 := btnX - 40
-    y1 := btnY - 35
-    x2 := btnX + 40
+    ; Create a small search window strictly around the cost text above the button
+    ; to avoid scanning the transparent village background below the menu
+    x1 := btnX - 50
+    y1 := btnY - 40
+    x2 := btnX + 50
     y2 := btnY - 15
     
-    ; Red text color signature (high red, low green/blue)
-    ; Search for 0xFF3030 with a variation variation tolerance of 50
-    return PixelSearch(&foundX, &foundY, x1, y1, x2, y2, 0xFF3030, 50)
+    ; Search for bright red (0xFF2222) with a moderate variation of 40.
+    ; This avoids false positives on random background objects while still catching the red text.
+    return PixelSearch(&foundX, &foundY, x1, y1, x2, y2, 0xFF2222, 40)
 }
 
 CollectResources() {
@@ -1251,9 +1266,11 @@ CollectResources() {
     if (CollectorCoords.Length == 0)
         return
         
-    roll := Random(1, 40)
+    ; If you ever want to make this run 100% of the time, change this to Random(1, 1)
+    ; DO NOT completely remove this random block!
+    roll := Random(1, 2)
     if (roll != 1) {
-        LogMessage("Farming: Skipping resource collection this cycle (Rolled " roll "/40, needs 1).")
+        LogMessage("Farming: Skipping resource collection this cycle (Rolled " roll "/2, needs 1).")
         return
     }
         
@@ -1262,7 +1279,7 @@ CollectResources() {
         if !IsRunning
             break
         ClickPoint(coord.x, coord.y)
-        SafeSleep(150)
+        SafeSleep(250)
     }
 }
 
@@ -1302,10 +1319,15 @@ UpgradeWalls() {
         if !SafeSleep(800)
             return
             
-        ; Scroll dropdown list down
+        ; Scroll dropdown list down to reveal walls
         if !EnsureWindowActive()
             return
-        MouseDragClient(BuilderFaceX, 700, BuilderFaceX, 300, 15)
+        CoordMode "Mouse", "Client"
+        MouseMove BuilderFaceX, BuilderFaceY + 150
+        Loop 10 {
+            Click "WheelDown"
+            Sleep 150
+        }
         if !SafeSleep(800)
             return
             
@@ -1321,7 +1343,7 @@ UpgradeWalls() {
         scrTop := cy + menuTop
         
         try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight,, {scale: 2})
+            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
             cheapestWallLine := ""
             for line in result.Lines {
                 if InStr(line.Text, "Wall") {
@@ -1331,20 +1353,23 @@ UpgradeWalls() {
             
             if !cheapestWallLine {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
-                ClickPoint(100, 100)
+                ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                SafeSleep(500)
                 goto CheckElixirPhase
             }
             
-            relX := cheapestWallLine.x - cx
-            relY := cheapestWallLine.y - cy
+            ; Click directly in the center of the text to avoid clicking through transparent background
+            relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
+            relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
             ClickPoint(relX, relY)
         }
         catch {
-            ClickPoint(100, 100)
+            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+            SafeSleep(500)
             goto CheckElixirPhase
         }
         
-        if !SafeSleep(1200)
+        if !SafeSleep(5000)
             return
             
         ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
@@ -1353,8 +1378,8 @@ UpgradeWalls() {
             
         if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
             LogMessage("Farming: Gold upgrade is unaffordable (insufficient Gold).")
-            ClickPoint(100, 100)
-            SafeSleep(200)
+            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+            SafeSleep(500)
         } else {
             goldCount := 1
             Loop 4 {
@@ -1371,8 +1396,13 @@ UpgradeWalls() {
             }
             LogMessage(Format("Farming: Upgrading {} wall(s) with Gold!", goldCount))
             ClickPoint(GoldUpgradeX, GoldUpgradeY)
-            if !SafeSleep(1000)
+            if !SafeSleep(1500)
                 return
+                
+            ClickOkayIfPresent()
+            SafeSleep(1000)
+            ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Always dismiss potential gem popups safely
+            SafeSleep(500)
         }
     }
     
@@ -1399,10 +1429,15 @@ UpgradeWallsCycle2() {
     if !SafeSleep(800)
         return false
         
-    ; 2. Scroll dropdown list down
+    ; 2. Scroll dropdown list down to reveal walls
     if !EnsureWindowActive()
         return false
-    MouseDragClient(BuilderFaceX, 700, BuilderFaceX, 300, 15)
+    CoordMode "Mouse", "Client"
+    MouseMove BuilderFaceX, BuilderFaceY + 150
+    Loop 10 {
+        Click "WheelDown"
+        Sleep 150
+    }
     if !SafeSleep(800)
         return false
         
@@ -1418,7 +1453,7 @@ UpgradeWallsCycle2() {
     scrTop := cy + menuTop
     
     try {
-        result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight,, {scale: 2})
+        result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
         cheapestWallLine := ""
         for line in result.Lines {
             if InStr(line.Text, "Wall") {
@@ -1427,19 +1462,22 @@ UpgradeWallsCycle2() {
         }
         
         if !cheapestWallLine {
-            ClickPoint(100, 100)
+            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+            SafeSleep(500)
             return false
         }
         
-        relX := cheapestWallLine.x - cx
-        relY := cheapestWallLine.y - cy
+        ; Click directly in the center of the text to avoid clicking through transparent background
+        relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
+        relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
         ClickPoint(relX, relY)
     }
     catch {
-        ClickPoint(100, 100)
+        ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+        SafeSleep(500)
         return false
     }
-    if !SafeSleep(1200)
+    if !SafeSleep(5000)
         return false
         
     ; 4. Click Upgrade More
@@ -1468,12 +1506,17 @@ UpgradeWallsCycle2() {
         }
         LogMessage(Format("Farming: Upgrading {} wall(s) with Elixir!", elixirCount))
         ClickPoint(ElixirUpgradeX, ElixirUpgradeY)
-        if !SafeSleep(1000)
+        if !SafeSleep(1500)
             return false
+            
+        ClickOkayIfPresent()
+        SafeSleep(1000)
+        ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Always dismiss potential gem popups safely
+        SafeSleep(500)
     }
     
-    ClickPoint(100, 100)
-    SafeSleep(200)
+    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+    SafeSleep(500)
     return true
 }
 
@@ -1531,6 +1574,19 @@ StartBotLoop() {
     }
     
     Loop {
+        if !IsRunning
+            break
+            
+        ; Reset viewport before resource collection
+        ResetViewport()
+        
+        ; Collector resource farming (1 in 2 chance for testing)
+        CollectResources()
+        if !IsRunning
+            break
+            
+        ; Wall upgrades farming
+        UpgradeWalls()
         if !IsRunning
             break
             
@@ -1703,19 +1759,6 @@ StartBotLoop() {
         
         LogMessage("Step 7: Back at Home Village! Reloading...")
         if !SafeSleep(2000)
-            break
-            
-        ; Reset viewport before resource collection
-        ResetViewport()
-        
-        ; Collector resource farming
-        CollectResources()
-        if !IsRunning
-            break
-            
-        ; Wall upgrades farming
-        UpgradeWalls()
-        if !IsRunning
             break
             
         LogMessage("Cycle completed successfully. Starting next cycle.")
@@ -2201,7 +2244,7 @@ Space:: {
     global Side2StartX, Side2StartY, Side2EndX, Side2EndY
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
-    global Sides, MVLogoX, MVLogoY, MVLogoColor
+    global Sides
     
     MouseGetPos &msx, &msy
     if !WinExist(TargetWindowTitle) {
