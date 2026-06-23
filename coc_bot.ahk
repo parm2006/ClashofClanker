@@ -179,61 +179,61 @@ LoadConfig() {
     global Sides
     
     TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", "Clash of Clans")
-    ButtonDelta := Integer(IniRead("config.ini", "Settings", "ButtonDelta", 5))
-    DeployDelta := Integer(IniRead("config.ini", "Settings", "DeployDelta", 25))
-    TransitionDelay := Integer(IniRead("config.ini", "Settings", "TransitionDelay", 500))
-    HomeLoadDelay := Integer(IniRead("config.ini", "Settings", "HomeLoadDelay", 6000))
-    BattleLoadDelay := Integer(IniRead("config.ini", "Settings", "BattleLoadDelay", 1500))
-    SpamDelay := Integer(IniRead("config.ini", "Settings", "SpamDelay", 30))
+    ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
+    DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 25)
+    TransitionDelay := SafeInteger(IniRead("config.ini", "Settings", "TransitionDelay", ""), 500)
+    HomeLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "HomeLoadDelay", ""), 6000)
+    BattleLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "BattleLoadDelay", ""), 1500)
+    SpamDelay := SafeInteger(IniRead("config.ini", "Settings", "SpamDelay", ""), 30)
 
-    MinGold := Integer(IniRead("config.ini", "Farming", "MinGold", 500000))
-    MinElixir := Integer(IniRead("config.ini", "Farming", "MinElixir", 500000))
+    MinGold := SafeInteger(IniRead("config.ini", "Farming", "MinGold", ""), 500000)
+    MinElixir := SafeInteger(IniRead("config.ini", "Farming", "MinElixir", ""), 500000)
     EnableLootSearch := IniRead("config.ini", "Farming", "EnableLootSearch", "1") == "1"
     EnableWallUpgrade := IniRead("config.ini", "Farming", "EnableWallUpgrade", "1") == "1"
     
-    Troop1Count := Integer(IniRead("config.ini", "Farming", "Troop1Count", 14))
-    Troop2Count := Integer(IniRead("config.ini", "Farming", "Troop2Count", 14))
-    Troop3Count := Integer(IniRead("config.ini", "Farming", "Troop3Count", 14))
+    Troop1Count := SafeInteger(IniRead("config.ini", "Farming", "Troop1Count", ""), 14)
+    Troop2Count := SafeInteger(IniRead("config.ini", "Farming", "Troop2Count", ""), 14)
+    Troop3Count := SafeInteger(IniRead("config.ini", "Farming", "Troop3Count", ""), 14)
 
-    AttackBtnX := Integer(IniRead("config.ini", "Coordinates", "AttackBtnX", 100))
-    AttackBtnY := Integer(IniRead("config.ini", "Coordinates", "AttackBtnY", 970))
-    FindMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "FindMatchBtnX", 250))
-    FindMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "FindMatchBtnY", 750))
-    AttackStartBtnX := Integer(IniRead("config.ini", "Coordinates", "AttackStartBtnX", 1630))
-    AttackStartBtnY := Integer(IniRead("config.ini", "Coordinates", "AttackStartBtnY", 920))
+    AttackBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnX", ""), 100)
+    AttackBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnY", ""), 970)
+    FindMatchBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnX", ""), 250)
+    FindMatchBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnY", ""), 750)
+    AttackStartBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnX", ""), 1630)
+    AttackStartBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnY", ""), 920)
 
-    ReturnHomeX1 := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeX1", 880))
-    ReturnHomeY1 := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeY1", 915))
-    ReturnHomeX2 := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeX2", 1040))
-    ReturnHomeY2 := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeY2", 915))
-    ReturnHomeClickX := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeClickX", 960))
-    ReturnHomeClickY := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeClickY", 920))
+    ReturnHomeX1 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeX1", ""), 880)
+    ReturnHomeY1 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeY1", ""), 915)
+    ReturnHomeX2 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeX2", ""), 1040)
+    ReturnHomeY2 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeY2", ""), 915)
+    ReturnHomeClickX := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickX", ""), 960)
+    ReturnHomeClickY := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickY", ""), 920)
     
     colorStr := IniRead("config.ini", "Coordinates", "ReturnHomeColor", "0x5FA41A")
-    ReturnHomeColor := Integer(colorStr)
-    ReturnHomeTolerance := Integer(IniRead("config.ini", "Coordinates", "ReturnHomeTolerance", 35))
+    ReturnHomeColor := (colorStr = "" ? 0x5FA41A : SafeInteger(colorStr, 0x5FA41A))
+    ReturnHomeTolerance := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeTolerance", ""), 35)
 
-    BuilderFaceX := Integer(IniRead("config.ini", "Coordinates", "BuilderFaceX", 960))
-    BuilderFaceY := Integer(IniRead("config.ini", "Coordinates", "BuilderFaceY", 30))
-    BuilderAreaX := Integer(IniRead("config.ini", "Coordinates", "BuilderAreaX", 900))
-    BuilderAreaY := Integer(IniRead("config.ini", "Coordinates", "BuilderAreaY", 15))
-    BuilderAreaW := Integer(IniRead("config.ini", "Coordinates", "BuilderAreaW", 120))
-    BuilderAreaH := Integer(IniRead("config.ini", "Coordinates", "BuilderAreaH", 40))
+    BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 960)
+    BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 30)
+    BuilderAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaX", ""), 900)
+    BuilderAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaY", ""), 15)
+    BuilderAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaW", ""), 120)
+    BuilderAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaH", ""), 40)
 
-    GoldBarThreshX := Integer(IniRead("config.ini", "Coordinates", "GoldBarThreshX", 1750))
-    GoldBarThreshY := Integer(IniRead("config.ini", "Coordinates", "GoldBarThreshY", 100))
-    ElixirBarThreshX := Integer(IniRead("config.ini", "Coordinates", "ElixirBarThreshX", 1750))
-    ElixirBarThreshY := Integer(IniRead("config.ini", "Coordinates", "ElixirBarThreshY", 160))
+    GoldBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshX", ""), 1750)
+    GoldBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshY", ""), 100)
+    ElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshX", ""), 1750)
+    ElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshY", ""), 160)
 
-    GoldAreaX := Integer(IniRead("config.ini", "Coordinates", "GoldAreaX", 50))
-    GoldAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 50))
-    GoldAreaW := Integer(IniRead("config.ini", "Coordinates", "GoldAreaW", 150))
-    GoldAreaH := Integer(IniRead("config.ini", "Coordinates", "GoldAreaH", 30))
+    GoldAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaX", ""), 50)
+    GoldAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaY", ""), 50)
+    GoldAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaW", ""), 150)
+    GoldAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaH", ""), 30)
 
-    ElixirAreaX := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaX", 50))
-    ElixirAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 90))
-    ElixirAreaW := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaW", 150))
-    ElixirAreaH := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaH", 30))
+    ElixirAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaX", ""), 50)
+    ElixirAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaY", ""), 90)
+    ElixirAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaW", ""), 150)
+    ElixirAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaH", ""), 30)
 
     NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1630))
     NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 850))
@@ -827,13 +827,35 @@ GetOCRText(relX, relY, relW, relH) {
 
 CleanNumber(str) {
     str := StrReplace(str, " ", "")
-    str := StrReplace(str, "O", "0")
-    str := StrReplace(str, "o", "0")
-    str := StrReplace(str, "I", "1")
-    str := StrReplace(str, "l", "1")
     str := StrReplace(str, ",", "")
     str := StrReplace(str, ".", "")
-    
+
+    ; Replace common character substitutions in cartoon font
+    str := StrReplace(str, "i", "1")
+    str := StrReplace(str, "I", "1")
+    str := StrReplace(str, "l", "1")
+    str := StrReplace(str, "|", "1")
+    str := StrReplace(str, "!", "1")
+    str := StrReplace(str, "o", "0")
+    str := StrReplace(str, "O", "0")
+    ; Map s/S to 5 per user request
+    str := StrReplace(str, "s", "5")
+    str := StrReplace(str, "S", "5")
+    str := StrReplace(str, "g", "9")
+    str := StrReplace(str, "G", "9")
+    str := StrReplace(str, "q", "9")
+
+    ; Additional mappings observed in noisy backgrounds
+    str := StrReplace(str, "b", "6")   ; lower-case b often looks like 6
+    str := StrReplace(str, "B", "8")   ; upper-case B → 8
+    str := StrReplace(str, "z", "2")   ; z → 2
+    str := StrReplace(str, "Z", "2")   ; Z → 2
+    str := StrReplace(str, "a", "4")   ; a → 4 (rare but helpful)
+    str := StrReplace(str, "A", "4")
+    ; Replace bullet (coin logo) with zero
+    str := StrReplace(str, "•", "0")
+
+    ; Collect only digits
     res := ""
     Loop Parse, str {
         if (A_LoopField >= "0" && A_LoopField <= "9")
@@ -842,17 +864,116 @@ CleanNumber(str) {
     return res = "" ? 0 : Integer(res)
 }
 
+SafeInteger(str, defaultVal) {
+    if (str = "" || str = "0")
+        return defaultVal
+    try {
+        return Integer(str)
+    } catch as err {
+        return defaultVal
+    }
+}
+
+GetLootValueMultiScale(relX, relY, relW, relH, label) {
+    global TargetWindowTitle
+    if !WinExist(TargetWindowTitle)
+        return 0
+        
+    WinGetClientPos &cx, &cy,,, TargetWindowTitle
+    
+    scrX := cx + relX
+    scrY := cy + relY
+    
+    scales := [1, 1.5, 2, 2.5, 3, 4]
+    rawValues := []
+    roundedValues := []
+    
+    logDetails := label . " OCR scans: "
+    
+    for scaleVal in scales {
+        try {
+            result := OCR.FromRect(scrX, scrY, relW, relH, {scale: scaleVal})
+            cleaned := CleanNumber(result.Text)
+            ; If CleanNumber returns 0 we consider this scan invalid and skip it
+            if (cleaned > 0) {
+                rounded := Round(cleaned / 10000) * 10000
+                rawValues.Push(cleaned)
+                roundedValues.Push(rounded)
+                logDetails .= "[" . scaleVal . ": raw=" . cleaned . " rnd=" . rounded . "] "
+            } else {
+                ; Record that the scan gave no usable number – helpful for debugging noisy backgrounds
+                logDetails .= "[" . scaleVal . ": empty] "
+            }
+        } catch as err {
+            logDetails .= "[" . scaleVal . ": err=" . err.Message . "] "
+        }
+    }
+
+    if (rawValues.Length == 0) {
+        ; No scan produced a usable number – return 0 so the bot can decide to skip loot handling
+        LogMessage(logDetails . " -> Final Result: 0 (no valid scans)")
+        return 0
+    }
+    
+    ; ---------------------------------------------------
+    ; 1️⃣ Find the most common rounded value (mode)
+    ; ---------------------------------------------------
+    frequencies := Map()
+    maxFreq := 0
+    bestRounded := 0
+    for val in roundedValues {
+        freq := frequencies.Has(val) ? frequencies[val] + 1 : 1
+        frequencies[val] := freq
+        if (freq > maxFreq) {
+            maxFreq := freq
+            bestRounded := val
+        }
+    }
+
+    ; ---------------------------------------------------
+    ; 2️⃣ If every rounded value is unique, fall back to the highest raw reading
+    ; ---------------------------------------------------
+    if (maxFreq == 1) {
+        bestRaw := 0
+        for val in rawValues {
+            if (val > bestRaw)
+                bestRaw := val
+        }
+        LogMessage(logDetails . " -> Final Result: " . bestRaw . " (no mode, fallback to max raw)")
+        return bestRaw
+    }
+
+    ; ---------------------------------------------------
+    ; 3️⃣ Gather all raw values that correspond to the winning rounded mode
+    ; ---------------------------------------------------
+    candidates := []
+    for i, val in roundedValues {
+        if (val == bestRounded) {
+            candidates.Push(rawValues[i])
+        }
+    }
+
+    ; ---------------------------------------------------
+    ; 4️⃣ Choose the highest raw among the candidates – this guards against under-reads
+    ; ---------------------------------------------------
+    bestRaw := 0
+    for cand in candidates {
+        if (cand > bestRaw)
+            bestRaw := cand
+    }
+
+    LogMessage(logDetails . " -> Best Rounded Mode: " . bestRounded . " -> Final Result: " . bestRaw)
+    return bestRaw
+}
+
+
+
 GetLootValues(&gold, &elixir) {
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
     
-    goldText := GetOCRText(GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH)
-    elixirText := GetOCRText(ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH)
-    
-    gold := CleanNumber(goldText)
-    elixir := CleanNumber(elixirText)
-    
-    LogMessage("OCR Loot Scan: Gold=" gold ", Elixir=" elixir)
+    gold := GetLootValueMultiScale(GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH, "Gold")
+    elixir := GetLootValueMultiScale(ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH, "Elixir")
 }
 
 GetTroopCountsBattle() {
@@ -1290,25 +1411,7 @@ StartBotLoop() {
         if !SafeSleep(BattleLoadDelay)
             break
             
-        ; Optional OCR Loot search check
-        if EnableLootSearch {
-            LogMessage("Farming: Scanning base loot amounts...")
-            if !SafeSleep(800) ; Wait for numbers to render fully
-                break
-                
-            gold := 0
-            elixir := 0
-            GetLootValues(&gold, &elixir)
-            
-            if (gold < MinGold && elixir < MinElixir) {
-                LogMessage(Format("Farming: Loot too low (G:{}/E:{}). Skipping base...", gold, elixir))
-                ClickPoint(NextMatchBtnX, NextMatchBtnY)
-                if !SafeSleep(1500) ; Wait for cloud transition to start
-                    break
-                goto WaitForClouds
-            }
-            LogMessage(Format("Farming: Loot threshold met (G:{}/E:{}). Launching attack!", gold, elixir))
-        }
+        ; (Loot check moved to after ResetViewport so OCR runs on a calibrated view)
         
         ; Step 5: Choose a random side for the attack sequence
         sideIndex := Random(1, 4)
@@ -1336,6 +1439,26 @@ StartBotLoop() {
         
         ; Reset viewport in battle so that the deployment lines align with calibration
         ResetViewport()
+        
+        ; Optional OCR Loot search check (after viewport calibration for cleaner OCR)
+        if EnableLootSearch {
+            LogMessage("Farming: Scanning base loot amounts (post-viewport)...")
+            if !SafeSleep(800) ; Wait for numbers to render fully
+                break
+                
+            gold := 0
+            elixir := 0
+            GetLootValues(&gold, &elixir)
+            
+            if (gold < MinGold && elixir < MinElixir) {
+                LogMessage(Format("Farming: Loot too low (G:{}/E:{}). Skipping base...", gold, elixir))
+                ClickPoint(NextMatchBtnX, NextMatchBtnY)
+                if !SafeSleep(1500) ; Wait for cloud transition to start
+                    break
+                goto WaitForClouds
+            }
+            LogMessage(Format("Farming: Loot threshold met (G:{}/E:{}). Launching attack!", gold, elixir))
+        }
         
         ; Scan troop counts from the battle bar
         LogMessage("Scanning battle troop counts...")
@@ -1413,8 +1536,14 @@ StartBotLoop() {
             
             ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
             
-            ; Wait 15s +/- 1s before checking again
-            if !SafeSleep(Random(14000, 16000))
+            ; Check if home 2s after clicking (early detection)
+            if !SafeSleep(2000)
+                goto LoopExit
+            if IsAtHomeVillage()
+                break
+            
+            ; Wait the rest of the ~15s cycle before clicking again
+            if !SafeSleep(Random(12000, 14000))
                 goto LoopExit
         }
         
