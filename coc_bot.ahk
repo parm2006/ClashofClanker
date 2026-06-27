@@ -1286,15 +1286,15 @@ IsCenterGreenButtonPresent() {
 ProcessWallUpgrade(upgradeX, upgradeY) {
     global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, ReturnHomeClickX, ReturnHomeClickY
     
-    wallCount := 5
-    ; First, add 4 walls to reach the maximum 5
-    Loop 4 {
+    wallCount := 4
+    ; First, add 3 walls to reach the maximum 4
+    Loop 3 {
         ClickPoint(AddWall1X, AddWall1Y)
         if !SafeSleep(200)
             return false
     }
     
-    Loop 5 {
+    Loop 4 {
         LogMessage(Format("Farming: Attempting to upgrade {} wall(s)...", wallCount))
         ClickPoint(upgradeX, upgradeY)
         if !SafeSleep(1500) ; Wait for popup or upgrade to process
@@ -1363,8 +1363,8 @@ FindCheapestWallInDropdown() {
     CoordMode "Mouse", "Client"
     MouseMove BuilderFaceX, BuilderFaceY + 150
     
-    ; Try 3 times to find the wall, scrolling a few ticks each time to avoid skipping past it
-    Loop 3 {
+    ; Try 4 times to find the wall, scrolling a few ticks each time to avoid skipping past it
+    Loop 4 {
         Loop 4 {
             Click "WheelDown"
             Sleep 150
