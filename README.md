@@ -81,3 +81,7 @@ The bot GUI includes tabs that allow you to customize configuration variables at
 
 ## License
 This project is licensed under the GPL v3 License - see the `LICENSE` file for details.
+
+## Disclaimer
+
+This project is for educational purposes only. Automated botting is strictly against Supercell's Terms of Service. Using this bot or any automated script may result in a temporary ban or permanent suspension of your Clash of Clans account. The creators and contributors of this project are not responsible for any actions taken against your account or any damages incurred. Use at your own risk.
