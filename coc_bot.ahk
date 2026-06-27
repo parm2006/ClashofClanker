@@ -1200,10 +1200,15 @@ IsElixirBarFilled(x, y) {
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
         b := actualHex & 0xFF
+        ; Loose RGB bounds for "pink" as requested
+        isPink := (r >= 180) && (g >= 80 && g <= 220) && (b >= 100 && b <= 230)
+        isPink := isPink && (r > g) && (r >= b * 0.75)
+        isPink := isPink && ((r + g + b) / 3 > 140)
         
-        ; Pink/Purple color signature: high R and B, lower G
-        ; Made extremely lenient: Red and Blue just need to be noticeably higher than Green
-        return (r > 100) && (b > 80) && (r > g + 15) && (b > g + 5)
+        ; Fallback for transparent UI over dark background
+        isDarkPink := (r > 120) && (b > 100) && (r > g + 20)
+        
+        return isPink || isDarkPink
     }
     catch {
         return false
