@@ -23,6 +23,7 @@ global MinGold := 500000
 global MinElixir := 500000
 global EnableLootSearch := true
 global EnableWallUpgrade := true
+global UseADB := false
 
 ; --- Troop Deployment Counts ---
 global Troop1Count := 14
@@ -160,6 +161,7 @@ global TextCollectorCount := ""
 global EditTroop1Count := ""
 global EditTroop2Count := ""
 global EditTroop3Count := ""
+global CheckUseADB := ""
 
 global LogEdit := ""
 global StatusText := ""
@@ -213,6 +215,7 @@ LoadConfig() {
     MinElixir := SafeInteger(IniRead("config.ini", "Farming", "MinElixir", ""), 500000)
     EnableLootSearch := IniRead("config.ini", "Farming", "EnableLootSearch", "1") == "1"
     EnableWallUpgrade := IniRead("config.ini", "Farming", "EnableWallUpgrade", "1") == "1"
+    UseADB := IniRead("config.ini", "Settings", "UseADB", "0") == "1"
     
     Troop1Count := SafeInteger(IniRead("config.ini", "Farming", "Troop1Count", ""), 14)
     Troop2Count := SafeInteger(IniRead("config.ini", "Farming", "Troop2Count", ""), 14)
@@ -377,6 +380,7 @@ SaveConfig() {
     IniWrite(MinElixir, "config.ini", "Farming", "MinElixir")
     IniWrite(EnableLootSearch ? "1" : "0", "config.ini", "Farming", "EnableLootSearch")
     IniWrite(EnableWallUpgrade ? "1" : "0", "config.ini", "Farming", "EnableWallUpgrade")
+    IniWrite(UseADB ? "1" : "0", "config.ini", "Settings", "UseADB")
     IniWrite(Troop1Count, "config.ini", "Farming", "Troop1Count")
     IniWrite(Troop2Count, "config.ini", "Farming", "Troop2Count")
     IniWrite(Troop3Count, "config.ini", "Farming", "Troop3Count")
@@ -583,14 +587,17 @@ CreateGUI() {
     MyGui.Add("Text", "x35 y335 w60 h20", "Troop 3:")
     EditTroop3Count := MyGui.Add("Edit", "x95 y333 w45 h20 Number", String(Troop3Count))
 
-    ResizeBtn := MyGui.Add("Button", "x20 y370 w320 h30", "Resize Game Window to 1920x1080")
+    CheckUseADB := MyGui.Add("Checkbox", "x20 y365 w320 h20", "Enable ADB Background Clicking")
+    CheckUseADB.Value := UseADB
+
+    ResizeBtn := MyGui.Add("Button", "x20 y390 w320 h30", "Resize Game Window to 1920x1080")
     ResizeBtn.OnEvent("Click", (*) => ResizeGameWindow())
     
-    SaveBtn := MyGui.Add("Button", "x20 y405 w320 h35", "Save Settings")
+    SaveBtn := MyGui.Add("Button", "x20 y425 w320 h35", "Save Settings")
     SaveBtn.OnEvent("Click", (*) => ApplyAndSaveSettings())
     
     MyGui.OnEvent("Close", (*) => ExitApp())
-    MyGui.Show("w380 h470")
+    MyGui.Show("w380 h490")
 }
 
 LogMessage(message) {
@@ -616,10 +623,10 @@ LogMessage(message) {
 
 ApplyAndSaveSettings() {
     global TargetWindowTitle, SpamDelay, BattleLoadDelay, HomeLoadDelay, ButtonDelta, DeployDelta
-    global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade
+    global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade, UseADB
     global Troop1Count, Troop2Count, Troop3Count
     global EditWindow, EditSpam, EditBattleLoad, EditHomeLoad, EditButtonDelta, EditDeployDelta
-    global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade
+    global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade, CheckUseADB
     global EditTroop1Count, EditTroop2Count, EditTroop3Count
     
     TargetWindowTitle := EditWindow.Value
@@ -633,6 +640,7 @@ ApplyAndSaveSettings() {
     MinElixir := Integer(EditMinElixir.Value)
     EnableLootSearch := CheckLootSearch.Value
     EnableWallUpgrade := CheckWallUpgrade.Value
+    UseADB := CheckUseADB.Value
     
     Troop1Count := Integer(EditTroop1Count.Value)
     Troop2Count := Integer(EditTroop2Count.Value)
@@ -1325,7 +1333,11 @@ UpgradeWalls() {
         CoordMode "Mouse", "Client"
         MouseMove BuilderFaceX, BuilderFaceY + 150
         Loop 10 {
-            Click "WheelDown"
+            if (UseADB) {
+                RunWait(A_ComSpec " /c adb shell input swipe " BuilderFaceX " " BuilderFaceY+250 " " BuilderFaceX " " BuilderFaceY+50 " 200", , "Hide")
+            } else {
+                Click "WheelDown"
+            }
             Sleep 150
         }
         if !SafeSleep(800)
@@ -1564,9 +1576,8 @@ StartBotLoop() {
         safeScrY := cy + (ch * 3) // 10
         LogMessage(Format("Performing initial screen-relative focus click at {}, {}...", safeScrX, safeScrY))
         
-        CoordMode "Mouse", "Screen"
-        Click safeScrX, safeScrY
-        CoordMode "Mouse", "Client"
+        PerformClick(safeScrX, safeScrY)
+        Sleep 500
         
         SafeSleep(300)
     } else {
@@ -1796,13 +1807,25 @@ SafeSleep(ms) {
     return (IsRunning || IsBBRunning)
 }
 
+PerformClick(x, y) {
+    global UseADB
+    if (UseADB) {
+        RunWait(A_ComSpec " /c adb shell input tap " Round(x) " " Round(y), , "Hide")
+    } else {
+        CoordMode "Mouse", "Client"
+        Click x, y
+    }
+}
+
 RandomClick(x, y, delta) {
-    CoordMode "Mouse", "Client"
-    if !EnsureWindowActive()
-        return
-    rx := x + Random(-delta, delta)
-    ry := y + Random(-delta, delta)
-    Click rx, ry
+    if (delta > 0) {
+        rx := x + Random(-delta, delta)
+        ry := y + Random(-delta, delta)
+    } else {
+        rx := x
+        ry := y
+    }
+    PerformClick(rx, ry)
 }
 
 ClickPoint(x, y, delta := "") {
@@ -1810,7 +1833,6 @@ ClickPoint(x, y, delta := "") {
     if (delta == "")
         delta := ButtonDelta
         
-    CoordMode "Mouse", "Client"
     if !EnsureWindowActive()
         return
         
@@ -2146,6 +2168,13 @@ BBLoopExit:
 }
 
 MouseDragClient(x1, y1, x2, y2, speed := 15) {
+    global UseADB
+    if (UseADB) {
+        dur := speed * 30
+        RunWait(A_ComSpec " /c adb shell input swipe " Round(x1) " " Round(y1) " " Round(x2) " " Round(y2) " " dur, , "Hide")
+        Sleep 200
+        return
+    }
     CoordMode "Mouse", "Client"
     MouseMove x1, y1, 0
     Sleep 80
@@ -2167,7 +2196,7 @@ ResetViewport() {
         safeX := (w * 8) // 10
         safeY := (h * 3) // 10
         LogMessage(Format("Viewport: Clicking to lock window focus at client {}, {}...", safeX, safeY))
-        Click safeX, safeY
+        PerformClick(safeX, safeY)
         Sleep 300
     }
         
