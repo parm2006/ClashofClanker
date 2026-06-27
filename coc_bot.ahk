@@ -1965,11 +1965,24 @@ IsBrown(x, y) {
     }
 }
 
+IsButtonRimPresent(x, y) {
+    count := 0
+    if IsBrown(x - 45, y)
+        count++
+    if IsBrown(x + 45, y)
+        count++
+    if IsBrown(x, y - 45)
+        count++
+    if IsBrown(x, y + 45)
+        count++
+    return count >= 2
+}
+
 IsAtHomeVillage() {
     global AttackBtnX, AttackBtnY
     if !EnsureWindowActive()
         return false
-    return IsBrown(AttackBtnX - 45, AttackBtnY) && IsBrown(AttackBtnX + 45, AttackBtnY)
+    return IsButtonRimPresent(AttackBtnX, AttackBtnY)
 }
 
 IsMVLogoPresent() {
@@ -1987,7 +2000,7 @@ IsAtBuilderBase() {
     global BBAttackBtnX, BBAttackBtnY
     if !EnsureWindowActive()
         return false
-    return IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
+    return IsButtonRimPresent(BBAttackBtnX, BBAttackBtnY)
 }
 
 AreThreeStarsPresent() {
