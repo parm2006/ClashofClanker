@@ -1182,9 +1182,8 @@ IsGoldBarFilled(x, y) {
         g := (actualHex >> 8) & 0xFF
         b := actualHex & 0xFF
         
-        ; Yellow/Gold color signature: high R and G, lower B
-        ; Made extremely lenient: Red and Green just need to be noticeably higher than Blue
-        return (r > 120) && (g > 100) && (r > b + 20) && (g > b + 10)
+        ; Yellow/Gold signature: high R and G, much lower B
+        return (r > 130) && (g > 100) && (r > b + 30) && (g > b + 20)
     }
     catch {
         return false
@@ -1204,7 +1203,7 @@ IsElixirBarFilled(x, y) {
         
         ; Pink/Purple color signature: high R and B, lower G
         ; Made extremely lenient: Red and Blue just need to be noticeably higher than Green
-        return (r > 120) && (b > 100) && (r > g + 20) && (b > g + 10)
+        return (r > 100) && (b > 80) && (r > g + 15) && (b > g + 5)
     }
     catch {
         return false
@@ -1298,6 +1297,8 @@ UpgradeWalls() {
     ; 1. Check if resource thresholds are reached by reading bar colors
     runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
     runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+    
+    LogMessage(Format("Farming: Threshold Checks - Gold: {}, Elixir: {}", runGoldUpgrade ? "Pass" : "Fail", runElixirUpgrade ? "Pass" : "Fail"))
     
     if !runGoldUpgrade && !runElixirUpgrade {
         LogMessage("Farming: Storage bars have not reached calibrated threshold points. Skipping wall upgrades.")
@@ -1963,7 +1964,7 @@ IsAtHomeVillage() {
     global AttackBtnX, AttackBtnY
     if !EnsureWindowActive()
         return false
-    return IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    return IsBrown(AttackBtnX - 45, AttackBtnY) && IsBrown(AttackBtnX + 45, AttackBtnY)
 }
 
 IsMVLogoPresent() {
