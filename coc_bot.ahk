@@ -1253,16 +1253,15 @@ ClickOkayIfPresent() {
 }
 
 IsCostRed(btnX, btnY) {
-    ; Create a small search window strictly around the cost text above the button
-    ; to avoid scanning the transparent village background below the menu
-    x1 := btnX - 50
-    y1 := btnY - 40
-    x2 := btnX + 50
-    y2 := btnY - 15
+    ; Create a wider search window above the button to catch the cost text regardless of resolution
+    x1 := btnX - 80
+    y1 := btnY - 70
+    x2 := btnX + 80
+    y2 := btnY - 10
     
-    ; Search for bright red (0xFF2222) with a moderate variation of 40.
-    ; This avoids false positives on random background objects while still catching the red text.
-    return PixelSearch(&foundX, &foundY, x1, y1, x2, y2, 0xFF2222, 40)
+    ; Search for pure red with a very high variance (80). 
+    ; This catches dark red shadows and bright red text, but safely ignores white text or gold/elixir icons.
+    return PixelSearch(&foundX, &foundY, x1, y1, x2, y2, 0xFF0000, 80)
 }
 
 CollectResources() {
@@ -1316,7 +1315,7 @@ FindCheapestWallInDropdown() {
                 if InStr(line.Text, "Wall") {
                     relX := (line.x + (line.w / 2)) - cx
                     relY := (line.y + (line.h / 2)) - cy
-                    ClickPoint(relX, relY)
+                    ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
                     return true
                 }
             }
@@ -1375,7 +1374,7 @@ UpgradeWalls() {
                     elixirCount := 1
                     Loop 4 {
                         ClickPoint(AddWall1X, AddWall1Y)
-                        if !SafeSleep(250)
+                        if !SafeSleep(400) ; Wait a bit longer for the game UI to update the cost text color to red
                             return
                         if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
                             ClickPoint(RemoveWallX, RemoveWallY)
@@ -1425,7 +1424,7 @@ UpgradeWalls() {
                     goldCount := 1
                     Loop 4 {
                         ClickPoint(AddWall1X, AddWall1Y)
-                        if !SafeSleep(250)
+                        if !SafeSleep(400) ; Wait a bit longer for the game UI to update the cost text color to red
                             return
                         if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
                             ClickPoint(RemoveWallX, RemoveWallY)
