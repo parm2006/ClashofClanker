@@ -1373,13 +1373,17 @@ FindCheapestWallInDropdown() {
         
         try {
             result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
+            cheapestWallLine := ""
             for line in result.Lines {
                 if InStr(line.Text, "Wall") {
-                    relX := (line.x + (line.w / 2)) - cx
-                    relY := (line.y + (line.h / 2)) - cy
-                    ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
-                    return true
+                    cheapestWallLine := line
                 }
+            }
+            if (cheapestWallLine != "") {
+                relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
+                relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
+                ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
+                return true
             }
         }
     }
