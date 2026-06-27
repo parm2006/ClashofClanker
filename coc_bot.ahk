@@ -1965,24 +1965,19 @@ IsBrown(x, y) {
     }
 }
 
-IsButtonRimPresent(x, y) {
-    count := 0
-    if IsBrown(x - 45, y)
-        count++
-    if IsBrown(x + 45, y)
-        count++
-    if IsBrown(x, y - 45)
-        count++
-    if IsBrown(x, y + 45)
-        count++
-    return count >= 2
-}
-
 IsAtHomeVillage() {
     global AttackBtnX, AttackBtnY
     if !EnsureWindowActive()
         return false
-    return IsButtonRimPresent(AttackBtnX, AttackBtnY)
+    
+    ; Use the original OR logic to be lenient and catch the orange button edge
+    isHome := IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    if !isHome
+        return false
+        
+    ; Double-check after 300ms to ensure it's a static UI element, not a moving troop/explosion
+    Sleep 300
+    return IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
 }
 
 IsMVLogoPresent() {
@@ -2000,7 +1995,13 @@ IsAtBuilderBase() {
     global BBAttackBtnX, BBAttackBtnY
     if !EnsureWindowActive()
         return false
-    return IsButtonRimPresent(BBAttackBtnX, BBAttackBtnY)
+        
+    isBB := IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
+    if !isBB
+        return false
+        
+    Sleep 300
+    return IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
 }
 
 AreThreeStarsPresent() {
