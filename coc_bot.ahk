@@ -1252,16 +1252,78 @@ ClickOkayIfPresent() {
     return false
 }
 
-IsCostRed(btnX, btnY) {
-    ; Create a wider search window above the button to catch the cost text regardless of resolution
-    x1 := btnX - 80
-    y1 := btnY - 70
-    x2 := btnX + 80
-    y2 := btnY - 10
+IsCenterGreenButtonPresent() {
+    global TargetWindowTitle
+    if !EnsureWindowActive()
+        return false
+        
+    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
     
-    ; Search for pure red with a very high variance (80). 
-    ; This catches dark red shadows and bright red text, but safely ignores white text or gold/elixir icons.
-    return PixelSearch(&foundX, &foundY, x1, y1, x2, y2, 0xFF0000, 80)
+    searchX := cx + (w * 0.3)
+    searchY := cy + (h * 0.4)
+    searchW := w * 0.4
+    searchH := h * 0.4
+    
+    ; Scan a grid in the center area for the signature green color
+    loop 20 {
+        dy := searchY + (A_Index * (searchH / 20))
+        loop 20 {
+            dx := searchX + (A_Index * (searchW / 20))
+            c := PixelGetColor(dx, dy)
+            actualHex := Integer(c)
+            r := (actualHex >> 16) & 0xFF
+            g := (actualHex >> 8) & 0xFF
+            b := actualHex & 0xFF
+            
+            if (g > r + 30) && (g > b + 30) && (g > 100) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+ProcessWallUpgrade(upgradeX, upgradeY) {
+    global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, ReturnHomeClickX, ReturnHomeClickY
+    
+    wallCount := 5
+    ; First, add 4 walls to reach the maximum 5
+    Loop 4 {
+        ClickPoint(AddWall1X, AddWall1Y)
+        if !SafeSleep(200)
+            return false
+    }
+    
+    Loop 5 {
+        LogMessage(Format("Farming: Attempting to upgrade {} wall(s)...", wallCount))
+        ClickPoint(upgradeX, upgradeY)
+        if !SafeSleep(1500) ; Wait for popup or upgrade to process
+            return false
+            
+        if IsCenterGreenButtonPresent() {
+            LogMessage("Farming: Upgrade too expensive (Gem popup detected). Removing one wall...")
+            ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss popup by clicking outside
+            if !SafeSleep(800)
+                return false
+            ClickPoint(RemoveWallX, RemoveWallY) ; Remove one wall
+            if !SafeSleep(500)
+                return false
+            wallCount--
+            if (wallCount == 0) {
+                LogMessage("Farming: Cannot afford even 1 wall.")
+                break
+            }
+        } else {
+            LogMessage("Farming: Upgrade affordable! Confirming if necessary...")
+            ClickOkayIfPresent()
+            SafeSleep(1000)
+            break
+        }
+    }
+    
+    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+    SafeSleep(500)
+    return true
 }
 
 CollectResources() {
@@ -1329,7 +1391,6 @@ UpgradeWalls() {
     global BuilderFaceX, BuilderFaceY, ReturnHomeClickX, ReturnHomeClickY
     CoordMode "Mouse", "Client"
     global UpgradeMoreBtnX, UpgradeMoreBtnY
-    global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY
     global GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
     global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     
@@ -1365,34 +1426,8 @@ UpgradeWalls() {
                 ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
                 if !SafeSleep(800)
                     return
-                    
-                if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
-                    LogMessage("Farming: Elixir upgrade is unaffordable.")
-                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                    SafeSleep(500)
-                } else {
-                    elixirCount := 1
-                    Loop 4 {
-                        ClickPoint(AddWall1X, AddWall1Y)
-                        if !SafeSleep(400) ; Wait a bit longer for the game UI to update the cost text color to red
-                            return
-                        if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
-                            ClickPoint(RemoveWallX, RemoveWallY)
-                            if !SafeSleep(250)
-                                return
-                            break
-                        }
-                        elixirCount++
-                    }
-                    LogMessage(Format("Farming: Upgrading {} wall(s) with Elixir!", elixirCount))
-                    ClickPoint(ElixirUpgradeX, ElixirUpgradeY)
-                    if !SafeSleep(1500)
-                        return
-                    ClickOkayIfPresent()
-                    SafeSleep(1000)
-                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                    SafeSleep(500)
-                }
+                
+                ProcessWallUpgrade(ElixirUpgradeX, ElixirUpgradeY)
             } else {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
@@ -1416,33 +1451,7 @@ UpgradeWalls() {
                 if !SafeSleep(800)
                     return
                     
-                if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
-                    LogMessage("Farming: Gold upgrade is unaffordable.")
-                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                    SafeSleep(500)
-                } else {
-                    goldCount := 1
-                    Loop 4 {
-                        ClickPoint(AddWall1X, AddWall1Y)
-                        if !SafeSleep(400) ; Wait a bit longer for the game UI to update the cost text color to red
-                            return
-                        if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
-                            ClickPoint(RemoveWallX, RemoveWallY)
-                            if !SafeSleep(250)
-                                return
-                            break
-                        }
-                        goldCount++
-                    }
-                    LogMessage(Format("Farming: Upgrading {} wall(s) with Gold!", goldCount))
-                    ClickPoint(GoldUpgradeX, GoldUpgradeY)
-                    if !SafeSleep(1500)
-                        return
-                    ClickOkayIfPresent()
-                    SafeSleep(1000)
-                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                    SafeSleep(500)
-                }
+                ProcessWallUpgrade(GoldUpgradeX, GoldUpgradeY)
             } else {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
