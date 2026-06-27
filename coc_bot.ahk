@@ -1287,9 +1287,47 @@ CollectResources() {
     }
 }
 
+FindCheapestWallInDropdown() {
+    global BuilderFaceX, BuilderFaceY, TargetWindowTitle
+    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
+    
+    menuLeft := BuilderFaceX - (w * 0.18)
+    menuWidth := w * 0.36
+    menuTop := h * 0.12
+    menuHeight := h * 0.75
+    
+    scrLeft := cx + menuLeft
+    scrTop := cy + menuTop
+    
+    CoordMode "Mouse", "Client"
+    MouseMove BuilderFaceX, BuilderFaceY + 150
+    
+    ; Try 3 times to find the wall, scrolling a few ticks each time to avoid skipping past it
+    Loop 3 {
+        Loop 4 {
+            Click "WheelDown"
+            Sleep 150
+        }
+        Sleep 800
+        
+        try {
+            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
+            for line in result.Lines {
+                if InStr(line.Text, "Wall") {
+                    relX := (line.x + (line.w / 2)) - cx
+                    relY := (line.y + (line.h / 2)) - cy
+                    ClickPoint(relX, relY)
+                    return true
+                }
+            }
+        }
+    }
+    return false
+}
+
 UpgradeWalls() {
     global EnableWallUpgrade, IsRunning, TargetWindowTitle
-    global BuilderFaceX, BuilderFaceY
+    global BuilderFaceX, BuilderFaceY, ReturnHomeClickX, ReturnHomeClickY
     CoordMode "Mouse", "Client"
     global UpgradeMoreBtnX, UpgradeMoreBtnY
     global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY
@@ -1303,8 +1341,6 @@ UpgradeWalls() {
     runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
     runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
     
-    LogMessage(Format("Farming: Threshold Checks - Gold: {}, Elixir: {}", runGoldUpgrade ? "Pass" : "Fail", runElixirUpgrade ? "Pass" : "Fail"))
-    
     if !runGoldUpgrade && !runElixirUpgrade {
         LogMessage("Farming: Storage bars have not reached calibrated threshold points. Skipping wall upgrades.")
         return
@@ -1316,214 +1352,105 @@ UpgradeWalls() {
         return
     }
     
-    ; 2. Gold Wall Upgrade (If storage threshold met)
-    if runGoldUpgrade {
-        LogMessage("Farming: Gold bar threshold met! Selecting cheapest wall for Gold upgrade...")
-        
-        ; Open Builder Dropdown Menu
+    ; --- 2. Elixir Wall Upgrade (Prioritized) ---
+    if runElixirUpgrade {
+        LogMessage("Farming: Elixir threshold met! Selecting cheapest wall for Elixir upgrade...")
         ClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
             
-        ; Scroll dropdown list down to reveal walls
-        if !EnsureWindowActive()
-            return
-        CoordMode "Mouse", "Client"
-        MouseMove BuilderFaceX, BuilderFaceY + 150
-        Loop 10 {
-            Click "WheelDown"
-            Sleep 150
-        }
-        if !SafeSleep(800)
-            return
-            
-        ; OCR dropdown list to select cheapest Wall suggestion
-        WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-        
-        menuLeft := BuilderFaceX - (w * 0.18)
-        menuWidth := w * 0.36
-        menuTop := h * 0.12
-        menuHeight := h * 0.75
-        
-        scrLeft := cx + menuLeft
-        scrTop := cy + menuTop
-        
-        try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-            cheapestWallLine := ""
-            for line in result.Lines {
-                if InStr(line.Text, "Wall") {
-                    cheapestWallLine := line
+        if EnsureWindowActive() {
+            if FindCheapestWallInDropdown() {
+                if !SafeSleep(5000)
+                    return
+                ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
+                if !SafeSleep(800)
+                    return
+                    
+                if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
+                    LogMessage("Farming: Elixir upgrade is unaffordable.")
+                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                    SafeSleep(500)
+                } else {
+                    elixirCount := 1
+                    Loop 4 {
+                        ClickPoint(AddWall1X, AddWall1Y)
+                        if !SafeSleep(250)
+                            return
+                        if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
+                            ClickPoint(RemoveWallX, RemoveWallY)
+                            if !SafeSleep(250)
+                                return
+                            break
+                        }
+                        elixirCount++
+                    }
+                    LogMessage(Format("Farming: Upgrading {} wall(s) with Elixir!", elixirCount))
+                    ClickPoint(ElixirUpgradeX, ElixirUpgradeY)
+                    if !SafeSleep(1500)
+                        return
+                    ClickOkayIfPresent()
+                    SafeSleep(1000)
+                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                    SafeSleep(500)
                 }
-            }
-            
-            if !cheapestWallLine {
+            } else {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
                 SafeSleep(500)
-                goto CheckElixirPhase
             }
-            
-            ; Click directly in the center of the text to avoid clicking through transparent background
-            relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
-            relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
-            ClickPoint(relX, relY)
         }
-        catch {
-            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-            SafeSleep(500)
-            goto CheckElixirPhase
-        }
-        
-        if !SafeSleep(5000)
-            return
-            
-        ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
+    }
+    
+    ; --- 3. Gold Wall Upgrade ---
+    if runGoldUpgrade {
+        LogMessage("Farming: Gold bar threshold met! Selecting cheapest wall for Gold upgrade...")
+        ClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
             
-        if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
-            LogMessage("Farming: Gold upgrade is unaffordable (insufficient Gold).")
-            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-            SafeSleep(500)
-        } else {
-            goldCount := 1
-            Loop 4 {
-                ClickPoint(AddWall1X, AddWall1Y)
-                if !SafeSleep(250)
+        if EnsureWindowActive() {
+            if FindCheapestWallInDropdown() {
+                if !SafeSleep(5000)
                     return
+                ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
+                if !SafeSleep(800)
+                    return
+                    
                 if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
-                    ClickPoint(RemoveWallX, RemoveWallY) ; Step back to maximum affordable
-                    if !SafeSleep(250)
+                    LogMessage("Farming: Gold upgrade is unaffordable.")
+                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                    SafeSleep(500)
+                } else {
+                    goldCount := 1
+                    Loop 4 {
+                        ClickPoint(AddWall1X, AddWall1Y)
+                        if !SafeSleep(250)
+                            return
+                        if IsCostRed(GoldUpgradeX, GoldUpgradeY) {
+                            ClickPoint(RemoveWallX, RemoveWallY)
+                            if !SafeSleep(250)
+                                return
+                            break
+                        }
+                        goldCount++
+                    }
+                    LogMessage(Format("Farming: Upgrading {} wall(s) with Gold!", goldCount))
+                    ClickPoint(GoldUpgradeX, GoldUpgradeY)
+                    if !SafeSleep(1500)
                         return
-                    break
+                    ClickOkayIfPresent()
+                    SafeSleep(1000)
+                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                    SafeSleep(500)
                 }
-                goldCount++
-            }
-            LogMessage(Format("Farming: Upgrading {} wall(s) with Gold!", goldCount))
-            ClickPoint(GoldUpgradeX, GoldUpgradeY)
-            if !SafeSleep(1500)
-                return
-                
-            ClickOkayIfPresent()
-            SafeSleep(1000)
-            ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Always dismiss potential gem popups safely
-            SafeSleep(500)
-        }
-    }
-    
-CheckElixirPhase:
-    ; 3. Elixir Wall Upgrade (If storage threshold met)
-    if runElixirUpgrade {
-        LogMessage("Farming: Elixir threshold met. Selecting cheapest wall for Elixir upgrade...")
-        UpgradeWallsCycle2()
-    }
-}
-
-UpgradeWallsCycle2() {
-    global EnableWallUpgrade, IsRunning, TargetWindowTitle
-    global BuilderFaceX, BuilderFaceY
-    CoordMode "Mouse", "Client"
-    global UpgradeMoreBtnX, UpgradeMoreBtnY
-    global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY
-    global ElixirUpgradeX, ElixirUpgradeY
-    
-    LogMessage("Farming: Rechecking builder dropdown to search for Elixir wall upgrades...")
-    
-    ; 1. Open Builder Dropdown Menu
-    ClickPoint(BuilderFaceX, BuilderFaceY)
-    if !SafeSleep(800)
-        return false
-        
-    ; 2. Scroll dropdown list down to reveal walls
-    if !EnsureWindowActive()
-        return false
-    CoordMode "Mouse", "Client"
-    MouseMove BuilderFaceX, BuilderFaceY + 150
-    Loop 10 {
-        Click "WheelDown"
-        Sleep 150
-    }
-    if !SafeSleep(800)
-        return false
-        
-    ; 3. OCR and select cheapest Wall suggestion
-    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-    
-    menuLeft := BuilderFaceX - (w * 0.18)
-    menuWidth := w * 0.36
-    menuTop := h * 0.12
-    menuHeight := h * 0.75
-    
-    scrLeft := cx + menuLeft
-    scrTop := cy + menuTop
-    
-    try {
-        result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-        cheapestWallLine := ""
-        for line in result.Lines {
-            if InStr(line.Text, "Wall") {
-                cheapestWallLine := line
+            } else {
+                LogMessage("Farming: No Wall upgrades found in builder suggestions.")
+                ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                SafeSleep(500)
             }
         }
-        
-        if !cheapestWallLine {
-            ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-            SafeSleep(500)
-            return false
-        }
-        
-        ; Click directly in the center of the text to avoid clicking through transparent background
-        relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
-        relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
-        ClickPoint(relX, relY)
     }
-    catch {
-        ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-        SafeSleep(500)
-        return false
-    }
-    if !SafeSleep(5000)
-        return false
-        
-    ; 4. Click Upgrade More
-    ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
-    if !SafeSleep(800)
-        return false
-        
-    ; 5. Perform Elixir Upgrades
-    LogMessage("Farming: Checking Elixir wall upgrade affordability...")
-    if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
-        LogMessage("Farming: Elixir upgrade is currently unaffordable.")
-    } else {
-        LogMessage("Farming: Elixir upgrade affordable. Batching walls (max 5)...")
-        elixirCount := 1
-        Loop 4 {
-            ClickPoint(AddWall1X, AddWall1Y)
-            if !SafeSleep(250)
-                return false
-            if IsCostRed(ElixirUpgradeX, ElixirUpgradeY) {
-                ClickPoint(RemoveWallX, RemoveWallY)
-                if !SafeSleep(250)
-                    return false
-                break
-            }
-            elixirCount++
-        }
-        LogMessage(Format("Farming: Upgrading {} wall(s) with Elixir!", elixirCount))
-        ClickPoint(ElixirUpgradeX, ElixirUpgradeY)
-        if !SafeSleep(1500)
-            return false
-            
-        ClickOkayIfPresent()
-        SafeSleep(1000)
-        ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Always dismiss potential gem popups safely
-        SafeSleep(500)
-    }
-    
-    ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-    SafeSleep(500)
-    return true
 }
 
 IsReturnHomePresent() {
