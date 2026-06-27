@@ -1252,7 +1252,7 @@ ClickOkayIfPresent() {
     return false
 }
 
-IsCenterGreenButtonPresent() {
+FindCenterGreenButton(&outX, &outY) {
     global TargetWindowTitle
     if !EnsureWindowActive()
         return false
@@ -1276,6 +1276,8 @@ IsCenterGreenButtonPresent() {
             b := actualHex & 0xFF
             
             if (g > r + 30) && (g > b + 30) && (g > 100) {
+                outX := dx
+                outY := dy
                 return true
             }
         }
@@ -1297,26 +1299,36 @@ ProcessWallUpgrade(upgradeX, upgradeY) {
     Loop 4 {
         LogMessage(Format("Farming: Attempting to upgrade {} wall(s)...", wallCount))
         ClickPoint(upgradeX, upgradeY)
-        if !SafeSleep(1500) ; Wait for popup or upgrade to process
+        if !SafeSleep(1500) ; Wait for confirmation popup
             return false
             
-        if IsCenterGreenButtonPresent() {
-            LogMessage("Farming: Upgrade too expensive (Gem popup detected). Removing one wall...")
-            ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss popup by clicking outside
-            if !SafeSleep(800)
+        ; 1. First, click the GREEN "Okay" confirmation button in the center
+        if FindCenterGreenButton(&gx, &gy) {
+            LogMessage("Farming: Clicking green Okay confirmation button...")
+            ClickPoint(gx + 15, gy + 15) ; Offset to ensure we click inside the button, not just the edge
+            if !SafeSleep(1500) ; Wait to see if it succeeds or pops up the Gem screen
                 return false
-            ClickPoint(RemoveWallX, RemoveWallY) ; Remove one wall
-            if !SafeSleep(500)
-                return false
-            wallCount--
-            if (wallCount == 0) {
-                LogMessage("Farming: Cannot afford even 1 wall.")
+                
+            ; 2. Check if a SECOND green button is present (this means it was too expensive and the Gem popup appeared)
+            if FindCenterGreenButton(&gx2, &gy2) {
+                LogMessage("Farming: Upgrade too expensive (Gem popup detected). Removing one wall...")
+                ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss Gem popup
+                if !SafeSleep(800)
+                    return false
+                ClickPoint(RemoveWallX, RemoveWallY) ; Remove one wall
+                if !SafeSleep(500)
+                    return false
+                wallCount--
+                if (wallCount < 1) {
+                    LogMessage("Farming: Cannot afford even 1 wall.")
+                    break
+                }
+            } else {
+                LogMessage("Farming: Upgrade successful!")
                 break
             }
         } else {
-            LogMessage("Farming: Upgrade affordable! Confirming if necessary...")
-            ClickOkayIfPresent()
-            SafeSleep(1000)
+            LogMessage("Farming: No confirmation popup found? Assuming success.")
             break
         }
     }
@@ -1371,15 +1383,31 @@ FindCheapestWallInDropdown() {
         }
         Sleep 800
         
+        cheapestWallLine := ""
         try {
             result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-            cheapestWallLine := ""
             for line in result.Lines {
                 if InStr(line.Text, "Wall") {
                     cheapestWallLine := line
                 }
             }
+            
             if (cheapestWallLine != "") {
+                ; We found a wall! Scroll down 1 more time to ensure we see the absolute cheapest ones at the bottom of the group.
+                Loop 4 {
+                    Click "WheelDown"
+                    Sleep 150
+                }
+                Sleep 800
+                
+                ; OCR one last time
+                result2 := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
+                for line in result2.Lines {
+                    if InStr(line.Text, "Wall") {
+                        cheapestWallLine := line ; Update to the absolute bottom wall
+                    }
+                }
+                
                 relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
                 relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
                 ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
