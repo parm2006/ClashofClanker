@@ -1567,7 +1567,6 @@ StartBotLoop() {
         LogMessage(Format("Performing initial screen-relative focus click at {}, {}...", safeScrX, safeScrY))
         
         PerformClick(safeScrX, safeScrY)
-        Sleep 500
         
         SafeSleep(300)
     } else {
