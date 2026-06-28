@@ -1,2 +1,7 @@
 # Local configuration settings
 config.ini
+
+# Temporary image captures and scratch folders
+cliimages/
+scratch/
+*.diff
