@@ -2605,6 +2605,26 @@ UnifiedStart() {
         return
     }
     
+    ; If the game window is not open, launch the normal Google Play Games version of Clash of Clans
+    if !WinExist(TargetWindowTitle) {
+        LogMessage("Game window not found. Launching Clash of Clans (Normal GPG)...")
+        try {
+            Run('"C:\Program Files\Google\Play Games\Bootstrapper.exe" --running_from_shortcut --launch_game_id=com.supercell.clashofclans')
+        } catch {
+            Run("googleplaygames://launch/?id=com.supercell.clashofclans")
+        }
+        
+        ; Wait up to 30 seconds for the window to appear
+        Loop 60 {
+            if WinExist(TargetWindowTitle)
+                break
+            Sleep 500
+        }
+        
+        ; Extra buffer to let the game load
+        Sleep 5000
+    }
+
     ; 1. Check for game timeout immediately during start
     CheckGameTimeout(true)
     
