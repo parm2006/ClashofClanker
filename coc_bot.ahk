@@ -14,9 +14,7 @@ global TargetWindowTitle := "Clash of Clans"
 global ButtonDelta := 5
 global DeployDelta := 25
 global TransitionDelay := 500
-global HomeLoadDelay := 6000
 global BattleLoadDelay := 1500
-global SpamDelay := 30
 
 ; --- Farming Thresholds & Toggles ---
 global MinGold := 500000
@@ -37,10 +35,6 @@ global FindMatchBtnY := 750
 global AttackStartBtnX := 1630
 global AttackStartBtnY := 920
 
-global ReturnHomeX1 := 880
-global ReturnHomeY1 := 915
-global ReturnHomeX2 := 1040
-global ReturnHomeY2 := 915
 global ReturnHomeClickX := 960
 global ReturnHomeClickY := 920
 global ReturnHomeColor := 0x5FA41A
@@ -66,10 +60,6 @@ global MVLogoColor := 0x000000
 ; --- OCR Target Areas ---
 global BuilderFaceX := 960
 global BuilderFaceY := 30
-global BuilderAreaX := 900
-global BuilderAreaY := 15
-global BuilderAreaW := 120
-global BuilderAreaH := 40
 
 global GoldAreaX := 50
 global GoldAreaY := 50
@@ -124,10 +114,10 @@ global Side4StartX := 1131, Side4StartY := 40, Side4EndX := 1506, Side4EndY := 3
 
 ; --- Attack Sides Configuration (Randomized Sides) ---
 global Sides := [
-    {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY, shiftX: -350},
-    {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY, shiftX: 350},
-    {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY, shiftX: 350},
-    {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY, shiftX: -350}
+    {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY},
+    {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY},
+    {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY},
+    {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
 ]
 
 ; ==============================================================================
@@ -146,9 +136,7 @@ global IsWaitingForReset := false
 ; ==============================================================================
 global MyGui := ""
 global EditWindow := ""
-global EditSpam := ""
 global EditBattleLoad := ""
-global EditHomeLoad := ""
 global EditButtonDelta := ""
 global EditDeployDelta := ""
 
@@ -179,14 +167,14 @@ LogMessage("Bot initialized. Ready.")
 ; ==============================================================================
 
 LoadConfig() {
-    global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, HomeLoadDelay, BattleLoadDelay, SpamDelay
+    global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, BattleLoadDelay
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
-    global ReturnHomeX1, ReturnHomeX2, ReturnHomeY1, ReturnHomeY2, ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
+    global ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
     global MVLogoX, MVLogoY, MVLogoColor
-    global BuilderFaceX, BuilderFaceY, BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH
+    global BuilderFaceX, BuilderFaceY
     global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
@@ -205,9 +193,7 @@ LoadConfig() {
     ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
     DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 25)
     TransitionDelay := SafeInteger(IniRead("config.ini", "Settings", "TransitionDelay", ""), 500)
-    HomeLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "HomeLoadDelay", ""), 6000)
     BattleLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "BattleLoadDelay", ""), 1500)
-    SpamDelay := SafeInteger(IniRead("config.ini", "Settings", "SpamDelay", ""), 30)
 
     MinGold := SafeInteger(IniRead("config.ini", "Farming", "MinGold", ""), 500000)
     MinElixir := SafeInteger(IniRead("config.ini", "Farming", "MinElixir", ""), 500000)
@@ -225,15 +211,10 @@ LoadConfig() {
     AttackStartBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnX", ""), 1630)
     AttackStartBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnY", ""), 920)
 
-    ReturnHomeX1 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeX1", ""), 880)
-    ReturnHomeY1 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeY1", ""), 915)
-    ReturnHomeX2 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeX2", ""), 1040)
-    ReturnHomeY2 := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeY2", ""), 915)
     ReturnHomeClickX := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickX", ""), 960)
     ReturnHomeClickY := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickY", ""), 920)
     
-    colorStr := IniRead("config.ini", "Coordinates", "ReturnHomeColor", "0x5FA41A")
-    ReturnHomeColor := (colorStr = "" ? 0x5FA41A : SafeInteger(colorStr, 0x5FA41A))
+    ReturnHomeColor := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeColor", ""), 0x5FA41A)
     ReturnHomeTolerance := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeTolerance", ""), 35)
 
     BBAttackBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "BBAttackBtnX", ""), 100)
@@ -247,20 +228,14 @@ LoadConfig() {
     BBStar2Y := SafeInteger(IniRead("config.ini", "Coordinates", "BBStar2Y", ""), 540)
     BBStar3X := SafeInteger(IniRead("config.ini", "Coordinates", "BBStar3X", ""), 960)
     BBStar3Y := SafeInteger(IniRead("config.ini", "Coordinates", "BBStar3Y", ""), 540)
-    bbcolorStr := IniRead("config.ini", "Coordinates", "BBStarColor", "0x000000")
-    BBStarColor := (bbcolorStr = "" ? 0x000000 : SafeInteger(bbcolorStr, 0x000000))
+    BBStarColor := SafeInteger(IniRead("config.ini", "Coordinates", "BBStarColor", ""), 0x000000)
     
     MVLogoX := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoX", ""), 100)
     MVLogoY := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoY", ""), 700)
-    mvcolorStr := IniRead("config.ini", "Coordinates", "MVLogoColor", "0x000000")
-    MVLogoColor := (mvcolorStr = "" ? 0x000000 : SafeInteger(mvcolorStr, 0x000000))
+    MVLogoColor := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoColor", ""), 0x000000)
 
     BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 960)
     BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 30)
-    BuilderAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaX", ""), 900)
-    BuilderAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaY", ""), 15)
-    BuilderAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaW", ""), 120)
-    BuilderAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderAreaH", ""), 40)
 
     GoldBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshX", ""), 1750)
     GoldBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshY", ""), 100)
@@ -337,21 +312,21 @@ LoadConfig() {
     Side4EndY := Integer(IniRead("config.ini", "Coordinates", "Side4EndY", 312))
 
     Sides := [
-        {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY, shiftX: -350},
-        {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY, shiftX: 350},
-        {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY, shiftX: 350},
-        {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY, shiftX: -350}
+        {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY},
+        {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY},
+        {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY},
+        {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
     ]
 }
 
 SaveConfig() {
-    global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, HomeLoadDelay, BattleLoadDelay, SpamDelay
+    global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, BattleLoadDelay
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
-    global ReturnHomeX1, ReturnHomeX2, ReturnHomeY1, ReturnHomeY2, ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
+    global ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
-    global BuilderFaceX, BuilderFaceY, BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH
+    global BuilderFaceX, BuilderFaceY
     global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
@@ -365,13 +340,10 @@ SaveConfig() {
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
 
-    IniWrite(TargetWindowTitle, "config.ini", "Settings", "TargetWindowTitle")
     IniWrite(ButtonDelta, "config.ini", "Settings", "ButtonDelta")
     IniWrite(DeployDelta, "config.ini", "Settings", "DeployDelta")
     IniWrite(TransitionDelay, "config.ini", "Settings", "TransitionDelay")
-    IniWrite(HomeLoadDelay, "config.ini", "Settings", "HomeLoadDelay")
     IniWrite(BattleLoadDelay, "config.ini", "Settings", "BattleLoadDelay")
-    IniWrite(SpamDelay, "config.ini", "Settings", "SpamDelay")
 
     IniWrite(MinGold, "config.ini", "Farming", "MinGold")
     IniWrite(MinElixir, "config.ini", "Farming", "MinElixir")
@@ -388,10 +360,6 @@ SaveConfig() {
     IniWrite(AttackStartBtnX, "config.ini", "Coordinates", "AttackStartBtnX")
     IniWrite(AttackStartBtnY, "config.ini", "Coordinates", "AttackStartBtnY")
 
-    IniWrite(ReturnHomeX1, "config.ini", "Coordinates", "ReturnHomeX1")
-    IniWrite(ReturnHomeY1, "config.ini", "Coordinates", "ReturnHomeY1")
-    IniWrite(ReturnHomeX2, "config.ini", "Coordinates", "ReturnHomeX2")
-    IniWrite(ReturnHomeY2, "config.ini", "Coordinates", "ReturnHomeY2")
     IniWrite(ReturnHomeClickX, "config.ini", "Coordinates", "ReturnHomeClickX")
     IniWrite(ReturnHomeClickY, "config.ini", "Coordinates", "ReturnHomeClickY")
     IniWrite(Format("0x{:06X}", ReturnHomeColor), "config.ini", "Coordinates", "ReturnHomeColor")
@@ -415,10 +383,6 @@ SaveConfig() {
 
     IniWrite(BuilderFaceX, "config.ini", "Coordinates", "BuilderFaceX")
     IniWrite(BuilderFaceY, "config.ini", "Coordinates", "BuilderFaceY")
-    IniWrite(BuilderAreaX, "config.ini", "Coordinates", "BuilderAreaX")
-    IniWrite(BuilderAreaY, "config.ini", "Coordinates", "BuilderAreaY")
-    IniWrite(BuilderAreaW, "config.ini", "Coordinates", "BuilderAreaW")
-    IniWrite(BuilderAreaH, "config.ini", "Coordinates", "BuilderAreaH")
 
     IniWrite(GoldBarThreshX, "config.ini", "Coordinates", "GoldBarThreshX")
     IniWrite(GoldBarThreshY, "config.ini", "Coordinates", "GoldBarThreshY")
@@ -491,7 +455,7 @@ SaveConfig() {
 ; ==============================================================================
 
 CreateGUI() {
-    global MyGui, EditWindow, EditSpam, EditBattleLoad, EditHomeLoad, EditButtonDelta, EditDeployDelta
+    global MyGui, EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade, TextCollectorCount
     global LogEdit, StatusText, StartBtn, PauseBtn, CalibrationText
     
@@ -531,7 +495,7 @@ CreateGUI() {
     CalibrationText := MyGui.Add("Text", "x20 y120 w320 h100 +Border", "Calibration is inactive.`n`nClick a start button to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
     
-    MyGui.Add("Text", "x20 y230 w320 h195", "Instructions:`nHover mouse over target and press SPACE.`n`nMain Steps (25 total):`n1-3. Gold/Elixir Storage Bar, Builder Face (Home)`n4-8. Upgrade More, Add/Remove Wall, G/E Upgrade`n9-11. Attack, Main Logo, Find Match (Menus)`n12-14. Green Attack, Loot Area G/E (Battle)`n15-23. Next Match, Sides 1-4 Start/End`n24. Return Home Button (Battle End)`n25. Collector Coordinates (Home - press ENTER).`n`nBB Steps (5 total):`n1-2. Attack, Find Match`n3-5. Star 1, 2, 3 Centers")
+    MyGui.Add("Text", "x20 y230 w320 h195", "Instructions:`nHover mouse over target and press SPACE.`n`nMain Steps (25 total):`n1-3. Gold/Elixir Storage Bar, Builder Face (Home)`n4-8. Upgrade More, Add/Remove Wall, G/E Upgrade`n9-11. War Logo, Attack, Find Match (Menus)`n12-14. Green Attack, Loot Area G/E (Battle)`n15-23. Next Match, Sides 1-4 Start/End`n24. Return Home Button (Battle End)`n25. Collector Coordinates (Home - press ENTER).`n`nBB Steps (5 total):`n1-2. Attack, Find Match`n3-5. Star 1, 2, 3 Centers")
     
     ; --- TAB 3: Farming ---
     Tab.UseTab(3)
@@ -558,15 +522,9 @@ CreateGUI() {
     
     ; --- TAB 4: Settings ---
     Tab.UseTab(4)
-    MyGui.Add("GroupBox", "x20 y45 w320 h130", "Delays (milliseconds)")
-    MyGui.Add("Text", "x35 y70 w180 h20", "Troop Spam Click Delay:")
-    EditSpam := MyGui.Add("Edit", "x220 y68 w100 h20 Number", String(SpamDelay))
-    
-    MyGui.Add("Text", "x35 y100 w180 h20", "Battle Load Delay:")
-    EditBattleLoad := MyGui.Add("Edit", "x220 y98 w100 h20 Number", String(BattleLoadDelay))
-    
-    MyGui.Add("Text", "x35 y130 w180 h20", "Home Load Delay:")
-    EditHomeLoad := MyGui.Add("Edit", "x220 y128 w100 h20 Number", String(HomeLoadDelay))
+    MyGui.Add("GroupBox", "x20 y45 w320 h70", "Delays (milliseconds)")
+    MyGui.Add("Text", "x35 y70 w180 h20", "Battle Load Delay:")
+    EditBattleLoad := MyGui.Add("Edit", "x220 y68 w100 h20 Number", String(BattleLoadDelay))
     
     MyGui.Add("GroupBox", "x20 y185 w320 h90", "Randomization Offsets (pixels)")
     MyGui.Add("Text", "x35 y210 w180 h20", "Button Click Delta (+/-):")
@@ -615,17 +573,15 @@ LogMessage(message) {
 }
 
 ApplyAndSaveSettings() {
-    global TargetWindowTitle, SpamDelay, BattleLoadDelay, HomeLoadDelay, ButtonDelta, DeployDelta
+    global TargetWindowTitle, BattleLoadDelay, ButtonDelta, DeployDelta
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade
     global Troop1Count, Troop2Count, Troop3Count
-    global EditWindow, EditSpam, EditBattleLoad, EditHomeLoad, EditButtonDelta, EditDeployDelta
+    global EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade
     global EditTroop1Count, EditTroop2Count, EditTroop3Count
     
     TargetWindowTitle := EditWindow.Value
-    SpamDelay := Integer(EditSpam.Value)
     BattleLoadDelay := Integer(EditBattleLoad.Value)
-    HomeLoadDelay := Integer(EditHomeLoad.Value)
     ButtonDelta := Integer(EditButtonDelta.Value)
     DeployDelta := Integer(EditDeployDelta.Value)
     
@@ -864,9 +820,9 @@ UpdateCalibrationUI() {
         case 8:
             instructions := "Step 8/25: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
         case 9:
-            instructions := "Step 9/25: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
+            instructions := "Step 9/25: War Logo (Home Screen)`n`nHover mouse over the War Logo (or any logo) directly ABOVE the Barbarian head / Attack button and press SPACE."
         case 10:
-            instructions := "Step 10/25: Main Village Logo (Home Screen)`n`nHover mouse over the War Logo (or any logo) directly ABOVE the Barbarian head / Attack button and press SPACE."
+            instructions := "Step 10/25: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
         case 11:
             instructions := "Step 11/25: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
         case 12:
@@ -934,25 +890,6 @@ FinishCalibration() {
 ; ==============================================================================
 ; ADVANCED FARMING HELPER FUNCTIONS (OCR & AUTOMATION)
 ; ==============================================================================
-
-GetOCRText(relX, relY, relW, relH) {
-    global TargetWindowTitle
-    if !WinExist(TargetWindowTitle)
-        return ""
-        
-    WinGetClientPos &cx, &cy,,, TargetWindowTitle
-    
-    scrX := cx + relX
-    scrY := cy + relY
-    
-    try {
-        result := OCR.FromRect(scrX, scrY, relW, relH, {scale: 2})
-        return result.Text
-    }
-    catch {
-        return ""
-    }
-}
 
 CleanNumber(str) {
     str := StrReplace(str, " ", "")
@@ -1182,8 +1119,9 @@ IsGoldBarFilled(x, y) {
         g := (actualHex >> 8) & 0xFF
         b := actualHex & 0xFF
         
-        ; Yellow/Gold signature: high R and G, much lower B
-        return (r > 130) && (g > 100) && (r > b + 30) && (g > b + 20)
+        ; Yellow/Gold color signature: high R and G, lower B
+        ; Made extremely lenient: Red and Green just need to be noticeably higher than Blue
+        return (r > 120) && (g > 100) && (r > b + 20) && (g > b + 10)
     }
     catch {
         return false
@@ -1215,41 +1153,52 @@ IsElixirBarFilled(x, y) {
     }
 }
 
-AreBuildersBusy() {
-    ; The transparent background makes OCR impossible, and checking for red text doesn't work.
-    ; Instead of trying to read the builder count, we will simply assume a builder is free 
-    ; and let the bot attempt the upgrade. If a popup appears because 0 builders are free, 
-    ; our robust popup-dismissal clicks will handle it.
+GetBuilderCount(&free, &total) {
+    global BuilderFaceX, BuilderFaceY, TargetWindowTitle
+    free := 0
+    total := 0
+    if !WinExist(TargetWindowTitle)
+        return false
+        
+    WinGetClientPos &cx, &cy,,, TargetWindowTitle
+    
+    scrX := cx + BuilderFaceX - 30
+    scrY := cy + BuilderFaceY - 15
+    scrW := 130
+    scrH := 30
+    
+    try {
+        result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: 2.5})
+        text := StrReplace(result.Text, " ", "")
+        
+        LogMessage("Builder OCR raw text: '" text "'")
+        
+        if RegExMatch(text, "(\d)[/|iI1](\d)", &match) {
+            free := Integer(match[1])
+            total := Integer(match[2])
+            LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
+            return true
+        }
+    }
+    catch as err {
+        LogMessage("Builder OCR error: " err.Message)
+    }
     return false
 }
 
-ClickOkayIfPresent() {
-    global TargetWindowTitle
-    WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
-    
-    ; Search the center area for the popup buttons
-    searchX := cx + (cw * 0.2)
-    searchY := cy + (ch * 0.4)
-    searchW := cw * 0.6
-    searchH := ch * 0.4
-    
-    try {
-        result := OCR.FromRect(searchX, searchY, searchW, searchH, {scale: 1.5})
-        for line in result.Lines {
-            text := StrReplace(line.Text, " ", "")
-            if InStr(text, "Okay") || InStr(text, "0kay") || InStr(text, "Cancel") || InStr(text, "Cance") {
-                LogMessage("Farming: Detected Upgrade confirmation popup! Clicking Okay.")
-                ; The Okay button is always roughly 65% across and 70% down
-                okX := cx + (cw * 0.66)
-                okY := cy + (ch * 0.68)
-                ClickPoint(okX, okY)
-                return true
-            }
+AreBuildersBusy() {
+    free := 0
+    total := 0
+    if GetBuilderCount(&free, &total) {
+        if (total == 7) {
+            return free < 2
+        }
+        if (total <= 6 && total > 0) {
+            return free < 1
         }
     }
-    
-    LogMessage("Farming: 'Okay' button not found. Dismissing popup safely.")
-    return false
+    LogMessage("Farming: Builder count OCR failed or invalid. Assuming busy to prevent accidental gem spending.")
+    return true
 }
 
 FindCenterGreenButton(&outX, &outY) {
@@ -1360,7 +1309,7 @@ CollectResources() {
     }
 }
 
-FindCheapestWallInDropdown() {
+FindAnyWallInDropdown() {
     global BuilderFaceX, BuilderFaceY, TargetWindowTitle
     WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
     
@@ -1374,46 +1323,28 @@ FindCheapestWallInDropdown() {
     
     CoordMode "Mouse", "Client"
     MouseMove BuilderFaceX, BuilderFaceY + 150
+    Sleep 200
     
-    ; Try 4 times to find the wall, scrolling a few ticks each time to avoid skipping past it
+    ; Scroll down in chunks until we see ANY Wall text
     Loop 4 {
+        try {
+            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
+            for line in result.Lines {
+                if InStr(line.Text, "Wall") {
+                    relX := (line.x + (line.w / 2)) - cx
+                    relY := (line.y + (line.h / 2)) - cy
+                    ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
+                    return true
+                }
+            }
+        }
+        
+        ; If we didn't find it, scroll down and search again
         Loop 4 {
             Click "WheelDown"
             Sleep 150
         }
         Sleep 800
-        
-        cheapestWallLine := ""
-        try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-            for line in result.Lines {
-                if InStr(line.Text, "Wall") {
-                    cheapestWallLine := line
-                }
-            }
-            
-            if (cheapestWallLine != "") {
-                ; We found a wall! Scroll down 1 more time to ensure we see the absolute cheapest ones at the bottom of the group.
-                Loop 4 {
-                    Click "WheelDown"
-                    Sleep 150
-                }
-                Sleep 800
-                
-                ; OCR one last time
-                result2 := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-                for line in result2.Lines {
-                    if InStr(line.Text, "Wall") {
-                        cheapestWallLine := line ; Update to the absolute bottom wall
-                    }
-                }
-                
-                relX := (cheapestWallLine.x + (cheapestWallLine.w / 2)) - cx
-                relY := (cheapestWallLine.y + (cheapestWallLine.h / 2)) - cy
-                ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
-                return true
-            }
-        }
     }
     return false
 }
@@ -1446,13 +1377,13 @@ UpgradeWalls() {
     
     ; --- 2. Elixir Wall Upgrade (Prioritized) ---
     if runElixirUpgrade {
-        LogMessage("Farming: Elixir threshold met! Selecting cheapest wall for Elixir upgrade...")
+        LogMessage("Farming: Elixir threshold met! Selecting a wall for Elixir upgrade...")
         ClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
             
         if EnsureWindowActive() {
-            if FindCheapestWallInDropdown() {
+            if FindAnyWallInDropdown() {
                 if !SafeSleep(5000)
                     return
                 ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
@@ -1470,13 +1401,13 @@ UpgradeWalls() {
     
     ; --- 3. Gold Wall Upgrade ---
     if runGoldUpgrade {
-        LogMessage("Farming: Gold bar threshold met! Selecting cheapest wall for Gold upgrade...")
+        LogMessage("Farming: Gold bar threshold met! Selecting a wall for Gold upgrade...")
         ClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
             
         if EnsureWindowActive() {
-            if FindCheapestWallInDropdown() {
+            if FindAnyWallInDropdown() {
                 if !SafeSleep(5000)
                     return
                 ClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
@@ -1524,12 +1455,64 @@ IsReturnHomePresent() {
 ; MAIN AUTOMATION LOOP
 ; ==============================================================================
 
+CheckGameTimeout(force := false) {
+    global TargetWindowTitle, IsRunning
+    if !force && !IsRunning
+        return
+    if !EnsureWindowActive()
+        return
+        
+    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
+    
+    searchX := cx + (w * 0.25)
+    searchY := cy + (h * 0.4)
+    searchW := w * 0.5
+    searchH := h * 0.4
+    
+    try {
+        result := OCR.FromRect(searchX, searchY, searchW, searchH, {scale: 1.5})
+        timeoutDetected := false
+        buttonLine := ""
+        
+        for line in result.Lines {
+            text := StrReplace(line.Text, " ", "")
+            ; Check if any line indicates timeout / reload screen is active
+            if InStr(text, "eload") || InStr(text, "Sync") || InStr(text, "Break") || InStr(text, "Connection") || InStr(text, "Another") {
+                timeoutDetected := true
+            }
+            ; Check if this line is a button we can click
+            if InStr(text, "eload") || InStr(text, "Try") || InStr(text, "Okay") || InStr(text, "Retry") {
+                buttonLine := line
+            }
+        }
+        
+        if timeoutDetected {
+            LogMessage("Farming: Game Timeout/Reload screen detected!")
+            if (buttonLine != "") {
+                LogMessage("Farming: Clicking detected reload/action button...")
+                relX := (buttonLine.x + (buttonLine.w / 2)) - cx
+                relY := (buttonLine.y + (buttonLine.h / 2)) - cy
+                ClickPoint(relX, relY)
+            } else {
+                LogMessage("Farming: No specific button text detected, clicking screen center fallback...")
+                ClickPoint(w // 2, Integer(h * 0.55))
+            }
+            Sleep 10000 ; Wait 10 seconds for game to reload
+        }
+    }
+}
+
 StartBotLoop() {
     global IsRunning, StatusText, StartBtn, PauseBtn
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
-    global ReturnHomeClickX, ReturnHomeClickY, BattleLoadDelay, ReturnHomeX1, ReturnHomeY1, ReturnHomeColor, ReturnHomeTolerance
+    global ReturnHomeClickX, ReturnHomeClickY, BattleLoadDelay, ReturnHomeColor, ReturnHomeTolerance
     global EnableLootSearch, MinGold, MinElixir, NextMatchBtnX, NextMatchBtnY
     global Sides, Troop1Count, Troop2Count, Troop3Count
+    
+    ; Check for game timeout immediately before doing anything else
+    LastTimeoutCheck := A_TickCount
+    CheckGameTimeout(true)
+    
     ; Perform a screen-relative focus click in the right-middle grass area of the game window
     if WinExist(TargetWindowTitle) {
         WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
@@ -1550,7 +1533,18 @@ StartBotLoop() {
         if !IsRunning
             break
             
-        ; Reset viewport before resource collection
+        ; Check for game timeout every 20 minutes (before anything else in the loop)
+        if (A_TickCount - LastTimeoutCheck > 1200000) { ; 20 minutes
+            LastTimeoutCheck := A_TickCount
+            CheckGameTimeout()
+            if !IsRunning
+                break
+        }
+        
+        ; 1. Clearing Click to close any open menus
+        ClearingClick()
+        
+        ; 3. Reset viewport before resource collection
         ResetViewport()
         
         ; Collector resource farming (1 in 2 chance for testing)
@@ -1566,20 +1560,39 @@ StartBotLoop() {
         ; Step 1: Click the bottom-left "Attack" button (from Home Village)
         LogMessage("Step 1: Clicking Attack...")
         ClickPoint(AttackBtnX, AttackBtnY)
-        if !SafeSleep(1000) ; Wait for Multiplayer dialog to open fully (was 400)
-            break
+        
+        ; Wait up to 3 seconds for the Attack menu to open (IsAtHomeVillage becomes false)
+        menuOpened := false
+        Loop 15 {
+            if !SafeSleep(200)
+                break
+            if !IsAtHomeVillage() {
+                menuOpened := true
+                break
+            }
+        }
+        if !menuOpened {
+            LogMessage("WARNING: Attack menu failed to open. Retrying...")
+            continue
+        }
             
         ; Step 2: Click the gold "Find a Match" button (from Multiplayer dialog)
         LogMessage("Step 2: Clicking Find a Match...")
         ClickPoint(FindMatchBtnX, FindMatchBtnY)
-        if !SafeSleep(800) ; Wait for My Army dialog to open fully (was 350)
+        if !SafeSleep(1000) ; Wait for My Army dialog to open fully
             break
             
         ; Step 3: Click the green "Attack!" button (from My Army dialog)
         LogMessage("Step 3: Clicking Green Attack...")
         ClickPoint(AttackStartBtnX, AttackStartBtnY)
-        if !SafeSleep(500) ; Wait for clouds transition to start (was 250)
+        if !SafeSleep(1500) ; Wait for clouds transition to start
             break
+            
+        ; Verify we successfully left the Home Village (menus didn't get stuck)
+        if IsAtHomeVillage() {
+            LogMessage("WARNING: Failed to enter matchmaking search. Menu click missed. Retrying...")
+            continue
+        }
             
     WaitForClouds:
         ; Step 4: Wait for Clouds screen to end
@@ -1587,6 +1600,13 @@ StartBotLoop() {
         while AreCloudsPresent() {
             if !SafeSleep(250)
                 goto LoopExit
+            CheckGameTimeout()
+        }
+        
+        ; Check if we were kicked back to the Home Village (e.g. out of gold or error)
+        if IsAtHomeVillage() {
+            LogMessage("Farming: Detected back at Home Village during match search. Restarting cycle...")
+            continue
         }
         
         ; Wait for enemy layout to render
@@ -1634,6 +1654,10 @@ StartBotLoop() {
             GetLootValues(&gold, &elixir)
             
             if (gold < MinGold && elixir < MinElixir) {
+                if IsAtHomeVillage() {
+                    LogMessage("Farming: Detected Home Village during search. Restarting cycle...")
+                    continue
+                }
                 LogMessage(Format("Farming: Loot too low (G:{}/E:{}). Skipping base...", gold, elixir))
                 ClickPoint(NextMatchBtnX, NextMatchBtnY)
                 if !SafeSleep(1500) ; Wait for cloud transition to start
@@ -1719,11 +1743,23 @@ StartBotLoop() {
             
             ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
             
-            ; Check if home 2s after clicking (early detection)
             if !SafeSleep(2000)
                 goto LoopExit
+            
+            ; Unconditionally click where the Star Bonus "Okay" button would be
+            WinGetClientPos ,, &cw, &ch, TargetWindowTitle
+            if (cw && ch) {
+                ClickPoint(cw // 2, Integer(ch * 0.77))
+                SafeSleep(400)
+            }
+            
+            ; Dismiss Star Bonus or other post-battle popup screens
+            ClearingClick()
+            
             if IsAtHomeVillage()
                 break
+            
+            CheckGameTimeout()
             
             ; Wait the rest of the ~15s cycle before clicking again
             if !SafeSleep(Random(12000, 14000))
@@ -1750,6 +1786,17 @@ LoopExit:
 ; ==============================================================================
 ; HELPER FUNCTIONS
 ; ==============================================================================
+
+ClearingClick() {
+    global TargetWindowTitle
+    if EnsureWindowActive() {
+        WinGetClientPos ,, &cw, &ch, TargetWindowTitle
+        safeX := (cw * 8) // 10
+        safeY := (ch * 3) // 10
+        ClickPoint(safeX, safeY)
+        SafeSleep(300)
+    }
+}
 
 SafeSleep(ms) {
     global IsRunning, IsBBRunning
@@ -1933,7 +1980,7 @@ IsBrown(x, y) {
 }
 
 IsAtHomeVillage() {
-    global AttackBtnX, AttackBtnY
+    global AttackBtnX, AttackBtnY, MVLogoColor
     if !EnsureWindowActive()
         return false
     
@@ -1944,7 +1991,17 @@ IsAtHomeVillage() {
         
     ; Double-check after 300ms to ensure it's a static UI element, not a moving troop/explosion
     Sleep 300
-    return IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    isHome := IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    if !isHome
+        return false
+        
+    ; To prevent false-positives on the Battle End screen's brown background, require the MVLogo if calibrated
+    if (MVLogoColor != 0x000000) {
+        if !IsMVLogoPresent()
+            return false
+    }
+    
+    return true
 }
 
 IsMVLogoPresent() {
@@ -1986,8 +2043,9 @@ AreThreeStarsPresent() {
             b := hx & 0xFF
             ; Must have enough red/green (gold) and be distinctly not grey
             return (r > 120) && (r > b + 40) && (g > b + 20)
+        } catch {
+            return false
         }
-        return false
     }
 
     match1 := ColorMatches(BBStar1X, BBStar1Y, BBStarColor, 40) && IsGolden(BBStar1X, BBStar1Y)
@@ -2044,6 +2102,7 @@ RunBuilderBaseLoop() {
         while (AreCloudsPresent()) {
             if !SafeSleep(500)
                 goto BBLoopExit
+            CheckGameTimeout()
         }
         
         ; Deduct 10s from BattleLoadDelay to start faster, minimum 100ms
@@ -2116,8 +2175,20 @@ RunBuilderBaseLoop() {
             ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
             if !SafeSleep(2000)
                 goto BBLoopExit
+                
+            ; Unconditionally click where the Star Bonus "Okay" button would be
+            WinGetClientPos ,, &cw, &ch, TargetWindowTitle
+            if (cw && ch) {
+                ClickPoint(cw // 2, Integer(ch * 0.77))
+                SafeSleep(400)
+            }
+            
+            ; Dismiss Star Bonus or other post-battle popup screens
+            ClearingClick()
+            
             if IsAtBuilderBase()
                 break
+            CheckGameTimeout()
             if !SafeSleep(Random(12000, 14000))
                 goto BBLoopExit
         }
@@ -2220,8 +2291,8 @@ Space:: {
         return
     CoordMode "Mouse", "Screen"
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
-    global ReturnHomeX1, ReturnHomeY1, ReturnHomeX2, ReturnHomeY2, ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor
-    global BuilderFaceX, BuilderFaceY, BuilderAreaX, BuilderAreaY, BuilderAreaW, BuilderAreaH
+    global ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor
+    global BuilderFaceX, BuilderFaceY
     global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
@@ -2260,10 +2331,6 @@ Space:: {
         case 3:
             BuilderFaceX := mx
             BuilderFaceY := my
-            BuilderAreaX := mx - 60
-            BuilderAreaY := my - 20
-            BuilderAreaW := 120
-            BuilderAreaH := 40
             LogMessage(Format("Calibrated Builder Face Coordinate: {}, {}", mx, my))
             CalibStep := 4
             UpdateCalibrationUI()
@@ -2304,17 +2371,17 @@ Space:: {
             UpdateCalibrationUI()
             
         case 9:
-            AttackBtnX := mx
-            AttackBtnY := my
-            LogMessage(Format("Calibrated Attack Button: {}, {}", mx, my))
+            MVLogoX := mx
+            MVLogoY := my
+            MVLogoColor := PixelGetColor(mx, my)
+            LogMessage(Format("Calibrated War Logo: {}, {} (Color: {})", mx, my, MVLogoColor))
             CalibStep := 10
             UpdateCalibrationUI()
             
         case 10:
-            MVLogoX := mx
-            MVLogoY := my
-            MVLogoColor := PixelGetColor(mx, my)
-            LogMessage(Format("Calibrated Main Village Logo: {}, {} (Color: {})", mx, my, MVLogoColor))
+            AttackBtnX := mx
+            AttackBtnY := my
+            LogMessage(Format("Calibrated Attack Button: {}, {}", mx, my))
             CalibStep := 11
             UpdateCalibrationUI()
             
@@ -2413,10 +2480,10 @@ Space:: {
             
             ; Reconstruct the Sides array
             Sides := [
-                {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY, shiftX: -350},
-                {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY, shiftX: 350},
-                {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY, shiftX: 350},
-                {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY, shiftX: -350}
+                {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY},
+                {startX: Side2StartX, startY: Side2StartY, endX: Side2EndX, endY: Side2EndY},
+                {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY},
+                {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
             ]
             LogMessage("Reconstructed Sides array with newly calibrated points.")
             
@@ -2426,10 +2493,6 @@ Space:: {
         case 24:
             ReturnHomeClickX := mx
             ReturnHomeClickY := my
-            ReturnHomeX1 := mx
-            ReturnHomeY1 := my
-            ReturnHomeX2 := mx
-            ReturnHomeY2 := my
             ReturnHomeColor := PixelGetColor(mx, my)
             LogMessage(Format("Calibrated Return Home Button: {}, {} (Color: {})", mx, my, ReturnHomeColor))
             
@@ -2542,6 +2605,16 @@ UnifiedStart() {
         return
     }
     
+    ; 1. Check for game timeout immediately during start
+    CheckGameTimeout(true)
+    
+    ; 2. Clearing Click to close any open menus
+    ClearingClick()
+    
+    ; 3. Reset viewport so that the village check runs on a calibrated standard view
+    ResetViewport()
+    
+    ; 4. Check village type and start the appropriate loop
     if IsAtHomeVillage() {
         if (MVLogoColor == 0x000000) {
             LogMessage("WARNING: Main Village Logo is uncalibrated! Please run Main Calib (^F1).")
