@@ -2621,6 +2621,9 @@ UnifiedStart() {
         return
     }
     
+    ; Automatically connect to the ADB emulator on start
+    RunWait('"' A_ScriptDir '\adb.exe" connect localhost:6520', , "Hide")
+    
     ; 1. Check for game timeout immediately during start
     CheckGameTimeout(true)
     
