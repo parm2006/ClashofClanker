@@ -2621,8 +2621,37 @@ UnifiedStart() {
         return
     }
     
-    ; Automatically connect to the ADB emulator on start
+    ; 1. If the emulator itself is not open, launch it and wait for it
+    if !WinExist("Google Play Games on PC Emulator") && !WinExist(TargetWindowTitle) {
+        LogMessage("Developer Emulator not running. Launching emulator...")
+        Run('"C:\Program Files\Google\Play Games Developer Emulator\Bootstrapper.exe"')
+        
+        ; Wait up to 30 seconds for the emulator window to load
+        Loop 60 {
+            if WinExist("Google Play Games on PC Emulator") || WinExist(TargetWindowTitle)
+                break
+            Sleep 500
+        }
+        
+        ; Sleep an extra 5 seconds to let the Android system fully boot
+        Sleep 5000
+    }
+
+    ; 2. Automatically connect to the ADB emulator
     RunWait('"' A_ScriptDir '\adb.exe" connect localhost:6520', , "Hide")
+    
+    ; 3. If the game is not running, launch Clash of Clans inside the emulator
+    if !WinExist(TargetWindowTitle) {
+        LogMessage("Game window not found. Launching Clash of Clans via ADB...")
+        RunWait('"' A_ScriptDir '\adb.exe" -s localhost:6520 shell monkey -p com.supercell.clashofclans -c android.intent.category.LAUNCHER 1', , "Hide")
+        
+        ; Wait up to 15 seconds for the window to appear
+        Loop 30 {
+            if WinExist(TargetWindowTitle)
+                break
+            Sleep 500
+        }
+    }
     
     ; 1. Check for game timeout immediately during start
     CheckGameTimeout(true)
