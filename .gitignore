@@ -5,3 +5,10 @@ config.ini
 cliimages/
 scratch/
 *.diff
+
+# ADB binaries and support files
+*.exe
+*.dll
+*.conf
+*.properties
+NOTICE.txt

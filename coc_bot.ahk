@@ -1327,8 +1327,8 @@ FindAnyWallInDropdown() {
     MouseMove BuilderFaceX, BuilderFaceY + 150
     Sleep 200
     
-    ; Scroll down in chunks until we see ANY Wall text
-    Loop 4 {
+    ; Scroll down in chunks until we see ANY Wall text (repeating up to 8 times)
+    Loop 8 {
         try {
             result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
             for line in result.Lines {
@@ -1341,11 +1341,8 @@ FindAnyWallInDropdown() {
             }
         }
         
-        ; If we didn't find it, scroll down and search again
-        Loop 4 {
-            Click "WheelDown"
-            Sleep 150
-        }
+        ; If we didn't find it, swipe up (scroll down) and search again via ADB
+        MouseDragClient(BuilderFaceX, Integer(menuTop + menuHeight * 0.75), BuilderFaceX, Integer(menuTop + menuHeight * 0.25))
         Sleep 800
     }
     return false
@@ -1817,7 +1814,7 @@ SafeSleep(ms) {
 }
 
 PerformClick(x, y) {
-    RunWait(A_ComSpec " /c adb shell input tap " Round(x) " " Round(y), , "Hide")
+    RunWait('"' A_ScriptDir '\adb.exe" -s localhost:6520 shell input tap ' Round(x) ' ' Round(y), , "Hide")
 }
 
 RandomClick(x, y, delta) {
@@ -2208,15 +2205,29 @@ BBLoopExit:
     StatusText.Value := "Status: Stopped"
 }
 
+ADBPinchZoomOut() {
+    global TargetWindowTitle
+    WinGetClientPos ,, &w, &h, TargetWindowTitle
+    if (w && h) {
+        cx := w // 2
+        cy := h // 2
+        
+        f1X := Round(cx - (w * 0.15))
+        f2X := Round(cx + (w * 0.15))
+        
+        f1Y_start := Round(cy - (h * 0.15))
+        f2Y_start := Round(cy + (h * 0.15))
+        
+        cmd := Format('"{1}\adb.exe" -s localhost:6520 shell "input touchscreen swipe {2} {3} {2} {4} 300 & input touchscreen swipe {5} {6} {5} {4} 300"', A_ScriptDir, f1X, f1Y_start, cy, f2X, f2Y_start)
+        RunWait(cmd, , "Hide")
+        Sleep 450
+    }
+}
+
 MouseDragClient(x1, y1, x2, y2, speed := 15) {
-    CoordMode "Mouse", "Client"
-    MouseMove x1, y1, 0
-    Sleep 80
-    Click "Down"
-    Sleep 80
-    MouseMove x2, y2, speed
-    Sleep 80
-    Click "Up"
+    duration := 350
+    cmd := Format('"{1}\adb.exe" -s localhost:6520 shell input swipe {2} {3} {4} {5} {6}', A_ScriptDir, Round(x1), Round(y1), Round(x2), Round(y2), duration)
+    RunWait(cmd, , "Hide")
     Sleep 100
 }
 
@@ -2234,10 +2245,10 @@ ResetViewport() {
         Sleep 300
     }
         
-    LogMessage("Viewport: Zooming all the way out...")
-    Loop 25 {
-        Send "^{WheelDown}"
-        Sleep 40
+    LogMessage("Viewport: Zooming all the way out via ADB pinch...")
+    Loop 4 {
+        ADBPinchZoomOut()
+        Sleep 100
     }
     Sleep 300
     
