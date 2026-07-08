@@ -15,6 +15,7 @@ global ButtonDelta := 5
 global DeployDelta := 25
 global TransitionDelay := 500
 global BattleLoadDelay := 1500
+global BBClickCount := 1
 
 ; --- Farming Thresholds & Toggles ---
 global MinGold := 500000
@@ -120,6 +121,19 @@ global Sides := [
     {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
 ]
 
+; --- Builder Base Attack Sides Calibration Globals ---
+global BBSide1StartX := 1750, BBSide1StartY := 520, BBSide1EndX := 1400, BBSide1EndY := 800
+global BBSide2StartX := 150, BBSide2StartY := 510, BBSide2EndX := 600, BBSide2EndY := 850
+global BBSide3StartX := 150, BBSide3StartY := 510, BBSide3EndX := 507, BBSide3EndY := 230
+global BBSide4StartX := 1131, BBSide4StartY := 40, BBSide4EndX := 1506, BBSide4EndY := 312
+
+global BBSides := [
+    {startX: BBSide1StartX, startY: BBSide1StartY, endX: BBSide1EndX, endY: BBSide1EndY},
+    {startX: BBSide2StartX, startY: BBSide2StartY, endX: BBSide2EndX, endY: BBSide2EndY},
+    {startX: BBSide3StartX, startY: BBSide3StartY, endX: BBSide3EndX, endY: BBSide3EndY},
+    {startX: BBSide4StartX, startY: BBSide4StartY, endX: BBSide4EndX, endY: BBSide4EndY}
+]
+
 ; ==============================================================================
 ; STATE CONTROL
 ; ==============================================================================
@@ -188,12 +202,18 @@ LoadConfig() {
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
     global Sides
+    global BBSide1StartX, BBSide1StartY, BBSide1EndX, BBSide1EndY
+    global BBSide2StartX, BBSide2StartY, BBSide2EndX, BBSide2EndY
+    global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
+    global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
+    global BBSides
     
     TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", "Clash of Clans")
     ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
     DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 25)
     TransitionDelay := SafeInteger(IniRead("config.ini", "Settings", "TransitionDelay", ""), 500)
     BattleLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "BattleLoadDelay", ""), 1500)
+    BBClickCount := SafeInteger(IniRead("config.ini", "Settings", "BBClickCount", ""), 1)
 
     MinGold := SafeInteger(IniRead("config.ini", "Farming", "MinGold", ""), 500000)
     MinElixir := SafeInteger(IniRead("config.ini", "Farming", "MinElixir", ""), 500000)
@@ -317,6 +337,33 @@ LoadConfig() {
         {startX: Side3StartX, startY: Side3StartY, endX: Side3EndX, endY: Side3EndY},
         {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
     ]
+
+    BBSide1StartX := Integer(IniRead("config.ini", "Coordinates", "BBSide1StartX", 1750))
+    BBSide1StartY := Integer(IniRead("config.ini", "Coordinates", "BBSide1StartY", 520))
+    BBSide1EndX := Integer(IniRead("config.ini", "Coordinates", "BBSide1EndX", 1400))
+    BBSide1EndY := Integer(IniRead("config.ini", "Coordinates", "BBSide1EndY", 800))
+
+    BBSide2StartX := Integer(IniRead("config.ini", "Coordinates", "BBSide2StartX", 150))
+    BBSide2StartY := Integer(IniRead("config.ini", "Coordinates", "BBSide2StartY", 510))
+    BBSide2EndX := Integer(IniRead("config.ini", "Coordinates", "BBSide2EndX", 600))
+    BBSide2EndY := Integer(IniRead("config.ini", "Coordinates", "BBSide2EndY", 850))
+
+    BBSide3StartX := Integer(IniRead("config.ini", "Coordinates", "BBSide3StartX", 150))
+    BBSide3StartY := Integer(IniRead("config.ini", "Coordinates", "BBSide3StartY", 510))
+    BBSide3EndX := Integer(IniRead("config.ini", "Coordinates", "BBSide3EndX", 507))
+    BBSide3EndY := Integer(IniRead("config.ini", "Coordinates", "BBSide3EndY", 230))
+
+    BBSide4StartX := Integer(IniRead("config.ini", "Coordinates", "BBSide4StartX", 1131))
+    BBSide4StartY := Integer(IniRead("config.ini", "Coordinates", "BBSide4StartY", 40))
+    BBSide4EndX := Integer(IniRead("config.ini", "Coordinates", "BBSide4EndX", 1506))
+    BBSide4EndY := Integer(IniRead("config.ini", "Coordinates", "BBSide4EndY", 312))
+
+    BBSides := [
+        {startX: BBSide1StartX, startY: BBSide1StartY, endX: BBSide1EndX, endY: BBSide1EndY},
+        {startX: BBSide2StartX, startY: BBSide2StartY, endX: BBSide2EndX, endY: BBSide2EndY},
+        {startX: BBSide3StartX, startY: BBSide3StartY, endX: BBSide3EndX, endY: BBSide3EndY},
+        {startX: BBSide4StartX, startY: BBSide4StartY, endX: BBSide4EndX, endY: BBSide4EndY}
+    ]
 }
 
 SaveConfig() {
@@ -339,11 +386,16 @@ SaveConfig() {
     global Side2StartX, Side2StartY, Side2EndX, Side2EndY
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
+    global BBSide1StartX, BBSide1StartY, BBSide1EndX, BBSide1EndY
+    global BBSide2StartX, BBSide2StartY, BBSide2EndX, BBSide2EndY
+    global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
+    global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
 
     IniWrite(ButtonDelta, "config.ini", "Settings", "ButtonDelta")
     IniWrite(DeployDelta, "config.ini", "Settings", "DeployDelta")
     IniWrite(TransitionDelay, "config.ini", "Settings", "TransitionDelay")
     IniWrite(BattleLoadDelay, "config.ini", "Settings", "BattleLoadDelay")
+    IniWrite(BBClickCount, "config.ini", "Settings", "BBClickCount")
 
     IniWrite(MinGold, "config.ini", "Farming", "MinGold")
     IniWrite(MinElixir, "config.ini", "Farming", "MinElixir")
@@ -443,6 +495,26 @@ SaveConfig() {
     IniWrite(Side4EndX, "config.ini", "Coordinates", "Side4EndX")
     IniWrite(Side4EndY, "config.ini", "Coordinates", "Side4EndY")
 
+    IniWrite(BBSide1StartX, "config.ini", "Coordinates", "BBSide1StartX")
+    IniWrite(BBSide1StartY, "config.ini", "Coordinates", "BBSide1StartY")
+    IniWrite(BBSide1EndX, "config.ini", "Coordinates", "BBSide1EndX")
+    IniWrite(BBSide1EndY, "config.ini", "Coordinates", "BBSide1EndY")
+
+    IniWrite(BBSide2StartX, "config.ini", "Coordinates", "BBSide2StartX")
+    IniWrite(BBSide2StartY, "config.ini", "Coordinates", "BBSide2StartY")
+    IniWrite(BBSide2EndX, "config.ini", "Coordinates", "BBSide2EndX")
+    IniWrite(BBSide2EndY, "config.ini", "Coordinates", "BBSide2EndY")
+
+    IniWrite(BBSide3StartX, "config.ini", "Coordinates", "BBSide3StartX")
+    IniWrite(BBSide3StartY, "config.ini", "Coordinates", "BBSide3StartY")
+    IniWrite(BBSide3EndX, "config.ini", "Coordinates", "BBSide3EndX")
+    IniWrite(BBSide3EndY, "config.ini", "Coordinates", "BBSide3EndY")
+
+    IniWrite(BBSide4StartX, "config.ini", "Coordinates", "BBSide4StartX")
+    IniWrite(BBSide4StartY, "config.ini", "Coordinates", "BBSide4StartY")
+    IniWrite(BBSide4EndX, "config.ini", "Coordinates", "BBSide4EndX")
+    IniWrite(BBSide4EndY, "config.ini", "Coordinates", "BBSide4EndY")
+
     collectorStr := ""
     for coord in CollectorCoords {
         collectorStr .= coord.x "," coord.y ";"
@@ -457,7 +529,7 @@ SaveConfig() {
 CreateGUI() {
     global MyGui, EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade, TextCollectorCount
-    global LogEdit, StatusText, StartBtn, PauseBtn, CalibrationText
+    global LogEdit, StatusText, StartBtn, PauseBtn, CalibrationText, EditBBClickCount
     
     MyGui := Gui("+Resize +MinSize380x470", "CoC Bot Controller")
     
@@ -495,7 +567,7 @@ CreateGUI() {
     CalibrationText := MyGui.Add("Text", "x20 y120 w320 h100 +Border", "Calibration is inactive.`n`nClick a start button to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
     
-    MyGui.Add("Text", "x20 y230 w320 h195", "Instructions:`nHover mouse over target and press SPACE.`n`nMain Steps (25 total):`n1-3. Gold/Elixir Storage Bar, Builder Face (Home)`n4-8. Upgrade More, Add/Remove Wall, G/E Upgrade`n9-11. War Logo, Attack, Find Match (Menus)`n12-14. Green Attack, Loot Area G/E (Battle)`n15-23. Next Match, Sides 1-4 Start/End`n24. Return Home Button (Battle End)`n25. Collector Coordinates (Home - press ENTER).`n`nBB Steps (5 total):`n1-2. Attack, Find Match`n3-5. Star 1, 2, 3 Centers")
+    MyGui.Add("Text", "x20 y230 w320 h195", "Instructions:`nHover mouse over target and press SPACE.`n`nMain Steps (25 total):`n1-3. Gold/Elixir Storage Bar, Builder Face (Home)`n4-8. Upgrade More, Add/Remove Wall, G/E Upgrade`n9-11. War Logo, Attack, Find Match (Menus)`n12-14. Green Attack, Loot Area G/E (Battle)`n15-23. Next Match, Sides 1-4 Start/End`n24. Return Home Button (Battle End)`n25. Collector Coordinates (Home - press ENTER).`n`nBB Steps (13 total):`n1-2. Attack, Find Match`n3-5. Star 1, 2, 3 Centers`n6-13. BB Sides 1-4 Start/End")
     
     ; --- TAB 3: Farming ---
     Tab.UseTab(3)
@@ -525,6 +597,10 @@ CreateGUI() {
     MyGui.Add("GroupBox", "x20 y45 w320 h70", "Delays (milliseconds)")
     MyGui.Add("Text", "x35 y70 w180 h20", "Battle Load Delay:")
     EditBattleLoad := MyGui.Add("Edit", "x220 y68 w100 h20 Number", String(BattleLoadDelay))
+    
+    MyGui.Add("GroupBox", "x20 y120 w320 h60", "Builder Base Settings")
+    MyGui.Add("Text", "x35 y145 w180 h20", "Clicks per Troop Slot:")
+    EditBBClickCount := MyGui.Add("Edit", "x220 y143 w100 h20 Number", String(BBClickCount))
     
     MyGui.Add("GroupBox", "x20 y185 w320 h90", "Randomization Offsets (pixels)")
     MyGui.Add("Text", "x35 y210 w180 h20", "Button Click Delta (+/-):")
@@ -575,12 +651,13 @@ LogMessage(message) {
 ApplyAndSaveSettings() {
     global TargetWindowTitle, BattleLoadDelay, ButtonDelta, DeployDelta
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade
-    global Troop1Count, Troop2Count, Troop3Count
+    global Troop1Count, Troop2Count, Troop3Count, BBClickCount
     global EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade
-    global EditTroop1Count, EditTroop2Count, EditTroop3Count
+    global EditTroop1Count, EditTroop2Count, EditTroop3Count, EditBBClickCount
     
     TargetWindowTitle := EditWindow.Value
+    BBClickCount := Integer(EditBBClickCount.Value)
     BattleLoadDelay := Integer(EditBattleLoad.Value)
     ButtonDelta := Integer(EditButtonDelta.Value)
     DeployDelta := Integer(EditDeployDelta.Value)
@@ -746,15 +823,31 @@ UpdateBBCalibrationUI() {
     instructions := ""
     switch BBCalibStep {
         case 1:
-            instructions := "Step 1/5: Builder Base Attack Button`n`nHover mouse over the 'Attack!' button in Builder Base and press SPACE."
+            instructions := "Step 1/13: Builder Base Attack Button`n`nHover mouse over the 'Attack!' button in Builder Base and press SPACE."
         case 2:
-            instructions := "Step 2/5: Builder Base Find Match Button`n`nHover mouse over the 'Find a Match!' button and press SPACE."
+            instructions := "Step 2/13: Builder Base Find Match Button`n`nHover mouse over the 'Find a Match!' button and press SPACE."
         case 3:
-            instructions := "Step 3/5: Star 1 Center (Overall Damage Screen)`n`nHover mouse exactly over the center of the first star on the results screen and press SPACE."
+            instructions := "Step 3/13: Star 1 Center (Overall Damage Screen)`n`nHover mouse exactly over the center of the first star on the results screen and press SPACE."
         case 4:
-            instructions := "Step 4/5: Star 2 Center`n`nHover mouse exactly over the center of the second star and press SPACE."
+            instructions := "Step 4/13: Star 2 Center`n`nHover mouse exactly over the center of the second star and press SPACE."
         case 5:
-            instructions := "Step 5/5: Star 3 Center`n`nHover mouse exactly over the center of the third star and press SPACE.`n`nPress ENTER to finish and save."
+            instructions := "Step 5/13: Star 3 Center`n`nHover mouse exactly over the center of the third star and press SPACE."
+        case 6:
+            instructions := "Step 6/13: BB Side 1 (Bottom-Right) Start`n`nHover mouse over starting point of bottom-right deployment line and press SPACE."
+        case 7:
+            instructions := "Step 7/13: BB Side 1 (Bottom-Right) End`n`nHover mouse over ending point of bottom-right deployment line and press SPACE."
+        case 8:
+            instructions := "Step 8/13: BB Side 2 (Bottom-Left) Start`n`nHover mouse over starting point of bottom-left deployment line and press SPACE."
+        case 9:
+            instructions := "Step 9/13: BB Side 2 (Bottom-Left) End`n`nHover mouse over ending point of bottom-left deployment line and press SPACE."
+        case 10:
+            instructions := "Step 10/13: BB Side 3 (Top-Left) Start`n`nHover mouse over starting point of top-left deployment line and press SPACE."
+        case 11:
+            instructions := "Step 11/13: BB Side 3 (Top-Left) End`n`nHover mouse over ending point of top-left deployment line and press SPACE."
+        case 12:
+            instructions := "Step 12/13: BB Side 4 (Top-Right) Start`n`nHover mouse over starting point of top-right deployment line and press SPACE."
+        case 13:
+            instructions := "Step 13/13: BB Side 4 (Top-Right) End`n`nHover mouse over ending point of top-right deployment line and press SPACE.`n`nPress ENTER to finish and save."
     }
     if (instructions != "") {
         CalibrationText.Value := instructions
@@ -1167,38 +1260,45 @@ GetBuilderCount(&free, &total) {
     scrW := 130
     scrH := 30
     
-    try {
-        result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: 2.5})
-        text := StrReplace(result.Text, " ", "")
-        
-        LogMessage("Builder OCR raw text: '" text "'")
-        
-        if RegExMatch(text, "(\d)[/|iI1](\d)", &match) {
-            free := Integer(match[1])
-            total := Integer(match[2])
-            LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
-            return true
+    scales := [3.5, 3.0, 2.5, 2.0, 1.5]
+    for sc in scales {
+        try {
+            result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: sc})
+            text := StrReplace(result.Text, " ", "")
+            
+            LogMessage("Builder OCR (scale " sc ") raw text: '" text "'")
+            
+            if RegExMatch(text, "(\d)[/|iI1\-:.](\d)", &match) {
+                free := Integer(match[1])
+                total := Integer(match[2])
+                LogMessage(Format("Builder OCR parsed: {}/{} (using scale {})", free, total, sc))
+                return true
+            }
         }
-    }
-    catch as err {
-        LogMessage("Builder OCR error: " err.Message)
+        catch as err {
+            LogMessage("Builder OCR error: " err.Message)
+        }
     }
     return false
 }
 
 AreBuildersBusy() {
-    free := 0
-    total := 0
-    if GetBuilderCount(&free, &total) {
-        if (total == 7) {
-            return free < 2
-        }
-        if (total <= 6 && total > 0) {
-            return free < 1
-        }
-    }
-    LogMessage("Farming: Builder count OCR failed or invalid. Assuming busy to prevent accidental gem spending.")
-    return true
+    ; TODO: Re-enable Builder count OCR later when calibration / screen issue is resolved
+    ; free := 0
+    ; total := 0
+    ; if GetBuilderCount(&free, &total) {
+    ;     if (total == 7) {
+    ;         return free < 2
+    ;     }
+    ;     if (total <= 6 && total > 0) {
+    ;         return free < 1
+    ;     }
+    ; }
+    ; LogMessage("Farming: Builder count OCR failed or invalid. Assuming busy to prevent accidental gem spending.")
+    ; return true
+    
+    ; Temporarily assume we always have an available builder
+    return false
 }
 
 FindCenterGreenButton(&outX, &outY) {
@@ -1234,8 +1334,9 @@ FindCenterGreenButton(&outX, &outY) {
     return false
 }
 
-ProcessWallUpgrade(upgradeX, upgradeY) {
+ProcessWallUpgrade(upgradeX, upgradeY, resourceType) {
     global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, ReturnHomeClickX, ReturnHomeClickY
+    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     
     wallCount := 4
     ; First, add 3 walls to reach the maximum 4
@@ -1260,6 +1361,21 @@ ProcessWallUpgrade(upgradeX, upgradeY) {
                 
             ; 2. Check if a SECOND green button is present (this means it was too expensive and the Gem popup appeared)
             if FindCenterGreenButton(&gx2, &gy2) {
+                ; Verify the resource threshold is still met before trying to remove a wall and retrying
+                stillHasResources := false
+                if (resourceType == "gold") {
+                    stillHasResources := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
+                } else if (resourceType == "elixir") {
+                    stillHasResources := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+                }
+                
+                if !stillHasResources {
+                    LogMessage(Format("Farming: {} threshold no longer met after upgrade attempt (resources spent). Stopping.", resourceType))
+                    ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss Gem popup
+                    SafeSleep(500)
+                    break
+                }
+                
                 LogMessage("Farming: Upgrade too expensive (Gem popup detected). Removing one wall...")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss Gem popup
                 if !SafeSleep(800)
@@ -1327,15 +1443,22 @@ FindAnyWallInDropdown() {
     
     ; Scroll down in chunks until we see ANY Wall text
     Loop 4 {
-        try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: 2})
-            for line in result.Lines {
-                if InStr(line.Text, "Wall") {
-                    relX := (line.x + (line.w / 2)) - cx
-                    relY := (line.y + (line.h / 2)) - cy
-                    ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
-                    return true
+        for sc in [2.5, 2.0, 3.0] {
+            try {
+                result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
+                for line in result.Lines {
+                    ; Matches Wall, wall, Wa11, WaIl, Wail, Vall, val1, wal, val, etc.
+                    if RegExMatch(line.Text, "i)\b[vw][aAeEoOuU01iI][lLiI1t]{1,2}\b") {
+                        LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", line.Text, sc))
+                        relX := (line.x + (line.w / 2)) - cx
+                        relY := (line.y + (line.h / 2)) - cy
+                        ClickPoint(relX, relY, 2) ; Use a tiny delta of 2 to avoid clicking through transparent background
+                        return true
+                    }
                 }
+            }
+            catch as err {
+                LogMessage("Farming: OCR error in suggestions dropdown: " err.Message)
             }
         }
         
@@ -1390,7 +1513,7 @@ UpgradeWalls() {
                 if !SafeSleep(800)
                     return
                 
-                ProcessWallUpgrade(ElixirUpgradeX, ElixirUpgradeY)
+                ProcessWallUpgrade(ElixirUpgradeX, ElixirUpgradeY, "elixir")
             } else {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
@@ -1414,7 +1537,7 @@ UpgradeWalls() {
                 if !SafeSleep(800)
                     return
                     
-                ProcessWallUpgrade(GoldUpgradeX, GoldUpgradeY)
+                ProcessWallUpgrade(GoldUpgradeX, GoldUpgradeY, "gold")
             } else {
                 LogMessage("Farming: No Wall upgrades found in builder suggestions.")
                 ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
@@ -1433,8 +1556,8 @@ IsReturnHomePresent() {
     if ColorMatches(ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance)
         return true
         
-    ; 2. Fallback: Scan a vertical line of pixels to find the green background (avoiding white text)
-    offsets := [-20, -10, 0, 10, 20]
+    ; 2. Fallback: Scan a vertical line of pixels to find the specific bright green button background (avoiding white text)
+    offsets := [-25, -15, -5, 5, 15, 25]
     for dy in offsets {
         try {
             c := PixelGetColor(ReturnHomeClickX, ReturnHomeClickY + dy)
@@ -1443,8 +1566,8 @@ IsReturnHomePresent() {
             g := (actualHex >> 8) & 0xFF
             b := actualHex & 0xFF
             
-            ; Green button typical RGB ranges (e.g. 95, 164, 26)
-            if (g > r + 30) && (g > b + 30) && (g > 100)
+            ; Bright green button check (guaranteed not to match day/night battlefield grass)
+            if (g > 140) && (g > r + 35) && (g > b + 70)
                 return true
         }
     }
@@ -1625,9 +1748,9 @@ StartBotLoop() {
         lineEndX := side.endX
         lineEndY := side.endY
         
-        ; Shift spell line towards the center of the window by 250 pixels
-        spellStart := ShiftPointTowardsCenter(lineStartX, lineStartY, 250)
-        spellEnd := ShiftPointTowardsCenter(lineEndX, lineEndY, 250)
+        ; Shift spell line towards the center of the window by 200 pixels
+        spellStart := ShiftPointTowardsCenter(lineStartX, lineStartY, 200)
+        spellEnd := ShiftPointTowardsCenter(lineEndX, lineEndY, 200)
         
         aLineStartX := spellStart.x
         aLineStartY := spellStart.y
@@ -1727,7 +1850,8 @@ StartBotLoop() {
             
         ; 6. Deploy Spell (a)
         LogMessage("Deploying Spell (a)...")
-        DeploySingleLine("a", 5, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
+        DeploySingleLine("a", 32, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
+        DeploySingleLine("s", 5, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
         if !IsRunning
             break
             
@@ -1857,7 +1981,7 @@ DeployTroopLine(hotkeyName, clickCount, delayMs, startX, startY, endX, endY) {
     Loop clickCount {
         if !IsRunning
             break
-        t := (clickCount > 1) ? (A_Index - 1) / (clickCount - 1) : 0.5
+        t := (clickCount > 1) ? (A_Index - 1) / (clickCount - 1) : 0
         rx := startX + t * (endX - startX)
         ry := startY + t * (endY - startY)
         
@@ -1926,6 +2050,20 @@ ColorMatches(x, y, targetColorRGB, tolerance := 20) {
         return (diffR <= tolerance) && (diffG <= tolerance) && (diffB <= tolerance)
     }
     catch {
+        return false
+    }
+}
+
+IsGolden(x, y) {
+    try {
+        c := PixelGetColor(x, y)
+        hx := Integer(c)
+        r := (hx >> 16) & 0xFF
+        g := (hx >> 8) & 0xFF
+        b := hx & 0xFF
+        ; Must have enough red/green (gold) and be distinctly not grey
+        return (r > 120) && (r > b + 40) && (g > b + 20)
+    } catch {
         return false
     }
 }
@@ -2028,44 +2166,28 @@ IsAtBuilderBase() {
     return IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
 }
 
-AreThreeStarsPresent() {
-    global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
-    if !EnsureWindowActive()
-        return false
-        
-    ; Helper to ensure the pixel is actually golden/brown (not black/grey)
-    IsGolden(x, y) {
-        try {
-            c := PixelGetColor(x, y)
-            hx := Integer(c)
-            r := (hx >> 16) & 0xFF
-            g := (hx >> 8) & 0xFF
-            b := hx & 0xFF
-            ; Must have enough red/green (gold) and be distinctly not grey
-            return (r > 120) && (r > b + 40) && (g > b + 20)
-        } catch {
-            return false
-        }
-    }
 
-    match1 := ColorMatches(BBStar1X, BBStar1Y, BBStarColor, 40) && IsGolden(BBStar1X, BBStar1Y)
-    match2 := ColorMatches(BBStar2X, BBStar2Y, BBStarColor, 40) && IsGolden(BBStar2X, BBStar2Y)
-    match3 := ColorMatches(BBStar3X, BBStar3Y, BBStarColor, 40) && IsGolden(BBStar3X, BBStar3Y)
+
+DeployBBTroops(side, phase) {
+    global DeployDelta, BBClickCount
+    ; Phase 1 deploys Hero (Q) and slots 1-6. Phase 2 deploys Hero (Q) and slots 1-8.
+    keys := (phase == 1) ? ["q", "1", "2", "3", "4", "5", "6"] : ["q", "1", "2", "3", "4", "5", "6", "7", "8"]
     
-    return match1 && match2 && match3
-}
-
-DeployBBTroops(side) {
-    global DeployDelta
-    ; Deploy Hero (Q) and Troops (1-8) along the side
-    for key in ["q", "1", "2", "3", "4", "5", "6", "7", "8"] {
+    for key in keys {
         SendKey(key)
         SafeSleep(175)
-        ; Spread clicks along line
-        Loop 3 {
-            t := (A_Index - 1) / 2
-            rx := side.startX + t * (side.endX - side.startX)
-            ry := side.startY + t * (side.endY - side.startY)
+        
+        clickCount := BBClickCount
+        Loop clickCount {
+            t := (clickCount > 1) ? (A_Index - 1) / (clickCount - 1) : 0
+            shiftedStart := ShiftPointTowardsCenter(side.startX, side.startY, 30)
+            shiftedEnd := ShiftPointTowardsCenter(side.endX, side.endY, 30)
+            rx := shiftedStart.x + t * (shiftedEnd.x - shiftedStart.x)
+            ry := shiftedStart.y + t * (shiftedEnd.y - shiftedStart.y)
+            
+            ; Safety clamp: Ensure deployment clicks never go too low into the bottom UI (troop bar/abilities/boost potions)
+            ry := Min(ry, 900)
+            
             RandomClick(rx, ry, DeployDelta)
             SafeSleep(100)
         }
@@ -2112,19 +2234,19 @@ RunBuilderBaseLoop() {
             
         ; Pick random side
         sideIdx := Random(1, 4)
-        chosenSide := Sides[sideIdx]
+        chosenSide := BBSides[sideIdx]
         LogMessage("Step 5: Picked Side " sideIdx " for BB deployment.")
-        
-        DeployBBTroops(chosenSide)
+        ZoomOutBB()
+        DeployBBTroops(chosenSide, 1)
         
         LogMessage("Step 6: Phase 1 battle running. Monitoring for 3-stars or early finish...")
         waitTimer := 0
         threeStars := false
-        while (waitTimer < 180) {
+        while (waitTimer < 900) { ; 900 * 200ms = 180 seconds
             if !IsBBRunning
                 goto BBLoopExit
                 
-            if AreThreeStarsPresent() {
+            if IsGolden(BBStar3X, BBStar3Y) {
                 threeStars := true
                 break
             }
@@ -2132,9 +2254,71 @@ RunBuilderBaseLoop() {
                 LogMessage("Phase 1 finished early (Return Home detected).")
                 break
             }
-            if !SafeSleep(1000)
+            if !SafeSleep(200)
                 goto BBLoopExit
             waitTimer++
+        }
+        
+        if !threeStars {
+            LogMessage("Step 6.5: Phase 1 might be running or finished. Periodically checking...")
+            waitTimerPost := 0
+            while (waitTimerPost < 12) { ; Check for up to 180 seconds (12 * 15s)
+                if !IsBBRunning
+                    goto BBLoopExit
+                
+                ; Check if we achieved 3 stars while waiting
+                if IsGolden(BBStar3X, BBStar3Y) {
+                    threeStars := true
+                    LogMessage("Safeguard: 3 stars detected during post-check. Switching to Phase 2!")
+                    break
+                }
+                
+                ; Check if we are already back at the Builder Base (battle ended and we returned home)
+                if IsAtBuilderBase() {
+                    LogMessage("Returned to Builder Base during post-check.")
+                    break
+                }
+                
+                ; Click Return Home
+                LogMessage("Clicking Return Home...")
+                ClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+                if !SafeSleep(2000)
+                    goto BBLoopExit
+                
+                ; Unconditionally click Okay to dismiss popups
+                WinGetClientPos ,, &cw, &ch, TargetWindowTitle
+                if (cw && ch) {
+                    ClickPoint(cw // 2, Integer(ch * 0.77))
+                    SafeSleep(400)
+                }
+                ClearingClick()
+                
+                if IsAtBuilderBase()
+                    break
+                
+                CheckGameTimeout()
+                
+                ; Instead of sleeping 13 seconds all at once, sleep in 200ms chunks and check for 3 stars!
+                loopCount := 13000 // 200
+                Loop loopCount {
+                    if !IsBBRunning
+                        goto BBLoopExit
+                        
+                    if IsGolden(BBStar3X, BBStar3Y) {
+                        threeStars := true
+                        LogMessage("Safeguard: 3 stars detected during post-check delay! Switching to Phase 2.")
+                        break 2
+                    }
+                    
+                    if !SafeSleep(200)
+                        goto BBLoopExit
+                }
+                
+                if threeStars
+                    break
+                
+                waitTimerPost++
+            }
         }
         
         if threeStars {
@@ -2143,7 +2327,8 @@ RunBuilderBaseLoop() {
                 goto BBLoopExit
                 
             LogMessage("Phase 2 starting. Deploying on Side " sideIdx)
-            DeployBBTroops(chosenSide)
+            ZoomOutBB()
+            DeployBBTroops(chosenSide, 2)
             
             LogMessage("Step 8: Phase 2 battle running. Monitoring for Return Home...")
             waitTimer2 := 0
@@ -2246,6 +2431,27 @@ ResetViewport() {
             MouseDragClient(cx - (w * 0.25), cy - (h * 0.25), cx + (w * 0.25), cy + (h * 0.25), 15)
             Sleep 100
         }
+    }
+    Sleep 300
+}
+
+ZoomOutBB() {
+    if !EnsureWindowActive()
+        return
+        
+    CoordMode "Mouse", "Client"
+    WinGetClientPos ,, &w, &h, TargetWindowTitle
+    if (w && h) {
+        cx := w // 2
+        cy := h // 2
+        MouseMove cx, cy, 0
+        Sleep 100
+    }
+        
+    LogMessage("Viewport: Zooming all the way out for Builder Base...")
+    Loop 25 {
+        Send "^{WheelDown}"
+        Sleep 40
     }
     Sleep 300
 }
@@ -2400,18 +2606,18 @@ Space:: {
             UpdateCalibrationUI()
             
         case 13:
-            GoldAreaX := mx - 75
+            GoldAreaX := mx - 120
             GoldAreaY := my - 15
-            GoldAreaW := 150
+            GoldAreaW := 220
             GoldAreaH := 30
             LogMessage(Format("Calibrated Gold Search Loot Area: {}, {}", mx, my))
             CalibStep := 14
             UpdateCalibrationUI()
             
         case 14:
-            ElixirAreaX := mx - 75
+            ElixirAreaX := mx - 120
             ElixirAreaY := my - 15
-            ElixirAreaW := 150
+            ElixirAreaW := 220
             ElixirAreaH := 30
             LogMessage(Format("Calibrated Elixir Search Loot Area: {}, {}", mx, my))
             CalibStep := 15
@@ -2540,6 +2746,11 @@ Space:: {
     CoordMode "Mouse", "Screen"
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
+    global BBSide1StartX, BBSide1StartY, BBSide1EndX, BBSide1EndY
+    global BBSide2StartX, BBSide2StartY, BBSide2EndX, BBSide2EndY
+    global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
+    global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
+    global BBSides
     global TargetWindowTitle
     
     MouseGetPos &msx, &msy
@@ -2581,12 +2792,73 @@ Space:: {
             BBStar3X := mx
             BBStar3Y := my
             LogMessage(Format("Calibrated Star 3: {}, {}", mx, my))
+            
+            ; Automatically zoom out for Builder Base sides calibration
+            ZoomOutBB()
+            
+            BBCalibStep := 6
+            UpdateBBCalibrationUI()
+        case 6:
+            BBSide1StartX := mx
+            BBSide1StartY := my
+            LogMessage(Format("Calibrated BB Side 1 Start: {}, {}", mx, my))
+            BBCalibStep := 7
+            UpdateBBCalibrationUI()
+        case 7:
+            BBSide1EndX := mx
+            BBSide1EndY := my
+            LogMessage(Format("Calibrated BB Side 1 End: {}, {}", mx, my))
+            BBCalibStep := 8
+            UpdateBBCalibrationUI()
+        case 8:
+            BBSide2StartX := mx
+            BBSide2StartY := my
+            LogMessage(Format("Calibrated BB Side 2 Start: {}, {}", mx, my))
+            BBCalibStep := 9
+            UpdateBBCalibrationUI()
+        case 9:
+            BBSide2EndX := mx
+            BBSide2EndY := my
+            LogMessage(Format("Calibrated BB Side 2 End: {}, {}", mx, my))
+            BBCalibStep := 10
+            UpdateBBCalibrationUI()
+        case 10:
+            BBSide3StartX := mx
+            BBSide3StartY := my
+            LogMessage(Format("Calibrated BB Side 3 Start: {}, {}", mx, my))
+            BBCalibStep := 11
+            UpdateBBCalibrationUI()
+        case 11:
+            BBSide3EndX := mx
+            BBSide3EndY := my
+            LogMessage(Format("Calibrated BB Side 3 End: {}, {}", mx, my))
+            BBCalibStep := 12
+            UpdateBBCalibrationUI()
+        case 12:
+            BBSide4StartX := mx
+            BBSide4StartY := my
+            LogMessage(Format("Calibrated BB Side 4 Start: {}, {}", mx, my))
+            BBCalibStep := 13
+            UpdateBBCalibrationUI()
+        case 13:
+            BBSide4EndX := mx
+            BBSide4EndY := my
+            LogMessage(Format("Calibrated BB Side 4 End: {}, {}", mx, my))
+            
+            ; Reconstruct the BBSides array
+            BBSides := [
+                {startX: BBSide1StartX, startY: BBSide1StartY, endX: BBSide1EndX, endY: BBSide1EndY},
+                {startX: BBSide2StartX, startY: BBSide2StartY, endX: BBSide2EndX, endY: BBSide2EndY},
+                {startX: BBSide3StartX, startY: BBSide3StartY, endX: BBSide3EndX, endY: BBSide3EndY},
+                {startX: BBSide4StartX, startY: BBSide4StartY, endX: BBSide4EndX, endY: BBSide4EndY}
+            ]
+            LogMessage("Reconstructed BBSides array with newly calibrated points.")
             FinishBBCalibration()
     }
 }
 
 Enter:: {
-    if (BBCalibStep == 5) {
+    if (BBCalibStep == 13) {
         FinishBBCalibration()
     }
 }
@@ -2641,15 +2913,12 @@ UnifiedStart() {
             StatusText.Value := "Status: Calibration Needed"
             return
         }
-        
-        if IsMVLogoPresent() {
-            StartBot()
-        } else {
-            IsBBRunning := true
-            LogMessage("Builder Base Attack Loop started.")
-            StatusText.Value := "Status: Running BB"
-            SetTimer RunBuilderBaseLoop, -100
-        }
+        StartBot()
+    } else if IsAtBuilderBase() {
+        IsBBRunning := true
+        LogMessage("Builder Base Attack Loop started.")
+        StatusText.Value := "Status: Running BB"
+        SetTimer RunBuilderBaseLoop, -100
     } else {
         LogMessage("Error: Could not determine village type. Please open the game to the Main Village or Builder Base.")
     }
