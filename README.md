@@ -1,4 +1,6 @@
 # Clash of Clans Automation Bot
+Soon: Will be adding ADB implementation for tap drag and zoom
+
 
 An automated AutoHotkey (AHK) v2.0 script for Clash of Clans, designed to handle multiplayer loot farming, resource collection, and wall upgrades.
 
