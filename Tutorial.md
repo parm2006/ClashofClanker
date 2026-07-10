@@ -1,7 +1,7 @@
 ## Tutorial
 
 1) **Launch the Bot:** Double-click `coc_bot.ahk` to open the GUI.
-2) **Configure Limits:** Set your farming limits in the GUI (e.g. 500k Gold/Elixir minimum, and toggle Wall Upgrades on/off). 
+2) **Configure Limits:** Set your farming limits in the GUI (e.g. 500k Gold/Elixir minimum, and toggle Wall Upgrades on/off). **Note: You must click the 'Save Settings' button at the bottom of the tab to save and apply any changes.** 
 3) **Run Calibration (`Ctrl + F1`):** The bot will maximize the game window and guide you through 26 calibration steps:
    - **Step 1–2:** Gold and Elixir storage thresholds (tells the bot when your storages are full).
    - **Step 3:** The Builder Head icon (top-center of the screen).

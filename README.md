@@ -51,7 +51,7 @@ Because screen sizes and window placements differ, **you must calibrate the bot 
 
 ## GUI Customization (Settings & Farming)
 
-The bot GUI includes tabs that allow you to customize configuration variables at runtime:
+The bot GUI includes tabs that allow you to customize configuration variables at runtime. **Note: You must click the "Save Settings" button at the bottom of the tab for any changes to be implemented.**
 
 ### Farming Tab
 - **Enable Auto Loot Search**: Toggles OCR loot checking during matchmaking. Checked by default.
