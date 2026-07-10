@@ -6538,7 +6538,7 @@ FindTemplateUpgradeButton(hwnd, &outX, &outY) {
 
     
 
-    cmd := 'python "' A_ScriptDir '\test_masked_match.py" "' image_path '" ' h
+    cmd := 'python "' A_ScriptDir '\upgrade_button_hook.py" "' image_path '" ' h
 
     shell := ComObject("WScript.Shell")
 
