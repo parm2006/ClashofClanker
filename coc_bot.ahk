@@ -2849,4 +2849,5 @@ Esc:: {
     Sleep 1000
     ExitApp
 }
+; Checkpoint: Functional Bot 2.0
 #HotIf
