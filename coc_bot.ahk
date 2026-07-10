@@ -1498,10 +1498,9 @@ UpgradeBuilding() {
     Sleep 2000 ; 2-second camera settle delay
     if is_hero {
         ; Hero upgrade flow: skip Upgrade button, go straight to confirm
-        LogMessage("Farming: Hero detected. Hovering at calibrated confirmation button...")
-        MouseMove(UpgradeConfirmX, UpgradeConfirmY)
+        LogMessage("Farming: Hero detected. Clicking calibrated confirmation button...")
+        ClickPoint(UpgradeConfirmX, UpgradeConfirmY)
         Sleep 1500
-        LogMessage("Farming: Hero upgrade hover successful! (Click skipped for safety)")
         ClearingClick()
         return true
     } else {
@@ -1514,11 +1513,10 @@ UpgradeBuilding() {
             LogMessage(Format("Farming: Clicking Upgrade hammer button at client {}, {}", clickBtnX, clickBtnY))
             ClickPoint(clickBtnX, clickBtnY)
             Sleep 1200
-            ; Hover calibrated confirmation button directly
-            LogMessage(Format("Farming: Hovering at calibrated confirmation button at client {}, {}", UpgradeConfirmX, UpgradeConfirmY))
-            MouseMove(UpgradeConfirmX, UpgradeConfirmY)
+            ; Click calibrated confirmation button directly
+            LogMessage(Format("Farming: Clicking calibrated confirmation button at client {}, {}", UpgradeConfirmX, UpgradeConfirmY))
+            ClickPoint(UpgradeConfirmX, UpgradeConfirmY)
             Sleep 1500
-            LogMessage("Farming: Building upgrade hover successful! (Click skipped for safety)")
             ClearingClick()
             return true
         } else {
