@@ -52,6 +52,8 @@ global MVLogoColor := 0x000000
 ; --- OCR Target Areas ---
 global BuilderFaceX := 960
 global BuilderFaceY := 30
+global LabFaceX := 960
+global LabFaceY := 30
 global UpgradeConfirmX := 960
 global UpgradeConfirmY := 540
 global GoldAreaX := 50
@@ -65,6 +67,8 @@ global ElixirAreaH := 30
 global NextMatchBtnX := 1630
 global NextMatchBtnY := 850
 ; --- Storage Bar Check Coordinates ---
+global DarkElixirBarThreshX := 1750
+global DarkElixirBarThreshY := 100
 global GoldBarThreshX := 1750
 global GoldBarThreshY := 100
 global ElixirBarThreshX := 1750
@@ -162,8 +166,8 @@ LoadConfig() {
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
     global MVLogoX, MVLogoY, MVLogoColor
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY
-    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
+    global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
     global NextMatchBtnX, NextMatchBtnY
@@ -220,8 +224,12 @@ LoadConfig() {
     MVLogoColor := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoColor", ""), 0x000000)
     BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 960)
     BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 30)
+    LabFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceX", ""), 960)
+    LabFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceY", ""), 30)
     UpgradeConfirmX := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmX", ""), 960)
     UpgradeConfirmY := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmY", ""), 540)
+    DarkElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshX", ""), 0)
+    DarkElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshY", ""), 0)
     GoldBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshX", ""), 1750)
     GoldBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshY", ""), 100)
     ElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshX", ""), 1750)
@@ -321,8 +329,8 @@ SaveConfig() {
     global ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
     global BBAttackBtnX, BBAttackBtnY, BBFindMatchBtnX, BBFindMatchBtnY
     global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y, BBStarColor
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY
-    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
+    global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
     global NextMatchBtnX, NextMatchBtnY
@@ -376,6 +384,12 @@ SaveConfig() {
     IniWrite(Format("0x{:06X}", MVLogoColor), "config.ini", "Coordinates", "MVLogoColor")
     IniWrite(BuilderFaceX, "config.ini", "Coordinates", "BuilderFaceX")
     IniWrite(BuilderFaceY, "config.ini", "Coordinates", "BuilderFaceY")
+    IniWrite(LabFaceX, "config.ini", "Coordinates", "LabFaceX")
+    IniWrite(LabFaceY, "config.ini", "Coordinates", "LabFaceY")
+    IniWrite(UpgradeConfirmX, "config.ini", "Coordinates", "UpgradeConfirmX")
+    IniWrite(UpgradeConfirmY, "config.ini", "Coordinates", "UpgradeConfirmY")
+    IniWrite(DarkElixirBarThreshX, "config.ini", "Coordinates", "DarkElixirBarThreshX")
+    IniWrite(DarkElixirBarThreshY, "config.ini", "Coordinates", "DarkElixirBarThreshY")
     IniWrite(GoldBarThreshX, "config.ini", "Coordinates", "GoldBarThreshX")
     IniWrite(GoldBarThreshY, "config.ini", "Coordinates", "GoldBarThreshY")
     IniWrite(ElixirBarThreshX, "config.ini", "Coordinates", "ElixirBarThreshX")
@@ -710,19 +724,19 @@ UpdateBBCalibrationUI() {
             instructions := "Step 7/13: BB Side 1 (Bottom-Right) End`n`nHover mouse over ending point of bottom-right deployment line and press SPACE."
         case 8:
             instructions := "Step 8/13: BB Side 2 (Bottom-Left) Start`n`nHover mouse over starting point of bottom-left deployment line and press SPACE."
-        case 10:
+        case 9:
             instructions := "Step 9/13: BB Side 2 (Bottom-Left) End`n`nHover mouse over ending point of bottom-left deployment line and press SPACE."
-        case 11:
+        case 10:
             instructions := "Step 10/13: BB Side 3 (Top-Left) Start`n`nHover mouse over starting point of top-left deployment line and press SPACE."
-        case 12:
+        case 11:
             instructions := "Step 11/13: BB Side 3 (Top-Left) End`n`nHover mouse over ending point of top-left deployment line and press SPACE."
-        case 13:
+        case 12:
             instructions := "Step 12/13: BB Side 4 (Top-Right) Start`n`nHover mouse over starting point of top-right deployment line and press SPACE."
-        case 14:
+        case 13:
             instructions := "Step 13/13: BB Side 4 (Top-Right) End`n`nHover mouse over ending point of top-right deployment line and press SPACE.`n`nPress ENTER to finish and save."
     }
+    CalibrationText.Value := instructions
     if (instructions != "") {
-        CalibrationText.Value := instructions
         ToolTip(instructions "`n`nPress ESC to cancel.")
     }
 }
@@ -738,21 +752,21 @@ FinishBBCalibration() {
 }
 RunCollectorReset() {
     global CalibStep, IsCalibrating, IsWaitingForReset, CollectorCoords, CalibrationText
-    if !IsCalibrating || CalibStep != 26
+    if !IsCalibrating || CalibStep != 28
         return
     ResetViewport()
     IsWaitingForReset := false
-    instructions := "Step 26/26: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
+    instructions := "Step 28/28: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
 RunSidesReset() {
     global CalibStep, IsCalibrating, IsWaitingForReset, CalibrationText
-    if !IsCalibrating || CalibStep != 17
+    if !IsCalibrating || CalibStep != 19
         return
     ResetViewport()
     IsWaitingForReset := false
-    instructions := "Step 17/26: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
+    instructions := "Step 19/28: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
@@ -761,65 +775,69 @@ UpdateCalibrationUI() {
     instructions := ""
     switch CalibStep {
         case 1:
-            instructions := "Step 1/26: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 1/28: Dark Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Dark Elixir storage bar at the point where you want lab upgrades to trigger (e.g. 85% full) and press SPACE."
         case 2:
-            instructions := "Step 2/26: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 2/28: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall/lab upgrades to trigger (e.g. 85% full) and press SPACE."
         case 3:
-            instructions := "Step 3/26: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
+            instructions := "Step 3/28: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 4:
-            instructions := "Step 4/26: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
+            instructions := "Step 4/28: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
         case 5:
-            instructions := "Step 5/26: Add Wall (+1) Button (Upgrade More Screen)`n`nHover mouse over the '+1 Add Wall' button (click 'Upgrade More' manually to show it) and press SPACE."
+            instructions := "Step 5/28: Lab Face (Home Screen)`n`nHover mouse over the top-center Lab icon (potion and sword) and press SPACE."
         case 6:
-            instructions := "Step 6/26: Remove Wall (-1) Button (Upgrade More Screen)`n`nHover mouse over the '-1 Remove Wall' button and press SPACE."
+            instructions := "Step 6/28: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
         case 7:
-            instructions := "Step 7/26: Gold Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Gold Upgrade button (showing the gold hammer/cost) and press SPACE."
+            instructions := "Step 7/28: Add Wall (+1) Button (Upgrade More Screen)`n`nHover mouse over the '+1 Add Wall' button (click 'Upgrade More' manually to show it) and press SPACE."
         case 8:
-            instructions := "Step 8/26: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
+            instructions := "Step 8/28: Remove Wall (-1) Button (Upgrade More Screen)`n`nHover mouse over the '-1 Remove Wall' button and press SPACE."
+        case 9:
+            instructions := "Step 9/28: Gold Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Gold Upgrade button (showing the gold hammer/cost) and press SPACE."
         case 10:
-            instructions := "Step 10/26: War Logo (Home Screen)`n`nHover mouse over the War Logo (or any logo) directly ABOVE the Barbarian head / Attack button and press SPACE."
+            instructions := "Step 10/28: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
         case 11:
-            instructions := "Step 11/26: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
+            instructions := "Step 11/28: Upgrade Confirm Button (Upgrade Screen)`n`nHover mouse over the green 'Upgrade' confirmation button and press SPACE."
         case 12:
-            instructions := "Step 12/26: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
+            instructions := "Step 12/28: War Logo (Home Screen)`n`nHover mouse over the War Logo (or any logo) directly ABOVE the Barbarian head / Attack button and press SPACE."
         case 13:
-            instructions := "Step 13/26: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
+            instructions := "Step 13/28: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
         case 14:
-            instructions := "Step 14/26: Multiplayer Gold Area (Matchmaking Search)`n`nHover mouse over the Gold count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 14/28: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
         case 15:
-            instructions := "Step 15/26: Multiplayer Elixir Area (Matchmaking Search)`n`nHover mouse over the Elixir count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 15/28: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
         case 16:
-            instructions := "Step 16/26: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
+            instructions := "Step 16/28: Multiplayer Gold Area (Matchmaking Search)`n`nHover mouse over the Gold count digits in a multiplayer match search and press SPACE."
         case 17:
+            instructions := "Step 17/28: Multiplayer Elixir Area (Matchmaking Search)`n`nHover mouse over the Elixir count digits in a multiplayer match search and press SPACE."
+        case 18:
+            instructions := "Step 18/28: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
+        case 19:
             IsWaitingForReset := true
             instructions := "Top-Left Screen Zoom-Out Calibration`n`nPlease Wait."
-            SetTimer(RunSidesReset, -3000)
-        case 18:
-            instructions := "Step 18/26: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
-        case 19:
-            instructions := "Step 19/26: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE."
+            SetTimer RunSidesReset, -3000
         case 20:
-            instructions := "Step 20/26: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE."
+            instructions := "Step 20/28: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
         case 21:
-            instructions := "Step 21/26: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 21/28: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE."
         case 22:
-            instructions := "Step 22/26: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 22/28: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE."
         case 23:
-            instructions := "Step 23/26: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 23/28: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE."
         case 24:
-            instructions := "Step 24/26: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 24/28: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE."
         case 25:
-            instructions := "Step 25/26: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
+            instructions := "Step 25/28: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE."
         case 26:
+            instructions := "Step 26/28: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
+        case 27:
+            instructions := "Step 27/28: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
+        case 28:
             if (CollectorCoords.Length == 0) {
                 IsWaitingForReset := true
                 instructions := "Top-Left Screen Zoom-Out Calibration`n`nPress Button and Please Wait."
-                SetTimer(RunCollectorReset, -3000)
+                SetTimer RunCollectorReset, -3000
             } else {
-                instructions := "Step 26/26: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
+                instructions := "Step 28/28: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
             }
-        default:
-            instructions := "Calibration completed successfully!"
     }
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
@@ -1068,52 +1086,97 @@ IsElixirBarFilled(x, y) {
         return false
     }
 }
+IsDarkElixirBarFilled(x, y) {
+    CoordMode "Pixel", "Client"
+    if !EnsureWindowActive()
+        return false
+    try {
+        topColor := PixelGetColor(x, y)
+        bottomColor := PixelGetColor(x, y + 3)
+        
+        topR := (topColor >> 16) & 0xFF
+        topG := (topColor >> 8) & 0xFF
+        topB := topColor & 0xFF
+        
+        botR := (bottomColor >> 16) & 0xFF
+        botG := (bottomColor >> 8) & 0xFF
+        botB := bottomColor & 0xFF
+        
+        ; Empty bar is light gray (RGB around 130-150)
+        isTopEmpty := (topR > 110 && topG > 110 && topB > 110) && (Abs(topR - topG) < 20)
+        
+        ; DE is dark. Bottom pixel is very dark (almost black)
+        isBotDark := (botR < 70) && (botG < 70) && (botB < 70)
+        
+        ; Top pixel is dark but usually slightly lighter than bottom
+        isTopDark := (topR < 110) && (topG < 110) && (topB < 110)
+        topLighterThanBot := (topR >= botR) && (topG >= botG) && (topB >= botB)
+        
+        if (isBotDark && isTopDark && topLighterThanBot && !isTopEmpty)
+            return true
+            
+        return false
+    } catch {
+        return false
+    }
+}
 GetBuilderCount(&free, &total) {
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY, TargetWindowTitle
+    global BuilderFaceX, BuilderFaceY, TargetWindowTitle
     free := 0
     total := 0
     if !WinExist(TargetWindowTitle)
         return false
-    WinGetClientPos &cx, &cy,,, TargetWindowTitle
+    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
     scrX := cx + BuilderFaceX - 30
     scrY := cy + BuilderFaceY - 15
     scrW := 130
     scrH := 30
-    scales := [3.5, 3.0, 2.5, 2.0, 1.5]
-    for sc in scales {
-        try {
-            result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: sc})
-            text := StrReplace(result.Text, " ", "")
-            LogMessage("Builder OCR (scale " sc ") raw text: '" text "'")
-            if RegExMatch(text, "(\d)[/|iI1\-:.](\d)", &match) {
-                free := Integer(match[1])
-                total := Integer(match[2])
-                LogMessage(Format("Builder OCR parsed: {}/{} (using scale {})", free, total, sc))
-                return true
-            }
-        }
-        catch as err {
-            LogMessage("Builder OCR error: " err.Message)
-        }
+    
+    imgName := A_ScriptDir "\builder_area_bot.png"
+    SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
+    cmd := 'python "' A_ScriptDir '\vision_hook.py" builders "' imgName '" ' h
+    shell := ComObject("WScript.Shell")
+    exec := shell.Exec(cmd)
+    while !exec.Status {
+        Sleep(50)
     }
+    clean_out := Trim(exec.StdOut.ReadAll())
+    try FileDelete(imgName)
+    
+    if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
+        free := Integer(match[1])
+        total := Integer(match[2])
+        LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
+        return true
+    }
+    LogMessage("Builder OCR failed. Output: " clean_out)
     return false
 }
-AreBuildersBusy() {
-    ; TODO: Re-enable Builder count OCR later when calibration / screen issue is resolved
-    ; free := 0
-    ; total := 0
-    ; if GetBuilderCount(&free, &total) {
-    ;     if (total == 7) {
-    ;         return free < 2
-    ;     }
-    ;     if (total <= 6 && total > 0) {
-    ;         return free < 1
-    ;     }
-    ; }
-    ; LogMessage("Farming: Builder count OCR failed or invalid. Assuming busy to prevent accidental gem spending.")
-    ; return true
-    ; Temporarily assume we always have an available builder
-    return false
+
+CanUpgradeBuilding() {
+    global EnableWallUpgrade
+    free := 0
+    total := 0
+    if !GetBuilderCount(&free, &total)
+        return false ; If OCR fails, assume we can't upgrade to be safe
+    
+    if (EnableWallUpgrade) {
+        ; If walls are enabled, we must leave 1 builder for walls.
+        ; So we need at least 2 builders to do a building upgrade.
+        return free >= 2
+    } else {
+        ; If walls are disabled, we can use the last builder for buildings.
+        return free >= 1
+    }
+}
+
+CanUpgradeWall() {
+    free := 0
+    total := 0
+    if !GetBuilderCount(&free, &total)
+        return false
+        
+    return free >= 1
 }
 FindCenterGreenButton(&outX, &outY) {
     global TargetWindowTitle
@@ -1145,7 +1208,7 @@ FindCenterGreenButton(&outX, &outY) {
 }
 ProcessWallUpgrade(upgradeX, upgradeY, resourceType) {
     global AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, ReturnHomeClickX, ReturnHomeClickY
-    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     wallCount := 4
     ; First, add 3 walls to reach the maximum 4
     Loop 3 {
@@ -1224,7 +1287,7 @@ CollectResources() {
     }
 }
 FindAnyWallInDropdown() {
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY, TargetWindowTitle
+    global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY, TargetWindowTitle
     WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
     menuLeft := BuilderFaceX - (w * 0.18)
     menuWidth := w * 0.36
@@ -1266,11 +1329,11 @@ FindAnyWallInDropdown() {
 }
 UpgradeWalls() {
     global EnableWallUpgrade, IsRunning, TargetWindowTitle
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY, ReturnHomeClickX, ReturnHomeClickY
+    global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY, ReturnHomeClickX, ReturnHomeClickY
     CoordMode "Mouse", "Client"
     global UpgradeMoreBtnX, UpgradeMoreBtnY
     global GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
-    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     if !EnableWallUpgrade
         return
     ; 1. Check if resource thresholds are reached by reading bar colors
@@ -1281,7 +1344,7 @@ UpgradeWalls() {
         return
     }
     LogMessage("Farming: Checking builder status for wall upgrades...")
-    if AreBuildersBusy() {
+    if !CanUpgradeWall() {
         LogMessage("Farming: All builders are busy. Skipping wall upgrade.")
         return
     }
@@ -1421,17 +1484,21 @@ FindTemplateUpgradeButton(hwnd, &outX, &outY) {
     ; Define crop region for the bottom menu (FULL WIDTH)
     scrLeft := cx
     scrTop := cy + Integer(h * 0.65)
-    scrW := w
-    scrH := Integer(h * 0.35)
-    image_path := A_ScriptDir "\current_upgrade_area.png"
-    SaveRegionToPNG(scrLeft, scrTop, scrW, scrH, image_path)
-    cmd := 'python "' A_ScriptDir '\upgrade_button_hook.py" "' image_path '" ' h
+    
+    imgName := "upgrade_area.png"
+    image_path := A_ScriptDir "\" imgName
+    SaveRegionToPNG(scrLeft, scrTop, w, Integer(h * 0.35), image_path)
+
+    cmd := 'python "' A_ScriptDir '\vision_hook.py" hammer "' image_path '" ' h
     shell := ComObject("WScript.Shell")
+    
+    ; Hide window when running python
     exec := shell.Exec(cmd)
     while !exec.Status {
         Sleep(50)
     }
     output := Trim(exec.StdOut.ReadAll())
+    try FileDelete(image_path)
     if RegExMatch(output, "SUCCESS:\s*(\d+)/(\d+)", &match) {
         match_x := Integer(match[1])
         match_y := Integer(match[2])
@@ -1440,6 +1507,94 @@ FindTemplateUpgradeButton(hwnd, &outX, &outY) {
         return true
     }
     return false
+}
+IsLabBusy() {
+    global LabFaceX, LabFaceY, TargetWindowTitle
+    if !WinExist(TargetWindowTitle)
+        return true
+    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
+    scrX := cx + LabFaceX
+    scrY := cy + LabFaceY - 22
+    scrW := 115
+    scrH := 44
+
+    imgName := A_ScriptDir "\lab_area_bot.png"
+    SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
+    cmd := 'python "' A_ScriptDir '\vision_hook.py" lab "' imgName '" ' h
+    shell := ComObject("WScript.Shell")
+    exec := shell.Exec(cmd)
+    while !exec.Status {
+        Sleep(50)
+    }
+    clean_out := Trim(exec.StdOut.ReadAll())
+    try FileDelete(imgName)
+    
+    if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
+        free := Integer(match[1])
+        total := Integer(match[2])
+        LogMessage(Format("Lab OCR parsed: {}/{}", free, total))
+        if free > 0
+            return false
+        return true
+    }
+    LogMessage("Lab OCR failed. Output: " clean_out)
+    return true ; Default to busy if OCR fails
+}
+
+UpgradeLab() {
+    global TargetWindowTitle, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    hwnd := WinExist(TargetWindowTitle)
+    if !hwnd
+        return
+    LogMessage("Lab available! Clicking Lab Face...")
+    ClickPoint(LabFaceX, LabFaceY)
+    Sleep 1200
+    
+    WinGetClientPos &cx, &cy, &w, &h, hwnd
+    menuLeft := LabFaceX - (w * 0.18)
+    menuWidth := w * 0.36
+    menuTop := h * 0.12
+    menuHeight := h * 0.75
+    scrLeft := cx + menuLeft
+    scrTop := cy + menuTop
+    
+    clickX := 0, clickY := 0
+    found_suggestion := false
+    
+    for sc in [2.5, 2.0, 3.0] {
+        try {
+            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
+            lines := result.Lines
+            suggested_idx := -1
+            loop lines.Length {
+                if InStr(lines[A_Index].Text, "ggested") || InStr(lines[A_Index].Text, "Suggested") || InStr(lines[A_Index].Text, "ggested upgr") {
+                    suggested_idx := A_Index
+                    break
+                }
+            }
+            if (suggested_idx != -1 && suggested_idx < lines.Length) {
+                target_line := lines[suggested_idx + 1]
+                clickX := (target_line.x + 50) - cx
+                clickY := (target_line.y + (target_line.h / 2)) - cy
+                found_suggestion := true
+                break
+            }
+        }
+    }
+    
+    if !found_suggestion {
+        LogMessage("Failed to find 'Suggested upgrades' section.")
+        ClearingClick()
+        return
+    }
+    
+    ClickPoint(clickX, clickY)
+    Sleep 2000
+    
+    LogMessage("Confirming Lab Upgrade...")
+    ClickPoint(UpgradeConfirmX, UpgradeConfirmY)
+    Sleep 1500
+    ClearingClick()
 }
 UpgradeBuilding() {
     global TargetWindowTitle, BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY
@@ -1566,9 +1721,25 @@ StartBotLoop() {
         CollectResources()
         if !IsRunning
             break
-        ; Building upgrades farming (triggered if there is a free builder and both storages are above threshold)
-        if !AreBuildersBusy() {
-            if IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY) && IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY) {
+        ; Lab upgrade farming
+        if !IsLabBusy() {
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
+            if (elixirFilled && darkFilled) {
+                UpgradeLab()
+            }
+        }
+        if !IsRunning
+            break
+            
+        ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
+        if CanUpgradeBuilding() {
+            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
+            if (goldFilled && elixirFilled && darkFilled) {
                 UpgradeBuilding()
             }
         }
@@ -2265,8 +2436,8 @@ Space:: {
     CoordMode "Mouse", "Screen"
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
     global ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor
-    global BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY
-    global GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
+    global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
     global NextMatchBtnX, NextMatchBtnY
@@ -2286,146 +2457,164 @@ Space:: {
     my := msy - cy
     switch CalibStep {
         case 1:
-            GoldBarThreshX := mx
-            GoldBarThreshY := my
-            LogMessage(Format("Calibrated Gold Bar Threshold Point: {}, {}", mx, my))
+            DarkElixirBarThreshX := mx
+            DarkElixirBarThreshY := my
+            LogMessage(Format("Calibrated Dark Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 2
             UpdateCalibrationUI()
         case 2:
             ElixirBarThreshX := mx
             ElixirBarThreshY := my
-            LogMessage(Format("Calibrated Elixir Bar Threshold Point: {}, {}", mx, my))
+            LogMessage(Format("Calibrated Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 3
             UpdateCalibrationUI()
         case 3:
-            BuilderFaceX := mx
-            BuilderFaceY := my
-            LogMessage(Format("Calibrated Builder Face Coordinate: {}, {}", mx, my))
+            GoldBarThreshX := mx
+            GoldBarThreshY := my
+            LogMessage(Format("Calibrated Gold Bar Thresh: {}, {}", mx, my))
             CalibStep := 4
             UpdateCalibrationUI()
         case 4:
-            UpgradeMoreBtnX := mx
-            UpgradeMoreBtnY := my
-            LogMessage(Format("Calibrated Upgrade More Button: {}, {}", mx, my))
+            BuilderFaceX := mx
+            BuilderFaceY := my
+            LogMessage(Format("Calibrated Builder Face: {}, {}", mx, my))
             CalibStep := 5
             UpdateCalibrationUI()
         case 5:
-            AddWall1X := mx
-            AddWall1Y := my
-            LogMessage(Format("Calibrated Add Wall (+1) Button: {}, {}", mx, my))
+            LabFaceX := mx
+            LabFaceY := my
+            LogMessage(Format("Calibrated Lab Face: {}, {}", mx, my))
             CalibStep := 6
             UpdateCalibrationUI()
         case 6:
-            RemoveWallX := mx
-            RemoveWallY := my
-            LogMessage(Format("Calibrated Remove Wall (-1) Button: {}, {}", mx, my))
+            UpgradeMoreBtnX := mx
+            UpgradeMoreBtnY := my
+            LogMessage(Format("Calibrated Upgrade More Btn: {}, {}", mx, my))
             CalibStep := 7
             UpdateCalibrationUI()
         case 7:
-            GoldUpgradeX := mx
-            GoldUpgradeY := my
-            LogMessage(Format("Calibrated Gold Upgrade Button: {}, {}", mx, my))
+            AddWall1X := mx
+            AddWall1Y := my
+            LogMessage(Format("Calibrated Add Wall1: {}, {}", mx, my))
             CalibStep := 8
             UpdateCalibrationUI()
         case 8:
-            ElixirUpgradeX := mx
-            ElixirUpgradeY := my
-            LogMessage(Format("Calibrated Elixir Upgrade Button: {}, {}", mx, my))
+            RemoveWall1X := mx
+            RemoveWall1Y := my
+            LogMessage(Format("Calibrated Remove Wall1: {}, {}", mx, my))
             CalibStep := 9
             UpdateCalibrationUI()
+        case 9:
+            GoldUpgradeX := mx
+            GoldUpgradeY := my
+            LogMessage(Format("Calibrated Gold Upgrade: {}, {}", mx, my))
+            CalibStep := 10
+            UpdateCalibrationUI()
         case 10:
-            MVLogoX := mx
-            MVLogoY := my
-            MVLogoColor := PixelGetColor(mx, my)
-            LogMessage(Format("Calibrated War Logo: {}, {} (Color: {})", mx, my, MVLogoColor))
+            ElixirUpgradeX := mx
+            ElixirUpgradeY := my
+            LogMessage(Format("Calibrated Elixir Upgrade: {}, {}", mx, my))
             CalibStep := 11
             UpdateCalibrationUI()
         case 11:
-            AttackBtnX := mx
-            AttackBtnY := my
-            LogMessage(Format("Calibrated Attack Button: {}, {}", mx, my))
+            UpgradeConfirmX := mx
+            UpgradeConfirmY := my
+            LogMessage(Format("Calibrated Upgrade Confirm: {}, {}", mx, my))
             CalibStep := 12
             UpdateCalibrationUI()
         case 12:
-            FindMatchBtnX := mx
-            FindMatchBtnY := my
-            LogMessage(Format("Calibrated Find Match Button: {}, {}", mx, my))
+            MVLogoX := mx
+            MVLogoY := my
+            MVLogoColor := PixelGetColor(mx, my)
+            LogMessage(Format("Calibrated M V Logo: {}, {} (Color: {})", mx, my, MVLogoColor))
             CalibStep := 13
             UpdateCalibrationUI()
         case 13:
-            AttackStartBtnX := mx
-            AttackStartBtnY := my
-            LogMessage(Format("Calibrated Attack Start Button: {}, {}", mx, my))
+            AttackBtnX := mx
+            AttackBtnY := my
+            LogMessage(Format("Calibrated Attack Btn: {}, {}", mx, my))
             CalibStep := 14
             UpdateCalibrationUI()
         case 14:
+            FindMatchBtnX := mx
+            FindMatchBtnY := my
+            LogMessage(Format("Calibrated Find Match Btn: {}, {}", mx, my))
+            CalibStep := 15
+            UpdateCalibrationUI()
+        case 15:
+            AttackStartBtnX := mx
+            AttackStartBtnY := my
+            LogMessage(Format("Calibrated Attack Start Btn: {}, {}", mx, my))
+            CalibStep := 16
+            UpdateCalibrationUI()
+        case 16:
             GoldAreaX := mx - 120
             GoldAreaY := my - 15
             GoldAreaW := 220
             GoldAreaH := 30
-            LogMessage(Format("Calibrated Gold Search Loot Area: {}, {}", mx, my))
-            CalibStep := 15
+            LogMessage(Format("Calibrated Gold Area: {}, {}", mx, my))
+            CalibStep := 17
             UpdateCalibrationUI()
-        case 15:
+        case 17:
             ElixirAreaX := mx - 120
             ElixirAreaY := my - 15
             ElixirAreaW := 220
             ElixirAreaH := 30
-            LogMessage(Format("Calibrated Elixir Search Loot Area: {}, {}", mx, my))
-            CalibStep := 16
-            UpdateCalibrationUI()
-        case 16:
-            NextMatchBtnX := mx
-            NextMatchBtnY := my
-            LogMessage(Format("Calibrated Next Match Button: {}, {}", mx, my))
-            CalibStep := 17
-            UpdateCalibrationUI()
-        case 17:
-            Side1StartX := mx
-            Side1StartY := my
-            LogMessage(Format("Calibrated Side 1 (Bottom-Right) Start: {}, {}", mx, my))
+            LogMessage(Format("Calibrated Elixir Area: {}, {}", mx, my))
             CalibStep := 18
             UpdateCalibrationUI()
         case 18:
-            Side1EndX := mx
-            Side1EndY := my
-            LogMessage(Format("Calibrated Side 1 (Bottom-Right) End: {}, {}", mx, my))
+            NextMatchBtnX := mx
+            NextMatchBtnY := my
+            LogMessage(Format("Calibrated Next Match Btn: {}, {}", mx, my))
             CalibStep := 19
             UpdateCalibrationUI()
         case 19:
-            Side2StartX := mx
-            Side2StartY := my
-            LogMessage(Format("Calibrated Side 2 (Bottom-Left) Start: {}, {}", mx, my))
+            Side1StartX := mx
+            Side1StartY := my
+            LogMessage(Format("Calibrated Side1 Start: {}, {}", mx, my))
             CalibStep := 20
             UpdateCalibrationUI()
         case 20:
-            Side2EndX := mx
-            Side2EndY := my
-            LogMessage(Format("Calibrated Side 2 (Bottom-Left) End: {}, {}", mx, my))
+            Side1EndX := mx
+            Side1EndY := my
+            LogMessage(Format("Calibrated Side1 End: {}, {}", mx, my))
             CalibStep := 21
             UpdateCalibrationUI()
         case 21:
-            Side3StartX := mx
-            Side3StartY := my
-            LogMessage(Format("Calibrated Side 3 (Top-Left) Start: {}, {}", mx, my))
+            Side2StartX := mx
+            Side2StartY := my
+            LogMessage(Format("Calibrated Side2 Start: {}, {}", mx, my))
             CalibStep := 22
             UpdateCalibrationUI()
         case 22:
-            Side3EndX := mx
-            Side3EndY := my
-            LogMessage(Format("Calibrated Side 3 (Top-Left) End: {}, {}", mx, my))
+            Side2EndX := mx
+            Side2EndY := my
+            LogMessage(Format("Calibrated Side2 End: {}, {}", mx, my))
             CalibStep := 23
             UpdateCalibrationUI()
         case 23:
-            Side4StartX := mx
-            Side4StartY := my
-            LogMessage(Format("Calibrated Side 4 (Top-Right) Start: {}, {}", mx, my))
+            Side3StartX := mx
+            Side3StartY := my
+            LogMessage(Format("Calibrated Side3 Start: {}, {}", mx, my))
             CalibStep := 24
             UpdateCalibrationUI()
         case 24:
+            Side3EndX := mx
+            Side3EndY := my
+            LogMessage(Format("Calibrated Side3 End: {}, {}", mx, my))
+            CalibStep := 25
+            UpdateCalibrationUI()
+        case 25:
+            Side4StartX := mx
+            Side4StartY := my
+            LogMessage(Format("Calibrated Side4 Start: {}, {}", mx, my))
+            CalibStep := 26
+            UpdateCalibrationUI()
+        case 26:
             Side4EndX := mx
             Side4EndY := my
-            LogMessage(Format("Calibrated Side 4 (Top-Right) End: {}, {}", mx, my))
+            LogMessage(Format("Calibrated Side4 End: {}, {}", mx, my))
             ; Reconstruct the Sides array
             Sides := [
                 {startX: Side1StartX, startY: Side1StartY, endX: Side1EndX, endY: Side1EndY},
@@ -2434,13 +2623,13 @@ Space:: {
                 {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
             ]
             LogMessage("Reconstructed Sides array with newly calibrated points.")
-            CalibStep := 25
+            CalibStep := 27
             UpdateCalibrationUI()
-        case 25:
+        case 27:
             ReturnHomeClickX := mx
             ReturnHomeClickY := my
-            ReturnHomeColor := PixelGetColor(mx, my)
-            LogMessage(Format("Calibrated Return Home Button: {}, {} (Color: {})", mx, my, ReturnHomeColor))
+            ReturnHomeClickColor := PixelGetColor(mx, my)
+            LogMessage(Format("Calibrated Return Home Click: {}, {} (Color: {})", mx, my, ReturnHomeClickColor))
             ; Auto-calculate cloud points based on window size
             WinGetClientPos ,, &w, &h, TargetWindowTitle
             if (w && h) {
@@ -2457,16 +2646,16 @@ Space:: {
             }
             ; Reset dynamic array for collectors
             CollectorCoords := []
-            CalibStep := 26
+            CalibStep := 28
             UpdateCalibrationUI()
-        case 26:
+        case 28:
             CollectorCoords.Push({x: mx, y: my})
             LogMessage(Format("Added Resource Collector #{}: {}, {}", CollectorCoords.Length, mx, my))
             UpdateCalibrationUI()
     }
 }
 Enter:: {
-    if (CalibStep == 26) {
+    if (CalibStep == 28) {
         FinishCalibration()
     }
 }
@@ -2546,31 +2735,31 @@ Space:: {
             LogMessage(Format("Calibrated BB Side 2 Start: {}, {}", mx, my))
             BBCalibStep := 9
             UpdateBBCalibrationUI()
-        case 10:
+        case 9:
             BBSide2EndX := mx
             BBSide2EndY := my
             LogMessage(Format("Calibrated BB Side 2 End: {}, {}", mx, my))
-            BBCalibStep := 11
+            BBCalibStep := 10
             UpdateBBCalibrationUI()
-        case 11:
+        case 10:
             BBSide3StartX := mx
             BBSide3StartY := my
             LogMessage(Format("Calibrated BB Side 3 Start: {}, {}", mx, my))
-            BBCalibStep := 12
+            BBCalibStep := 11
             UpdateBBCalibrationUI()
-        case 12:
+        case 11:
             BBSide3EndX := mx
             BBSide3EndY := my
             LogMessage(Format("Calibrated BB Side 3 End: {}, {}", mx, my))
-            BBCalibStep := 13
+            BBCalibStep := 12
             UpdateBBCalibrationUI()
-        case 13:
+        case 12:
             BBSide4StartX := mx
             BBSide4StartY := my
             LogMessage(Format("Calibrated BB Side 4 Start: {}, {}", mx, my))
-            BBCalibStep := 14
+            BBCalibStep := 13
             UpdateBBCalibrationUI()
-        case 14:
+        case 13:
             BBSide4EndX := mx
             BBSide4EndY := my
             LogMessage(Format("Calibrated BB Side 4 End: {}, {}", mx, my))
