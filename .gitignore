@@ -5,3 +5,8 @@ config.ini
 cliimages/
 scratch/
 *.diff
+.agents/
+graphify-out/
+testgolden.ahk
+
+
