@@ -1723,8 +1723,8 @@ StartBotLoop() {
             break
         ; 6. Deploy Spell (a)
         LogMessage("Deploying Spell (a)...")
-        DeploySingleLine("a", 32, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
-        DeploySingleLine("s", 5, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
+        DeploySingleLine("a", 7, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
+        DeploySingleLine("s", 2, aLineStartX, aLineStartY, aLineEndX, aLineEndY, 750)
         if !IsRunning
             break
         ; Step 6: Wait for battle to progress, then check Return Home
