@@ -18,7 +18,7 @@ def main():
         
     # Load user's hand-cleaned magenta template
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_dir = os.path.dirname(script_dir)
+    workspace_dir = script_dir
     template_path = os.path.join(workspace_dir, "OCRimages", "cropped images", "hammer_template_trans.png")
     
     template = cv2.imread(template_path)
