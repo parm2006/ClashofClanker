@@ -1,8 +1,7 @@
 # Clash of Clanker Video Tutorial
 
-Here is the video tutorial for Clash of Clanker. If the video does not play automatically below, you can play [ClashofClankersTutorial.mp4](ClashofClankersTutorial.mp4) directly in your media player.
-
-<video src="ClashofClankersTutorial.mp4" controls width="100%"></video>
+Watch the video tutorial on YouTube:
+[Clash of Clanker Video Tutorial](https://youtu.be/OE67o9Qc3Jw)
 
 ---
 
