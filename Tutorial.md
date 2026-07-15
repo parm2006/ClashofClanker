@@ -7,7 +7,7 @@ Watch the video tutorial on YouTube:
 
 ## Tutorial
 
-1) **Launch the Bot:** Double-click `coc_bot.ahk` to open the GUI.
+1) **Launch the Bot:** Download the entire GitHub repository (preferably as a ZIP file and extract it). Once all files are contained in the same folder, double-click `coc_bot.ahk` to run the bot and open the GUI.
 2) **Configure Limits:** Set your farming limits in the GUI (e.g. 500k Gold/Elixir minimum, and toggle Wall Upgrades on/off). **Note: You must click the 'Save Settings' button at the bottom of the tab to save and apply any changes.** 
 3) **Run Calibration (`Ctrl + F1`):** The bot will maximize the game window and guide you through 26 calibration steps:
    - **Step 1–2:** Gold and Elixir storage thresholds (tells the bot when your storages are full).
