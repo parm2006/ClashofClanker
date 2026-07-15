@@ -1,3 +1,11 @@
+# Clash of Clanker Video Tutorial
+
+Here is the video tutorial for Clash of Clanker. If the video does not play automatically below, you can play [ClashofClankerTurotial.mp4](ClashofClankerTurotial.mp4) directly in your media player.
+
+<video src="ClashofClankerTurotial.mp4" controls width="100%"></video>
+
+---
+
 ## Tutorial
 
 1) **Launch the Bot:** Double-click `coc_bot.ahk` to open the GUI.
