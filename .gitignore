@@ -9,8 +9,4 @@ scratch/
 graphify-out/
 testgolden.ahk
 
-# Dynamically generated bot runtime files
-*_out.txt
-*.png
-
 

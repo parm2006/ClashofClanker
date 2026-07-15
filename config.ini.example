@@ -1,7 +1,7 @@
 [Settings]
 TargetWindowTitle=Clash of Clans
 ButtonDelta=5
-DeployDelta=25
+DeployDelta=15
 TransitionDelay=500
 BattleLoadDelay=1500
 

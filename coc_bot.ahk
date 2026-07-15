@@ -10,7 +10,7 @@ SetTitleMatchMode 2
 ; ==============================================================================
 global TargetWindowTitle := "Clash of Clans"
 global ButtonDelta := 5
-global DeployDelta := 25
+global DeployDelta := 15
 global TransitionDelay := 500
 global BattleLoadDelay := 1500
 global BBClickCount := 1
@@ -187,7 +187,7 @@ LoadConfig() {
     global BBSides
     TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", "Clash of Clans")
     ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
-    DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 25)
+    DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 15)
     TransitionDelay := SafeInteger(IniRead("config.ini", "Settings", "TransitionDelay", ""), 500)
     BattleLoadDelay := SafeInteger(IniRead("config.ini", "Settings", "BattleLoadDelay", ""), 1500)
     BBClickCount := SafeInteger(IniRead("config.ini", "Settings", "BBClickCount", ""), 1)
@@ -468,6 +468,7 @@ CreateGUI() {
     global MyGui, EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade, TextCollectorCount
     global LogEdit, StatusText, StartBtn, PauseBtn, CalibrationText, EditBBClickCount
+    global EditTroop1Count, EditTroop2Count, EditTroop3Count
     MyGui := Gui("+Resize +MinSize380x470", "CoC Bot Controller")
     ; Tab control
     Tab := MyGui.Add("Tab3", "w360 h440", ["Control", "Calibration", "Farming", "Settings"])
@@ -487,9 +488,9 @@ CreateGUI() {
     ; --- TAB 2: Calibration ---
     Tab.UseTab(2)
     MyGui.Add("Text", "x20 y35 w320 h40", "Click a button below or use its shortcut to calibrate coordinates relative to the game window.")
-    CalibStartBtn := MyGui.Add("Button", "x20 y75 w150 h35", "Main Calib (^F1)")
+    CalibStartBtn := MyGui.Add("Button", "x20 y75 w150 h35", "Main Calib (Ctrl+F1)")
     CalibStartBtn.OnEvent("Click", (*) => StartCalibration())
-    CalibBBBtn := MyGui.Add("Button", "x180 y75 w150 h35", "BB Calib (^F2)")
+    CalibBBBtn := MyGui.Add("Button", "x180 y75 w150 h35", "BB Calib (Ctrl+F2)")
     CalibBBBtn.OnEvent("Click", (*) => StartBBCalibration())
     CalibrationText := MyGui.Add("Text", "x20 y120 w320 h100 +Border", "Calibration is inactive.`n`nClick a start button to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
@@ -2817,7 +2818,7 @@ UnifiedStart() {
     ; 4. Check village type and start the appropriate loop
     if IsAtHomeVillage() {
         if (MVLogoColor == 0x000000) {
-            LogMessage("WARNING: Main Village Logo is uncalibrated! Please run Main Calib (^F1).")
+            LogMessage("WARNING: Main Village Logo is uncalibrated! Please run Main Calib (Ctrl+F1).")
             StatusText.Value := "Status: Calibration Needed"
             return
         }
