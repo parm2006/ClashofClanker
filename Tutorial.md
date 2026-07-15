@@ -5,6 +5,21 @@ Watch the video tutorial on YouTube:
 
 ---
 
+## Prerequisites
+
+Before running the bot, make sure you have the following installed on your system:
+
+1. **AutoHotkey v2.0+**: Essential to run the `.ahk` scripts. You can download it from the official [AutoHotkey Website](https://www.autohotkey.com/).
+2. **Python 3.x** (with dependencies): Required for the vision/OCR system (building upgrade detection). 
+   - Install Python and check **"Add Python to PATH"** during installation.
+   - Install the required packages by running this command in your command prompt/terminal:
+     ```bash
+     pip install opencv-python numpy
+     ```
+3. **Clash of Clans PC Emulator**: Ensure you have Clash of Clans running on an emulator (e.g., Google Play Games on PC, BlueStacks, LDPlayer).
+
+---
+
 ## Tutorial
 
 1) **Launch the Bot:** Download the entire GitHub repository (preferably as a ZIP file and extract it). Once all files are contained in the same folder, double-click `coc_bot.ahk` to run the bot and open the GUI.
