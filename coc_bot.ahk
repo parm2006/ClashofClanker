@@ -126,9 +126,13 @@ global IsRunning := false
 global IsBBRunning := false
 global IsCalibrating := false
 global IsBBCalibrating := false
+global IsWaitingForReset := false
 global CalibStep := 0
 global BBCalibStep := 0
-global IsWaitingForReset := false
+global TimerStartTick := 0
+global TimerDurationMs := 0
+
+
 ; ==============================================================================
 ; GUI ELEMENT REFERENCES
 ; ==============================================================================
@@ -150,6 +154,9 @@ global StatusText := ""
 global StartBtn := ""
 global PauseBtn := ""
 global CalibrationText := ""
+global DDHours := ""
+global DDMinutes := ""
+
 ; Load configuration settings
 LoadConfig()
 ; Initialize GUI
@@ -468,7 +475,8 @@ CreateGUI() {
     global MyGui, EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade, TextCollectorCount
     global LogEdit, StatusText, StartBtn, PauseBtn, CalibrationText, EditBBClickCount
-    global EditTroop1Count, EditTroop2Count, EditTroop3Count
+    global EditTroop1Count, EditTroop2Count, EditTroop3Count, DDHours, DDMinutes
+
     MyGui := Gui("+Resize +MinSize380x470", "CoC Bot Controller")
     ; Tab control
     Tab := MyGui.Add("Tab3", "w360 h440", ["Control", "Calibration", "Farming", "Settings"])
@@ -483,8 +491,23 @@ CreateGUI() {
     PauseBtn := MyGui.Add("Button", "x190 y120 w150 h40", "Pause Bot (F2)")
     PauseBtn.OnEvent("Click", (*) => PauseBot())
     PauseBtn.Enabled := false
-    MyGui.Add("GroupBox", "x20 y170 w320 h240", "Activity Log")
-    LogEdit := MyGui.Add("Edit", "x30 y190 w300 h210 +ReadOnly +Multi +WantReturn", "")
+    MyGui.Add("GroupBox", "x20 y170 w320 h105", "Activity Log")
+    LogEdit := MyGui.Add("Edit", "x30 y190 w300 h75 +ReadOnly +Multi +WantReturn", "")
+    MyGui.Add("GroupBox", "x20 y285 w320 h125", "Auto-Stop Timer")
+    MyGui.Add("Text", "x35 y310 w290 h20", "Stop Bot After (Hours : Minutes):")
+    hoursOpts := ["0"]
+    Loop 24 {
+        hoursOpts.Push(String(A_Index))
+    }
+    minsOpts := ["0"]
+    Loop 59 {
+        minsOpts.Push(String(A_Index))
+    }
+    DDHours := MyGui.Add("DropDownList", "x35 y335 w120 Choose1", hoursOpts)
+    MyGui.Add("Text", "x165 y338 w20 h20 +Center", ":")
+    DDMinutes := MyGui.Add("DropDownList", "x190 y335 w120 Choose1", minsOpts)
+    MyGui.Add("Text", "x35 y375 w290 h30 +Wrap", "Set to 0h:0m to run indefinitely. Timer stops bot at cycle end.")
+
     ; --- TAB 2: Calibration ---
     Tab.UseTab(2)
     MyGui.Add("Text", "x20 y35 w320 h40", "Click a button below or use its shortcut to calibrate coordinates relative to the game window.")
@@ -595,7 +618,8 @@ ResizeGameWindow() {
 ; STATE CONTROL ACTIONS
 ; ==============================================================================
 StartBot() {
-    global IsRunning, StatusText, StartBtn, PauseBtn, TargetWindowTitle
+    global IsRunning, StatusText, StartBtn, PauseBtn, TargetWindowTitle, DDHours, DDMinutes, TimerDurationMs, TimerStartTick
+
     if IsRunning {
         LogMessage("Bot is already running!")
         return
@@ -605,12 +629,23 @@ StartBot() {
         return
     }
     IsRunning := true
+    hrs := Integer(DDHours.Text)
+    mins := Integer(DDMinutes.Text)
+    TimerDurationMs := (hrs * 3600 + mins * 60) * 1000
+
+    TimerStartTick := A_TickCount
+    if (TimerDurationMs > 0) {
+        LogMessage(Format("Auto-Stop Timer set for {}h {}m.", hrs, mins))
+    } else {
+        LogMessage("Auto-Stop Timer set to 0h 0m (Running indefinitely).")
+    }
     StatusText.Text := "STATUS: RUNNING"
     StatusText.SetFont("cGreen")
     StartBtn.Enabled := false
     PauseBtn.Enabled := true
     LogMessage("Bot loop started.")
     SetTimer(StartBotLoop, -10) ; Start asynchronously
+
 }
 PauseBot() {
     global IsRunning, IsBBRunning, StatusText, StartBtn, PauseBtn
@@ -1718,8 +1753,15 @@ StartBotLoop() {
         ClearingClick()
         ; 3. Reset viewport before resource collection
         ResetViewport()
+        ; Check if Auto-Stop Timer has elapsed
+        if IsTimerUp() {
+            LogMessage("Auto-Stop Timer elapsed! Stopping bot after cycle completed.")
+            PauseBot()
+            break
+        }
         ; Collector resource farming (1 in 2 chance for testing)
         CollectResources()
+
         if !IsRunning
             break
         ; Lab upgrade farming
@@ -1939,6 +1981,14 @@ LoopExit:
     PauseBtn.Enabled := false
     LogMessage("Bot loop stopped.")
 }
+IsTimerUp() {
+    global TimerDurationMs, TimerStartTick
+    if (TimerDurationMs <= 0)
+        return false
+    elapsed := A_TickCount - TimerStartTick
+    return elapsed >= TimerDurationMs
+}
+
 ; ==============================================================================
 ; HELPER FUNCTIONS
 ; ==============================================================================
