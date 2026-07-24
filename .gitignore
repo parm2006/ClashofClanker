@@ -9,3 +9,9 @@ scratch/
 graphify-out/
 handoffs/
 
+# Python cache & compiled files
+__pycache__/
+*.pyc
+
+# Local documentation & design specs
+docs/
