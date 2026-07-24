@@ -7,8 +7,5 @@ scratch/
 *.diff
 .agents/
 graphify-out/
-testgolden.ahk
-
-# Milestone Checkpoint 2.1
-
+handoffs/
 

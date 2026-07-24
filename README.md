@@ -1,18 +1,27 @@
 # Clash of Clans Automation Bot
-Soon: Will be adding ADB implementation for tap drag and zoom
 
+An automated AutoHotkey (AHK) v2.0 suite for Clash of Clans, supporting both traditional client mouse clicks and **100% background-safe Android Debug Bridge (ADB)** execution.
 
-An automated AutoHotkey (AHK) v2.0 script for Clash of Clans, designed to handle multiplayer loot farming, resource collection, and wall upgrades.
+## Available Scripts
+
+1. **`coc_bot.ahk` (Standard Client Mode)**:
+   - Uses client-relative mouse clicks to control the emulator window.
+   - Requires the emulator window to remain visible.
+
+2. **`ADBcoc_bot.ahk` (Background ADB Mode)**:
+   - **100% Background Safe**: Sends taps, drags, zooms, and keyevents directly to Android via ADB without taking mouse focus or interrupting host Windows keyboard input.
+   - **Background OCR & Pixel Checks**: Captures frame buffers directly via ADB for loot OCR and status detection.
+   - **Smart Battle Timing**: Un-nested 15s Return Home timers and 5s status polling, with a 2-minute 10-second stage fallback.
+   - **Background Hero Ability Triggers**: Sends `q`, `w`, `e`, `r` keyevents via ADB in the background 30 seconds after deployment without touching host keyboard.
 
 ## Features
-- **Client-Relative Clicks**: Immune to window movement, maximized states, and scaling issues.
+- **Client-Relative & ADB Touch Coordinates**: Immune to window movement, scaling, or background state.
 - **Auto Loot Search**: Scans and parses Gold and Elixir counts in matchmaking using OCR.
 - **Smart Deployment**: Deploys troops, siege machines, heroes, and spells sequentially.
-- **Automated Suggested Upgrades**: Scans the builder dropdown to find suggested building/hero upgrades. Utilizes a Python template matcher with a transparency mask to find the upgrade hammer, checking storage thresholds before committing.
+- **Automated Suggested Upgrades**: Scans the builder dropdown to find suggested building/hero upgrades via Python template matching.
 - **Automated Wall Upgrades**: Upgrades walls dynamically based on custom resource thresholds.
-- **Builder Base Support**: Fully automated Builder Base attacks (Phase 1 & 2 support) with dynamic transitioning based on battle results and stars.
-- **Automatic Base Detection**: Automatically detects whether you are viewing the Main Village or Builder Base and runs the appropriate loop.
-- **Interactive Calibration**: Simple wizards to calibrate click targets relative to your game viewport for both Main Village and Builder Base.
+- **Builder Base Support**: Fully automated Builder Base attacks (Phase 1 & Phase 2 support) with evenly spaced troop slot distribution (`Q` + slots `1`–`8` at 10% ratio steps).
+- **Interactive Calibration**: Wizards to calibrate click targets relative to your game viewport for both Main Village and Builder Base.
 
 ---
 
