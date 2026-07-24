@@ -28,6 +28,7 @@ An automated AutoHotkey (AHK) v2.0 suite for Clash of Clans, supporting both tra
 ## Prerequisites
 1. **AutoHotkey v2.0+**: Ensure you have AHK v2 installed on your system.
 2. **Game Window**: The Clash of Clans emulator window (e.g., Google Play Games PC, BlueStacks, LDPlayer) must be open.
+3.  Google Play Games needs the Developer Emulator for ADB. You can download it at https://developer.android.com/games/playgames/emulator or  search for "google play games developer emulator". Please make sure not to click on a fake link.
 
 ---
 
