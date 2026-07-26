@@ -2881,18 +2881,27 @@ StartBotLoop() {
 
         if !IsRunning
             break
-        ; Lab upgrade farming (TEMPORARY TEST: threshold check bypassed)
+        ; Lab upgrade farming
         if !IsLabBusy() {
-            LogMessage("Lab Upgrade (TEMPORARY TEST: Threshold check BYPASSED)")
-            UpgradeLab()
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
+            if (elixirFilled && darkFilled) {
+                UpgradeLab()
+            }
         }
         if !IsRunning
             break
             
-        ; Building upgrades farming (TEMPORARY TEST: threshold check bypassed)
+        ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
         if CanUpgradeBuilding() {
-            LogMessage("Building Upgrade (TEMPORARY TEST: Threshold check BYPASSED)")
-            UpgradeBuilding()
+            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
+            if (goldFilled && elixirFilled && darkFilled) {
+                UpgradeBuilding()
+            }
         }
         if !IsRunning
             break
