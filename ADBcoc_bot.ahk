@@ -2639,8 +2639,10 @@ FindTemplateUpgradeButton(hwnd, &outX, &outY) {
     if RegExMatch(output, "SUCCESS:\s*(\d+)/(\d+)", &match) {
         match_x := Integer(match[1])
         match_y := Integer(match[2])
+        ; Offset downwards by ~18px at 1080p to click the bottom half of the detected upgrade button
+        buttonHeightOffset := Max(10, Round(h * 0.016))
         outX := scrLeft + match_x
-        outY := scrTop + match_y
+        outY := scrTop + match_y + buttonHeightOffset
         return true
     }
     return false
