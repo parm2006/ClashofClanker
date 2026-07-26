@@ -4257,6 +4257,8 @@ F2:: {
 ^F2:: {
     StartBBCalibration()
 }
+
+; Milestone Checkpoint 2.4: Verified Builder Suggestions OCR and Multi-Point Village Detection
 Esc:: {
     ShowToolTip("Exiting Clash of Clans Bot...")
     Sleep 1000
