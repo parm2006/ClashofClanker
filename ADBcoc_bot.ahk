@@ -65,6 +65,8 @@ global BBStar3Y := 540
 global BBStarColor := 0x000000
 global WarLogoX := 100
 global WarLogoY := 700
+global MVLogoX := 100
+global MVLogoY := 700
 global WarLogoColor := 0x000000
 ; --- OCR Target Areas ---
 global BuilderFaceX := 960
@@ -859,8 +861,10 @@ LoadConfig() {
     BBStar3X := SafeInteger(IniRead("config.ini", "Coordinates", "BBStar3X", ""), 960)
     BBStar3Y := SafeInteger(IniRead("config.ini", "Coordinates", "BBStar3Y", ""), 540)
     BBStarColor := SafeInteger(IniRead("config.ini", "Coordinates", "BBStarColor", ""), 0x000000)
-    WarLogoX := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoX", ""), 100)
-    WarLogoY := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoY", ""), 700)
+    MVLogoX := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoX", ""), 100)
+    MVLogoY := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoY", ""), 700)
+    WarLogoX := MVLogoX
+    WarLogoY := MVLogoY
     WarLogoColor := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoColor", ""), 0x000000)
     BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 960)
     BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 30)
