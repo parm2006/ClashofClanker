@@ -3363,38 +3363,47 @@ IsWarLogoColor(r, g, b) {
 }
 
 IsWarLogoPresentADB(x, y) {
-    try {
-        c := GetADBPixelColor(x, y)
-        actualHex := Integer(c)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return IsWarLogoColor(r, g, b)
-    } catch {
-        return false
+    ; Check center and 4 diagonal offset points (+/- 20px)
+    offsets := [{x:0, y:0}, {x:-20, y:-20}, {x:20, y:-20}, {x:-20, y:20}, {x:20, y:20}]
+    for pt in offsets {
+        try {
+            c := GetADBPixelColor(x + pt.x, y + pt.y)
+            actualHex := Integer(c)
+            r := (actualHex >> 16) & 0xFF
+            g := (actualHex >> 8) & 0xFF
+            b := actualHex & 0xFF
+            if IsWarLogoColor(r, g, b)
+                return true
+        }
     }
+    return false
 }
 
 IsWarLogoPresentClient(x, y) {
     CoordMode "Pixel", "Client"
-    try {
-        color := PixelGetColor(x, y)
-        actualHex := Integer(color)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return IsWarLogoColor(r, g, b)
-    } catch {
-        return false
+    offsets := [{x:0, y:0}, {x:-20, y:-20}, {x:20, y:-20}, {x:-20, y:20}, {x:20, y:20}]
+    for pt in offsets {
+        try {
+            color := PixelGetColor(x + pt.x, y + pt.y)
+            actualHex := Integer(color)
+            r := (actualHex >> 16) & 0xFF
+            g := (actualHex >> 8) & 0xFF
+            b := actualHex & 0xFF
+            if IsWarLogoColor(r, g, b)
+                return true
+        }
     }
+    return false
 }
 
 IsWarLogoPresent() {
-    global ADBWarLogoX, ADBWarLogoY, WarLogoX, WarLogoY
+    global ADBWarLogoX, ADBWarLogoY, WarLogoX, WarLogoY, MVLogoX, MVLogoY
+    targetX := (ADBWarLogoX > 0) ? ADBWarLogoX : ((MVLogoX > 0) ? MVLogoX : WarLogoX)
+    targetY := (ADBWarLogoY > 0) ? ADBWarLogoY : ((MVLogoY > 0) ? MVLogoY : WarLogoY)
     if (ADBWarLogoX > 0) {
-        return IsWarLogoPresentADB(ADBWarLogoX, ADBWarLogoY)
+        return IsWarLogoPresentADB(targetX, targetY)
     }
-    return IsWarLogoPresentClient(WarLogoX, WarLogoY)
+    return IsWarLogoPresentClient(targetX, targetY)
 }
 IsAtBuilderBase() {
     global ADBBBAttackBtnX, ADBBBAttackBtnY, BBAttackBtnX, BBAttackBtnY
