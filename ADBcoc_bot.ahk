@@ -3317,12 +3317,49 @@ IsAtHomeVillage() {
         return false
     return true
 }
-IsWarLogoPresent() {
-    global ADBWarLogoX, ADBWarLogoY, WarLogoX, WarLogoY, WarLogoColor
-    if (ADBWarLogoX > 0) {
-        return IsBrownADB(ADBWarLogoX, ADBWarLogoY)
+IsWarLogoColor(r, g, b) {
+    ; 1. Silver / White Sword Blades (e.g. RGB 240, 235, 225)
+    isSilverSword := (r >= 150) && (g >= 150) && (b >= 130) && (Abs(r - g) <= 40) && (Abs(g - b) <= 40)
+    ; 2. Brown Wood Shield (e.g. RGB 140, 75, 30)
+    isBrownWood := (r > g) && (g > b) && (r - b >= 20) && (g - b >= 5) && (r >= 70 && r <= 250)
+    ; 3. Gold / Orange Outer Frame (e.g. RGB 245, 175, 50)
+    isGoldFrame := (r >= 180) && (g >= 110) && (b <= 130) && (r > g + 15)
+    return isSilverSword || isBrownWood || isGoldFrame
+}
+
+IsWarLogoPresentADB(x, y) {
+    try {
+        c := GetADBPixelColor(x, y)
+        actualHex := Integer(c)
+        r := (actualHex >> 16) & 0xFF
+        g := (actualHex >> 8) & 0xFF
+        b := actualHex & 0xFF
+        return IsWarLogoColor(r, g, b)
+    } catch {
+        return false
     }
-    return IsBrown(WarLogoX, WarLogoY)
+}
+
+IsWarLogoPresentClient(x, y) {
+    CoordMode "Pixel", "Client"
+    try {
+        color := PixelGetColor(x, y)
+        actualHex := Integer(color)
+        r := (actualHex >> 16) & 0xFF
+        g := (actualHex >> 8) & 0xFF
+        b := actualHex & 0xFF
+        return IsWarLogoColor(r, g, b)
+    } catch {
+        return false
+    }
+}
+
+IsWarLogoPresent() {
+    global ADBWarLogoX, ADBWarLogoY, WarLogoX, WarLogoY
+    if (ADBWarLogoX > 0) {
+        return IsWarLogoPresentADB(ADBWarLogoX, ADBWarLogoY)
+    }
+    return IsWarLogoPresentClient(WarLogoX, WarLogoY)
 }
 IsAtBuilderBase() {
     global ADBBBAttackBtnX, ADBBBAttackBtnY, BBAttackBtnX, BBAttackBtnY
