@@ -2221,20 +2221,12 @@ GetBuilderCount(&free, &total) {
 }
 
 CanUpgradeBuilding() {
-    global EnableWallUpgrade
     free := 0
     total := 0
     if !GetBuilderCount(&free, &total)
-        return false ; If OCR fails, assume we can't upgrade to be safe
-    
-    if (EnableWallUpgrade) {
-        ; If walls are enabled, we must leave 1 builder for walls.
-        ; So we need at least 2 builders to do a building upgrade.
-        return free >= 2
-    } else {
-        ; If walls are disabled, we can use the last builder for buildings.
-        return free >= 1
-    }
+        return false
+        
+    return free >= 1
 }
 
 CanUpgradeWall() {
