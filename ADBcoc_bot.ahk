@@ -3408,15 +3408,13 @@ IsWarLogoPresent() {
 IsAtBuilderBase() {
     global ADBBBAttackBtnX, ADBBBAttackBtnY, BBAttackBtnX, BBAttackBtnY
     if (ADBBBAttackBtnX > 0) {
-        return IsBrownADB(ADBBBAttackBtnX - 45, ADBBBAttackBtnY) || IsBrownADB(ADBBBAttackBtnX + 45, ADBBBAttackBtnY)
+        hasAttackBtn := IsAttackBtnPresentADB(ADBBBAttackBtnX - 45, ADBBBAttackBtnY) || IsAttackBtnPresentADB(ADBBBAttackBtnX + 45, ADBBBAttackBtnY)
+        return hasAttackBtn && !IsWarLogoPresent()
     }
     if !EnsureWindowActive()
         return false
-    isBB := IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
-    if !isBB
-        return false
-    Sleep 300
-    return IsBrown(BBAttackBtnX - 45, BBAttackBtnY) || IsBrown(BBAttackBtnX + 45, BBAttackBtnY)
+    hasAttackBtn := IsAttackBtnPresentClient(BBAttackBtnX - 45, BBAttackBtnY) || IsAttackBtnPresentClient(BBAttackBtnX + 45, BBAttackBtnY)
+    return hasAttackBtn && !IsWarLogoPresent()
 }
 DeployBBTroops(side, phase) {
     global DeployDelta, BBClickCount
