@@ -2850,7 +2850,7 @@ StartBotLoop() {
     if WinExist(TargetWindowTitle) {
         WinGetClientPos ,, &cw, &ch, TargetWindowTitle
         LogMessage("Performing initial ADB tap inside the Android viewport...")
-        ADBClickFraction(0.8, 0.3)
+        ADBClickPoint(1300, 40)
         SafeSleep(300)
     } else {
         LogMessage("Error: Game window not found. Skipping initial focus click.")
@@ -3106,8 +3106,7 @@ IsTimerUp() {
 ClearingClick() {
     global TargetWindowTitle
     if WinExist(TargetWindowTitle) {
-        WinGetClientPos ,, &cw, &ch, TargetWindowTitle
-        ADBClickFraction(0.8, 0.3)
+        ADBClickPoint(1300, 40)
         SafeSleep(300)
     }
 }
