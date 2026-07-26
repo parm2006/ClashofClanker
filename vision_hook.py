@@ -21,28 +21,40 @@ def run_hammer_match(img_path, client_height):
     REF_CLIENT_HEIGHT = 1028
     scale = client_height / REF_CLIENT_HEIGHT
 
-    if scale != 1.0:
-        new_w = int(template.shape[1] * scale)
-        new_h = int(template.shape[0] * scale)
-        template = cv2.resize(template, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
-
     lower_magenta = np.array([250, 0, 250])
     upper_magenta = np.array([255, 5, 255])
-    magenta_mask = cv2.inRange(template, lower_magenta, upper_magenta)
-    mask = cv2.bitwise_not(magenta_mask)
 
-    res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED, mask=mask)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-    
-    # We won't print the max match score line because AHK parses the output
-    # Just print SUCCESS or FAILED
-    if max_val > 0.65:
-        h_t, w_t = template.shape[:2]
-        match_x = max_loc[0] + w_t // 2
-        match_y = max_loc[1] + h_t // 2
+    best_val = 0.0
+    best_loc = (0, 0)
+    best_template_shape = (0, 0)
+
+    # Multi-scale sweep to match different screen resolutions / DPI scaling
+    for scale_mult in [1.0, 0.85, 1.15, 0.75, 1.25]:
+        s = scale * scale_mult
+        new_w = int(template.shape[1] * s)
+        new_h = int(template.shape[0] * s)
+        if new_w < 10 or new_h < 10 or new_w > img.shape[1] or new_h > img.shape[0]:
+            continue
+
+        scaled_template = cv2.resize(template, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        scaled_magenta = cv2.inRange(scaled_template, lower_magenta, upper_magenta)
+        scaled_mask = cv2.bitwise_not(scaled_magenta)
+
+        res = cv2.matchTemplate(img, scaled_template, cv2.TM_CCOEFF_NORMED, mask=scaled_mask)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+
+        if max_val > best_val:
+            best_val = max_val
+            best_loc = max_loc
+            best_template_shape = scaled_template.shape[:2]
+
+    if best_val > 0.45:
+        h_t, w_t = best_template_shape
+        match_x = best_loc[0] + w_t // 2
+        match_y = best_loc[1] + h_t // 2
         print(f"SUCCESS: {match_x}/{match_y}")
     else:
-        print("FAILED")
+        print(f"FAILED (Best Match Score: {best_val:.2f})")
 
 def run_fraction_ocr(img_path, client_height, mode):
     img = cv2.imread(img_path)

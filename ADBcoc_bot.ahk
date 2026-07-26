@@ -2831,7 +2831,7 @@ UpgradeBuilding() {
             ClearingClick()
             return true
         } else {
-            LogMessage("Farming: Failed to find Upgrade hammer button.")
+            LogMessage("Farming: Failed to find Upgrade hammer button (Template Match threshold not reached). Check vision_hook log.")
             ClearingClick()
         }
     }
@@ -2882,27 +2882,18 @@ StartBotLoop() {
 
         if !IsRunning
             break
-        ; Lab upgrade farming
+        ; Lab upgrade farming (TEMPORARY TEST: threshold check bypassed)
         if !IsLabBusy() {
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
-            LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
-            if (elixirFilled && darkFilled) {
-                UpgradeLab()
-            }
+            LogMessage("Lab Upgrade (TEMPORARY TEST: Threshold check BYPASSED)")
+            UpgradeLab()
         }
         if !IsRunning
             break
             
-        ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
+        ; Building upgrades farming (TEMPORARY TEST: threshold check bypassed)
         if CanUpgradeBuilding() {
-            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
-            LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
-            if (goldFilled && elixirFilled && darkFilled) {
-                UpgradeBuilding()
-            }
+            LogMessage("Building Upgrade (TEMPORARY TEST: Threshold check BYPASSED)")
+            UpgradeBuilding()
         }
         if !IsRunning
             break
