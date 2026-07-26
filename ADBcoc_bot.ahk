@@ -3290,14 +3290,49 @@ IsBrown(x, y) {
         return false
     }
 }
+IsAttackBtnColor(r, g, b) {
+    ; 1. Brown Wood Shield Background (e.g. RGB 140, 75, 30)
+    isBrownWood := (r > g) && (g > b) && (r - b >= 25) && (g - b >= 10) && (r >= 70 && r <= 250)
+    ; 2. Tan / Beige / Yellow Paper Map (e.g. RGB 245, 220, 175)
+    isTanMap := (r >= 180) && (g >= 140) && (b >= 90) && (r >= g) && (g >= b * 0.75)
+    return isBrownWood || isTanMap
+}
+
+IsAttackBtnPresentADB(x, y) {
+    try {
+        c := GetADBPixelColor(x, y)
+        actualHex := Integer(c)
+        r := (actualHex >> 16) & 0xFF
+        g := (actualHex >> 8) & 0xFF
+        b := actualHex & 0xFF
+        return IsAttackBtnColor(r, g, b)
+    } catch {
+        return false
+    }
+}
+
+IsAttackBtnPresentClient(x, y) {
+    CoordMode "Pixel", "Client"
+    try {
+        color := PixelGetColor(x, y)
+        actualHex := Integer(color)
+        r := (actualHex >> 16) & 0xFF
+        g := (actualHex >> 8) & 0xFF
+        b := actualHex & 0xFF
+        return IsAttackBtnColor(r, g, b)
+    } catch {
+        return false
+    }
+}
+
 IsAtHomeVillage() {
-    global ADBAttackBtnX, ADBAttackBtnY, AttackBtnX, AttackBtnY, WarLogoColor
+    global ADBAttackBtnX, ADBAttackBtnY, AttackBtnX, AttackBtnY
     if (ADBAttackBtnX > 0) {
-        isHome := IsBrownADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsBrownADB(ADBAttackBtnX + 45, ADBAttackBtnY)
+        isHome := IsAttackBtnPresentADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsAttackBtnPresentADB(ADBAttackBtnX + 45, ADBAttackBtnY)
         if !isHome
             return false
         Sleep 300
-        isHome := IsBrownADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsBrownADB(ADBAttackBtnX + 45, ADBAttackBtnY)
+        isHome := IsAttackBtnPresentADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsAttackBtnPresentADB(ADBAttackBtnX + 45, ADBAttackBtnY)
         if !isHome
             return false
         if !IsWarLogoPresent()
@@ -3306,11 +3341,11 @@ IsAtHomeVillage() {
     }
     if !EnsureWindowActive()
         return false
-    isHome := IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    isHome := IsAttackBtnPresentClient(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentClient(AttackBtnX + 45, AttackBtnY)
     if !isHome
         return false
     Sleep 300
-    isHome := IsBrown(AttackBtnX - 45, AttackBtnY) || IsBrown(AttackBtnX + 45, AttackBtnY)
+    isHome := IsAttackBtnPresentClient(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentClient(AttackBtnX + 45, AttackBtnY)
     if !isHome
         return false
     if !IsWarLogoPresent()
