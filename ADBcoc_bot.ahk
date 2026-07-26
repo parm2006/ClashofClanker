@@ -2757,24 +2757,25 @@ UpgradeBuilding() {
     ADBClickPoint(ADBBuilderFaceX, ADBBuilderFaceY)
     Sleep 1200
     WinGetClientPos &cx, &cy, &w, &h, hwnd
-    menuLeft := BuilderFaceX - (w * 0.18)
-    menuWidth := w * 0.36
-    menuTop := h * 0.12
-    menuHeight := h * 0.75
+    menuLeft := BuilderFaceX - (w * 0.20)
+    menuWidth := w * 0.42
+    menuTop := h * 0.08
+    menuHeight := h * 0.85
     scrLeft := cx + menuLeft
     scrTop := cy + menuTop
     ; Scan dropdown using OCR
     suggestion_text := ""
     clickX := 0, clickY := 0
     found_suggestion := false
-    for sc in [2.5, 2.0, 3.0] {
+    for sc in [2.0, 2.5, 1.5, 3.0] {
         try {
             result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
             lines := result.Lines
             ; Find the "Suggested upgrades" header
             suggested_idx := -1
             loop lines.Length {
-                if InStr(lines[A_Index].Text, "ggested Upgr") || InStr(lines[A_Index].Text, "ggested upgr") || InStr(lines[A_Index].Text, "Suggested") {
+                t := lines[A_Index].Text
+                if InStr(t, "ggested Upgr") || InStr(t, "ggested upgr") || InStr(t, "Suggested") || InStr(t, "gested") {
                     suggested_idx := A_Index
                     break
                 }
