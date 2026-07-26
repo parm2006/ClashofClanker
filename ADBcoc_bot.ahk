@@ -2149,6 +2149,34 @@ GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
     offY := Round(scrH * 0.50)
 }
 
+IsGoblinFace(centerX, centerY) {
+    global ADBBuilderFaceX, TargetWindowTitle
+    if (centerX <= 0 || centerY <= 0)
+        return false
+        
+    offsets := [
+        [0, 0], [-7, 0], [7, 0], [0, -7], [0, 7],
+        [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
+    ]
+    
+    greenCount := 0
+    for pt in offsets {
+        px := centerX + pt[1]
+        py := centerY + pt[2]
+        try {
+            colorHex := (ADBBuilderFaceX > 0) ? GetADBPixelColor(px, py) : (CoordMode("Pixel", "Screen"), PixelGetColor(px, py))
+            c := Integer(colorHex)
+            r := (c >> 16) & 0xFF
+            g := (c >> 8) & 0xFF
+            b := c & 0xFF
+            
+            if (g > r && g > b + 15 && g >= 80)
+                greenCount++
+        }
+    }
+    return greenCount >= 4
+}
+
 GetBuilderCount(&free, &total) {
     global ADBBuilderFaceX, ADBBuilderFaceY, BuilderFaceX, BuilderFaceY, TargetWindowTitle
     free := 0
@@ -2158,6 +2186,8 @@ GetBuilderCount(&free, &total) {
         GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
         scrX := ADBBuilderFaceX - offX
         scrY := ADBBuilderFaceY - offY
+        centerX := ADBBuilderFaceX
+        centerY := ADBBuilderFaceY
     } else {
         if !WinExist(TargetWindowTitle)
             return false
@@ -2165,6 +2195,8 @@ GetBuilderCount(&free, &total) {
         GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
         scrX := cx + BuilderFaceX - offX
         scrY := cy + BuilderFaceY - offY
+        centerX := cx + BuilderFaceX
+        centerY := cy + BuilderFaceY
     }
     
     imgName := A_ScriptDir "\builder_area_bot.png"
@@ -2175,7 +2207,13 @@ GetBuilderCount(&free, &total) {
     if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
         free := Integer(match[1])
         total := Integer(match[2])
-        LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
+        
+        if (free > 0 && IsGoblinFace(centerX, centerY)) {
+            LogMessage(Format("Goblin Builder detected at ({}, {})! Free={}. Ignoring Goblin Builder to prevent spending gems.", centerX, centerY, free))
+            free := 0
+        } else {
+            LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
+        }
         return true
     }
     LogMessage("Builder OCR failed. Output: " clean_out)
@@ -2621,6 +2659,8 @@ IsLabBusy() {
         GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
         scrX := ADBLabFaceX - offX
         scrY := ADBLabFaceY - offY
+        centerX := ADBLabFaceX
+        centerY := ADBLabFaceY
     } else {
         if !WinExist(TargetWindowTitle)
             return true
@@ -2628,6 +2668,8 @@ IsLabBusy() {
         GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
         scrX := cx + LabFaceX - offX
         scrY := cy + LabFaceY - offY
+        centerX := cx + LabFaceX
+        centerY := cy + LabFaceY
     }
 
     imgName := A_ScriptDir "\lab_area_bot.png"
@@ -2638,6 +2680,12 @@ IsLabBusy() {
     if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
         free := Integer(match[1])
         total := Integer(match[2])
+        
+        if (free > 0 && IsGoblinFace(centerX, centerY)) {
+            LogMessage(Format("Goblin Researcher detected at ({}, {})! Free={}. Treating Lab as busy to prevent spending gems.", centerX, centerY, free))
+            return true
+        }
+        
         LogMessage(Format("Lab OCR parsed: {}/{}", free, total))
         return free == 0
     }
