@@ -2748,7 +2748,7 @@ UpgradeLab() {
     ClearingClick()
 }
 UpgradeBuilding() {
-    global TargetWindowTitle, BuilderFaceX, BuilderFaceY, UpgradeConfirmX, UpgradeConfirmY
+    global TargetWindowTitle, BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, UpgradeConfirmX, UpgradeConfirmY
     global ADBBuilderFaceX, ADBBuilderFaceY, ADBUpgradeConfirmX, ADBUpgradeConfirmY
     hwnd := WinExist(TargetWindowTitle)
     if !hwnd
@@ -2757,10 +2757,12 @@ UpgradeBuilding() {
     ADBClickPoint(ADBBuilderFaceX, ADBBuilderFaceY)
     Sleep 1200
     WinGetClientPos &cx, &cy, &w, &h, hwnd
+    topY := Max(0, BuilderFaceY)
+    bottomY := (BuilderMenuBottomY > topY + 100) ? BuilderMenuBottomY : Integer(h * 0.85)
     menuLeft := BuilderFaceX - (w * 0.20)
     menuWidth := w * 0.42
-    menuTop := h * 0.08
-    menuHeight := h * 0.85
+    menuTop := topY
+    menuHeight := bottomY - topY
     scrLeft := cx + menuLeft
     scrTop := cy + menuTop
     ; Scan dropdown using OCR
