@@ -2149,39 +2149,6 @@ GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
     offY := Round(scrH * 0.50)
 }
 
-GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &free, &total) {
-    candidates := Map()
-    scanLog := ""
-    for scale in [1, 1.5, 2, 2.5, 3] {
-        try {
-            result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: scale})
-            rawText := Trim(result.Text)
-            scanLog .= "[" scale ": " rawText "] "
-            if ParseBuilderFraction(rawText, &candidateFree, &candidateTotal) {
-                key := candidateFree "/" candidateTotal
-                if !candidates.Has(key)
-                    candidates[key] := {count: 0, free: candidateFree, total: candidateTotal}
-                candidates[key].count += 1
-            }
-        } catch as err {
-            scanLog .= "[" scale ": error] "
-        }
-    }
-    best := ""
-    for key, candidate in candidates {
-        if !IsObject(best) || candidate.count > best.count
-            best := candidate
-    }
-    if IsObject(best) && best.count >= 2 {
-        free := best.free
-        total := best.total
-        LogMessage("Builder Windows OCR consensus: " free "/" total " (" best.count "/5).")
-        return true
-    }
-    LogMessage("Builder Windows OCR had no consensus. " scanLog)
-    return false
-}
-
 GetBuilderCount(&free, &total) {
     global ADBBuilderFaceX, ADBBuilderFaceY, BuilderFaceX, BuilderFaceY, TargetWindowTitle
     free := 0
@@ -2199,31 +2166,16 @@ GetBuilderCount(&free, &total) {
         scrX := cx + BuilderFaceX - offX
         scrY := cy + BuilderFaceY - offY
     }
-    windowsFree := 0
-    windowsTotal := 0
-    hasWindowsConsensus := GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &windowsFree, &windowsTotal)
     
     imgName := A_ScriptDir "\builder_area_bot.png"
     SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
     clean_out := Trim(RunWaitPythonScript('builders "' imgName '" ' h))
     try FileDelete(imgName)
     
-    hasTemplateResult := RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match)
-    if hasWindowsConsensus {
-        free := windowsFree
-        total := windowsTotal
-        if hasTemplateResult {
-            templateFree := Integer(match[1])
-            templateTotal := Integer(match[2])
-            if (templateFree != free || templateTotal != total)
-                LogMessage(Format("Builder OCR disagreement: Windows={}/{}, template={}/{}. Using multi-scale Windows consensus.", free, total, templateFree, templateTotal))
-        }
-        return true
-    }
-    if hasTemplateResult {
+    if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
         free := Integer(match[1])
         total := Integer(match[2])
-        LogMessage(Format("Builder template OCR parsed: {}/{}", free, total))
+        LogMessage(Format("Builder OCR parsed: {}/{}", free, total))
         return true
     }
     LogMessage("Builder OCR failed. Output: " clean_out)
@@ -2655,22 +2607,27 @@ FindTemplateUpgradeButton(hwnd, &outX, &outY) {
     }
     return false
 }
+GetLabCropRegion(h, &scrW, &scrH, &offX, &offY) {
+    scrW := Max(100, Round(h * 0.12))
+    scrH := Max(30, Round(h * 0.04))
+    offX := Round(scrW * 0.15)
+    offY := Round(scrH * 0.50)
+}
+
 IsLabBusy() {
     global ADBLabFaceX, ADBLabFaceY, LabFaceX, LabFaceY, TargetWindowTitle
     if (ADBLabFaceX > 0) {
-        scrX := ADBLabFaceX
-        scrY := ADBLabFaceY - 22
-        scrW := 115
-        scrH := 44
         h := 1080
+        GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
+        scrX := ADBLabFaceX - offX
+        scrY := ADBLabFaceY - offY
     } else {
         if !WinExist(TargetWindowTitle)
             return true
         WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-        scrX := cx + LabFaceX
-        scrY := cy + LabFaceY - 22
-        scrW := 115
-        scrH := 44
+        GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
+        scrX := cx + LabFaceX - offX
+        scrY := cy + LabFaceY - offY
     }
 
     imgName := A_ScriptDir "\lab_area_bot.png"
@@ -2682,9 +2639,7 @@ IsLabBusy() {
         free := Integer(match[1])
         total := Integer(match[2])
         LogMessage(Format("Lab OCR parsed: {}/{}", free, total))
-        if free > 0
-            return false
-        return true
+        return free == 0
     }
     LogMessage("Lab OCR failed. Output: " clean_out)
     return true ; Default to busy if OCR fails
