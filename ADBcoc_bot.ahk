@@ -1787,11 +1787,11 @@ UpdateCalibrationUI() {
         case 5:
             instructions := "Step 5/31: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 6:
-            instructions := "Step 6/31: Builder Face (Home Screen)`n`nHover mouse over the top-center Builder head icon and press SPACE."
+            instructions := "Step 6/31: Builder Face (Home Screen)`n`nHover mouse over the Builder's nose and press SPACE."
         case 7:
             instructions := "Step 7/31: Builder Menu Bottom`n`nClick the Builder Face to open the Builder menu. Hover over the bottom point where the upward drag should start and press SPACE. The ADB drag will use the Builder Face X and this point's Y."
         case 8:
-            instructions := "Step 8/31: Lab Face (Home Screen)`n`nClose the Builder menu, hover mouse over the top-center Lab icon (potion and sword), and press SPACE."
+            instructions := "Step 8/31: Lab Icon (Home Screen)`n`nClose the Builder menu, hover mouse over the Lab Icon (Rage Potion or Goblin Researcher) and press SPACE."
         case 9:
             instructions := "Step 9/31: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
         case 10:
@@ -2142,10 +2142,17 @@ IsDarkElixirBarFilled(x, y) {
         return false
     }
 }
+GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
+    scrW := Max(100, Round(h * 0.1362))
+    scrH := Max(24, Round(h * 0.0292))
+    offX := Round(scrW * 0.22)
+    offY := Round(scrH * 0.50)
+}
+
 GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &free, &total) {
     candidates := Map()
     scanLog := ""
-    for scale in [1, 1.5, 2, 2.5, 3, 4] {
+    for scale in [1, 1.5, 2, 2.5, 3] {
         try {
             result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: scale})
             rawText := Trim(result.Text)
@@ -2168,7 +2175,7 @@ GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &free, &total) {
     if IsObject(best) && best.count >= 2 {
         free := best.free
         total := best.total
-        LogMessage("Builder Windows OCR consensus: " free "/" total " (" best.count "/6).")
+        LogMessage("Builder Windows OCR consensus: " free "/" total " (" best.count "/5).")
         return true
     }
     LogMessage("Builder Windows OCR had no consensus. " scanLog)
@@ -2180,23 +2187,21 @@ GetBuilderCount(&free, &total) {
     free := 0
     total := 0
     if (ADBBuilderFaceX > 0) {
-        scrX := ADBBuilderFaceX - 30
-        scrY := ADBBuilderFaceY - 15
-        scrW := 130
-        scrH := 30
         h := 1080
+        GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
+        scrX := ADBBuilderFaceX - offX
+        scrY := ADBBuilderFaceY - offY
     } else {
         if !WinExist(TargetWindowTitle)
             return false
         WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-        scrX := cx + BuilderFaceX - 30
-        scrY := cy + BuilderFaceY - 15
-        scrW := 130
-        scrH := 30
+        GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
+        scrX := cx + BuilderFaceX - offX
+        scrY := cy + BuilderFaceY - offY
     }
     windowsFree := 0
     windowsTotal := 0
-    hasWindowsConsensus := (ADBBuilderFaceX == 0) ? GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &windowsFree, &windowsTotal) : false
+    hasWindowsConsensus := GetBuilderCountFromWindowsOCR(scrX, scrY, scrW, scrH, &windowsFree, &windowsTotal)
     
     imgName := A_ScriptDir "\builder_area_bot.png"
     SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)

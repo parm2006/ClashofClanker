@@ -56,13 +56,7 @@ def run_fraction_ocr(img_path, client_height, mode):
     scale = target_height / h
     new_w = int(w * scale)
     resized = cv2.resize(img, (new_w, target_height), interpolation=cv2.INTER_LANCZOS4)
-
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    _, thresh_img = cv2.threshold(gray, 150, 1, cv2.THRESH_BINARY)
-    
-    # Shave off top part containing horizontal line
-    shave_y = int(target_height * 0.12)
-    thresh_img[0:shave_y, :] = 0
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     workspace_dir = script_dir
@@ -84,90 +78,89 @@ def run_fraction_ocr(img_path, client_height, mode):
         print("ERROR: slash.png template not found.")
         sys.exit(1)
 
-    best_slash_score = 0.0
-    best_slash_loc = (-1, -1)
-    sh_h, sh_w = slash_mask.shape
-    th_h, th_w = thresh_img.shape
+    best_result = None
+    best_overall_score = 0.0
 
-    for y in range(th_h - sh_h + 1):
-        for x in range(th_w - sh_w + 1):
-            sub_win = thresh_img[y:y+sh_h, x:x+sh_w]
-            intersection = np.sum(np.logical_and(slash_mask, sub_win))
-            union = np.sum(np.logical_or(slash_mask, sub_win))
-            if union > 0:
-                score = intersection / union
-                if score > best_slash_score:
-                    best_slash_score = score
-                    best_slash_loc = (x, y)
+    for thresh_val in [150, 170, 130, 190, 110]:
+        _, thresh_img = cv2.threshold(gray, thresh_val, 1, cv2.THRESH_BINARY)
+        
+        # Shave off top part containing horizontal line
+        shave_y = int(target_height * 0.12)
+        thresh_img[0:shave_y, :] = 0
 
-    if best_slash_score < 0.50:
-        print(f"FAILED: Slash not found (max IoU={best_slash_score:.3f})")
-        sys.exit(0)
+        best_slash_score = 0.0
+        best_slash_loc = (-1, -1)
+        sh_h, sh_w = slash_mask.shape
+        th_h, th_w = thresh_img.shape
 
-    slash_x, slash_y = best_slash_loc
-    # Widened regions to prevent clipping
-    left_region = thresh_img[0:th_h, max(0, slash_x - 28):min(th_w, slash_x + 3)]
-    right_region = thresh_img[0:th_h, max(0, slash_x + sh_w - 3):min(th_w, slash_x + sh_w + 25)]
+        for y in range(th_h - sh_h + 1):
+            for x in range(th_w - sh_w + 1):
+                sub_win = thresh_img[y:y+sh_h, x:x+sh_w]
+                intersection = np.sum(np.logical_and(slash_mask, sub_win))
+                union = np.sum(np.logical_or(slash_mask, sub_win))
+                if union > 0:
+                    score = intersection / union
+                    if score > best_slash_score:
+                        best_slash_score = score
+                        best_slash_loc = (x, y)
 
-    def find_digit_iou(region, allowed_digits):
-        scores = {}
-        r_h, r_w = region.shape
+        if best_slash_score < 0.28:
+            continue
 
-        for digit in allowed_digits:
-            d_mask = load_template_mask(f"{digit}.png")
-            if d_mask is None:
-                continue
-            d_h, d_w = d_mask.shape
-            if r_w < d_w or r_h < d_h:
-                continue
+        slash_x, slash_y = best_slash_loc
+        left_region = thresh_img[0:th_h, max(0, slash_x - 32):min(th_w, slash_x + 3)]
+        right_region = thresh_img[0:th_h, max(0, slash_x + sh_w - 3):min(th_w, slash_x + sh_w + 32)]
 
-            best_score_for_digit = 0.0
-            for y in range(r_h - d_h + 1):
-                for x in range(r_w - d_w + 1):
-                    sub_win = region[y:y+d_h, x:x+d_w]
-                    intersection = np.sum(np.logical_and(d_mask, sub_win))
-                    union = np.sum(np.logical_or(d_mask, sub_win))
-                    if union > 0:
-                        score = intersection / union
-                        if score > best_score_for_digit:
-                            best_score_for_digit = score
-            scores[digit] = best_score_for_digit
+        def find_digit_iou(region, allowed_digits):
+            scores = {}
+            r_h, r_w = region.shape
 
-        # Heuristic: '1' can falsely get a very high IoU on the thick vertical edges of other digits.
-        # However, if it's truly a '1', its score will be very high (>0.85).
-        # If another digit scores decently (>0.40) AND '1' doesn't look perfect (<0.85), pick the other digit.
-        if 1 in allowed_digits:
-            score_1 = scores.get(1, 0)
-            best_non_1 = -1
-            best_non_1_score = 0
+            for digit in allowed_digits:
+                d_mask = load_template_mask(f"{digit}.png")
+                if d_mask is None:
+                    continue
+                d_h, d_w = d_mask.shape
+                if r_w < d_w or r_h < d_h:
+                    continue
+
+                best_score_for_digit = 0.0
+                for y in range(r_h - d_h + 1):
+                    for x in range(r_w - d_w + 1):
+                        sub_win = region[y:y+d_h, x:x+d_w]
+                        intersection = np.sum(np.logical_and(d_mask, sub_win))
+                        union = np.sum(np.logical_or(d_mask, sub_win))
+                        if union > 0:
+                            score = intersection / union
+                            if score > best_score_for_digit:
+                                best_score_for_digit = score
+                scores[digit] = best_score_for_digit
+
+            best_digit = -1
+            best_score = 0.0
             for d, s in scores.items():
-                if d != 1 and s > best_non_1_score:
-                    best_non_1_score = s
-                    best_non_1 = d
-            
-            if best_non_1_score > 0.40 and score_1 < 0.85:
-                return best_non_1, best_non_1_score
+                if s > best_score:
+                    best_score = s
+                    best_digit = d
+                    
+            return best_digit, best_score
 
-        best_digit = -1
-        best_score = 0.0
-        for d, s in scores.items():
-            if s > best_score:
-                best_score = s
-                best_digit = d
-                
-        return best_digit, best_score
+        if mode == "lab":
+            free_digit, free_score = find_digit_iou(left_region, [0, 1, 2])
+            total_digit, total_score = find_digit_iou(right_region, [1, 2])
+        else: # builders
+            free_digit, free_score = find_digit_iou(left_region, [0, 1, 2, 3, 4, 5, 6, 7])
+            total_digit, total_score = find_digit_iou(right_region, [1, 2, 3, 4, 5, 6, 7])
 
-    if mode == "lab":
-        free_digit, free_score = find_digit_iou(left_region, [0, 1, 2])
-        total_digit, total_score = find_digit_iou(right_region, [1, 2])
-    else: # builders
-        free_digit, free_score = find_digit_iou(left_region, [0, 1, 2, 3, 4, 5, 6])
-        total_digit, total_score = find_digit_iou(right_region, [2, 3, 4, 5, 6, 7])
+        if free_digit != -1 and total_digit != -1 and free_score > 0.25 and total_score > 0.25 and free_digit <= total_digit:
+            combined_score = free_score + total_score + best_slash_score
+            if combined_score > best_overall_score:
+                best_overall_score = combined_score
+                best_result = (free_digit, total_digit)
 
-    if free_digit != -1 and total_digit != -1 and free_score > 0.25 and total_score > 0.25:
-        print(f"SUCCESS: {free_digit}/{total_digit}")
+    if best_result is not None:
+        print(f"SUCCESS: {best_result[0]}/{best_result[1]}")
     else:
-        print(f"FAILED: Left={free_digit} (IoU={free_score:.3f}), Right={total_digit} (IoU={total_score:.3f})")
+        print(f"FAILED: No threshold yielded valid builder fraction")
 
 def main():
     if len(sys.argv) < 4:
