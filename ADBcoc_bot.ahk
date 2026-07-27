@@ -1817,9 +1817,9 @@ UpdateCalibrationUI() {
         case 18:
             instructions := "Step 18/31: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
         case 19:
-            instructions := "Step 19/31: Multiplayer Gold Area (Matchmaking Search)`n`nHover mouse over the Gold count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 19/31: Gold Coin Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the round Gold Coin Icon symbol in a multiplayer match search and press SPACE."
         case 20:
-            instructions := "Step 20/31: Multiplayer Elixir Area (Matchmaking Search)`n`nHover mouse over the Elixir count digits in a multiplayer match search and press SPACE."
+            instructions := "Step 20/31: Elixir Drop Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the purple Elixir Drop Icon symbol in a multiplayer match search and press SPACE."
         case 21:
             instructions := "Step 21/31: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
         case 22:
@@ -1947,7 +1947,7 @@ GetLootValueMultiScale(relX, relY, relW, relH, label) {
         scrX := cx + relX
         scrY := cy + relY
     }
-    scales := [1, 1.5, 2, 2.5, 3, 4]
+    scales := [2.0, 2.5, 3.0, 1.5]
     rawValues := []
     roundedValues := []
     imgName := A_ScriptDir "\scratch\ocr_loot_temp.png"
@@ -3890,25 +3890,29 @@ Space:: {
             CalibStep := 19
             UpdateCalibrationUI()
         case 19:
-            GoldAreaX := mx - 120
-            GoldAreaY := my - 15
+            GoldIconX := mx
+            GoldIconY := my
+            GoldAreaX := mx + 35
+            GoldAreaY := my - 18
             adbArea := ClientToADBPoint(GoldAreaX, GoldAreaY)
             ADBGoldAreaX := adbArea.x
             ADBGoldAreaY := adbArea.y
-            GoldAreaW := 220
-            GoldAreaH := 30
-            LogMessage(Format("Calibrated Gold Area: {}, {}", mx, my))
+            GoldAreaW := 260
+            GoldAreaH := 42
+            LogMessage(Format("Calibrated Gold Coin Symbol: {}, {}", mx, my))
             CalibStep := 20
             UpdateCalibrationUI()
         case 20:
-            ElixirAreaX := mx - 120
-            ElixirAreaY := my - 15
+            ElixirIconX := mx
+            ElixirIconY := my
+            ElixirAreaX := mx + 35
+            ElixirAreaY := my - 18
             adbArea := ClientToADBPoint(ElixirAreaX, ElixirAreaY)
             ADBElixirAreaX := adbArea.x
             ADBElixirAreaY := adbArea.y
-            ElixirAreaW := 220
-            ElixirAreaH := 30
-            LogMessage(Format("Calibrated Elixir Area: {}, {}", mx, my))
+            ElixirAreaW := 260
+            ElixirAreaH := 42
+            LogMessage(Format("Calibrated Elixir Drop Symbol: {}, {}", mx, my))
             CalibStep := 21
             UpdateCalibrationUI()
         case 21:
