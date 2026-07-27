@@ -2165,37 +2165,61 @@ GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
 }
 
 IsGoblinFace(centerX, centerY) {
-    global TargetWindowTitle
+    global ADBBuilderFaceX, TargetWindowTitle
     if (centerX <= 0 || centerY <= 0)
         return false
         
-    hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
-        return false
-    WinGetClientPos &cx, &cy, &cw, &ch, hwnd
-    
     offsets := [
         [0, 0], [-7, 0], [7, 0], [0, -7], [0, 7],
         [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
     ]
     
     greenCount := 0
-    CoordMode "Pixel", "Screen"
-    for pt in offsets {
-        px := cx + centerX + pt[1]
-        py := cy + centerY + pt[2]
-        try {
-            colorHex := PixelGetColor(px, py)
-            c := Integer(colorHex)
+    if (ADBBuilderFaceX > 0) {
+        framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+            
+        InitGDIPlus()
+        pBitmap := 0
+        if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
+            return false
+            
+        for pt in offsets {
+            px := Round(centerX + pt[1])
+            py := Round(centerY + pt[2])
+            argb := 0
+            DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", px, "int", py, "uint*", &argb)
+            c := argb & 0x00FFFFFF
             r := (c >> 16) & 0xFF
             g := (c >> 8) & 0xFF
             b := c & 0xFF
-            
             if (g > r && g > b + 15 && g >= 80)
                 greenCount++
         }
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+        return greenCount >= 4
+    } else {
+        hwnd := WinExist(TargetWindowTitle)
+        if !hwnd
+            return false
+        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
+        CoordMode "Pixel", "Screen"
+        for pt in offsets {
+            px := cx + centerX + pt[1]
+            py := cy + centerY + pt[2]
+            try {
+                colorHex := PixelGetColor(px, py)
+                c := Integer(colorHex)
+                r := (c >> 16) & 0xFF
+                g := (c >> 8) & 0xFF
+                b := c & 0xFF
+                if (g > r && g > b + 15 && g >= 80)
+                    greenCount++
+            }
+        }
+        return greenCount >= 4
     }
-    return greenCount >= 4
 }
 
 GetBuilderCount(&free, &total) {
