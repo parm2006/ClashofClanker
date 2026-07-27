@@ -2130,28 +2130,26 @@ IsElixirBarFilled(x, y) {
     }
 }
 IsDarkElixirBarFilled(x, y) {
+    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY
     try {
-        pt := ClientToADBPoint(x, y)
-        topColor := GetADBPixelColor(pt.x, pt.y)
-        bottomColor := GetADBPixelColor(pt.x, pt.y + 3)
+        targetX := (ADBDarkElixirBarThreshX > 0) ? ADBDarkElixirBarThreshX : 1701
+        targetY := 228 ; Center of Dark Elixir liquid bar in ADB 1080p space
+        if (x > 0 && y > 0 && ADBDarkElixirBarThreshX <= 0) {
+            pt := ClientToADBPoint(x, y)
+            if (pt.x > 0 && pt.y > 0) {
+                targetX := pt.x
+                targetY := pt.y
+            }
+        }
+        color := GetADBPixelColor(targetX, targetY)
+        actualHex := Integer(color)
+        r := (actualHex >> 16) & 0xFF
+        g := (actualHex >> 8) & 0xFF
+        b := actualHex & 0xFF
         
-        topR := (topColor >> 16) & 0xFF
-        topG := (topColor >> 8) & 0xFF
-        topB := topColor & 0xFF
-        
-        botR := (bottomColor >> 16) & 0xFF
-        botG := (bottomColor >> 8) & 0xFF
-        botB := bottomColor & 0xFF
-        
-        isTopEmpty := (topR > 110 && topG > 110 && topB > 110) && (Abs(topR - topG) < 20)
-        isBotDark := (botR < 70) && (botG < 70) && (botB < 70)
-        isTopDark := (topR < 110) && (topG < 110) && (topB < 110)
-        topLighterThanBot := (topR >= botR) && (topG >= botG) && (topB >= botB)
-        
-        if (isBotDark && isTopDark && topLighterThanBot && !isTopEmpty)
-            return true
-            
-        return false
+        ; Dark Elixir fluid is dark purple/black (r < 70, g < 50, b < 80).
+        ; Empty DE bar background is light grey (r > 100, g > 100, b > 100).
+        return (r < 70) && (g < 50) && (b < 80)
     } catch {
         return false
     }
