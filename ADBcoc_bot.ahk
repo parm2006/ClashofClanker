@@ -2088,14 +2088,9 @@ GetTroopCountsBattle() {
     return activeCounts
 }
 IsGoldBarFilled(x, y) {
-    global ADBGoldBarThreshX, ADBGoldBarThreshY
     try {
-        if (ADBGoldBarThreshX > 0 && ADBGoldBarThreshY > 0) {
-            color := GetADBPixelColor(ADBGoldBarThreshX, ADBGoldBarThreshY)
-        } else {
-            CoordMode "Pixel", "Client"
-            color := PixelGetColor(x, y)
-        }
+        pt := ClientToADBPoint(x, y)
+        color := (pt.x > 0 && pt.y > 0) ? GetADBPixelColor(pt.x, pt.y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2107,14 +2102,9 @@ IsGoldBarFilled(x, y) {
     }
 }
 IsElixirBarFilled(x, y) {
-    global ADBElixirBarThreshX, ADBElixirBarThreshY
     try {
-        if (ADBElixirBarThreshX > 0 && ADBElixirBarThreshY > 0) {
-            color := GetADBPixelColor(ADBElixirBarThreshX, ADBElixirBarThreshY)
-        } else {
-            CoordMode "Pixel", "Client"
-            color := PixelGetColor(x, y)
-        }
+        pt := ClientToADBPoint(x, y)
+        color := (pt.x > 0 && pt.y > 0) ? GetADBPixelColor(pt.x, pt.y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2130,11 +2120,11 @@ IsElixirBarFilled(x, y) {
     }
 }
 IsDarkElixirBarFilled(x, y) {
-    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY
     try {
-        if (ADBDarkElixirBarThreshX > 0 && ADBDarkElixirBarThreshY > 0) {
-            topColor := GetADBPixelColor(ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY)
-            bottomColor := GetADBPixelColor(ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY + 3)
+        pt := ClientToADBPoint(x, y)
+        if (pt.x > 0 && pt.y > 0) {
+            topColor := GetADBPixelColor(pt.x, pt.y)
+            bottomColor := GetADBPixelColor(pt.x, pt.y + 3)
         } else {
             CoordMode "Pixel", "Client"
             topColor := PixelGetColor(x, y)
@@ -2897,25 +2887,25 @@ StartBotLoop() {
 
         if !IsRunning
             break
-        ; Lab upgrade farming (triggers if Elixir OR Dark Elixir is filled)
+        ; Lab upgrade farming
         if !IsLabBusy() {
             elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
             darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
             LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
-            if (elixirFilled || darkFilled) {
+            if (elixirFilled && darkFilled) {
                 UpgradeLab()
             }
         }
         if !IsRunning
             break
             
-        ; Building upgrades farming (triggered if there is a free builder and any resource is filled)
+        ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
         if CanUpgradeBuilding() {
             goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
             elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
             darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
             LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
-            if (goldFilled || elixirFilled || darkFilled) {
+            if (goldFilled && elixirFilled && darkFilled) {
                 UpgradeBuilding()
             }
         }
