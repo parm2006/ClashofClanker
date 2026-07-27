@@ -2088,17 +2088,13 @@ GetTroopCountsBattle() {
     return activeCounts
 }
 GetStoragePixelColor(x, y) {
-    global TargetWindowTitle
-    hwnd := WinExist(TargetWindowTitle)
-    if hwnd {
-        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
-        if (cx != "" && cy != "") {
-            CoordMode "Pixel", "Screen"
-            return PixelGetColor(cx + x, cy + y)
-        }
+    try {
+        pt := ClientToADBPoint(x, y)
+        if (pt.x >= 0 && pt.y >= 0)
+            return GetADBPixelColor(pt.x, pt.y)
+    } catch {
     }
-    CoordMode "Pixel", "Client"
-    return PixelGetColor(x, y)
+    return 0x000000
 }
 
 IsGoldBarFilled(x, y) {
@@ -2165,7 +2161,6 @@ GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
 }
 
 IsGoblinFace(centerX, centerY) {
-    global ADBBuilderFaceX, TargetWindowTitle
     if (centerX <= 0 || centerY <= 0)
         return false
         
@@ -2174,52 +2169,30 @@ IsGoblinFace(centerX, centerY) {
         [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
     ]
     
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
+        
+    InitGDIPlus()
+    pBitmap := 0
+    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
+        return false
+        
     greenCount := 0
-    if (ADBBuilderFaceX > 0) {
-        framePath := CaptureADBFrame(true)
-        if !FileExist(framePath)
-            return false
-            
-        InitGDIPlus()
-        pBitmap := 0
-        if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
-            return false
-            
-        for pt in offsets {
-            px := Round(centerX + pt[1])
-            py := Round(centerY + pt[2])
-            argb := 0
-            DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", px, "int", py, "uint*", &argb)
-            c := argb & 0x00FFFFFF
-            r := (c >> 16) & 0xFF
-            g := (c >> 8) & 0xFF
-            b := c & 0xFF
-            if (g > r && g > b + 15 && g >= 80)
-                greenCount++
-        }
-        DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
-        return greenCount >= 4
-    } else {
-        hwnd := WinExist(TargetWindowTitle)
-        if !hwnd
-            return false
-        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
-        CoordMode "Pixel", "Screen"
-        for pt in offsets {
-            px := cx + centerX + pt[1]
-            py := cy + centerY + pt[2]
-            try {
-                colorHex := PixelGetColor(px, py)
-                c := Integer(colorHex)
-                r := (c >> 16) & 0xFF
-                g := (c >> 8) & 0xFF
-                b := c & 0xFF
-                if (g > r && g > b + 15 && g >= 80)
-                    greenCount++
-            }
-        }
-        return greenCount >= 4
+    for pt in offsets {
+        px := Round(centerX + pt[1])
+        py := Round(centerY + pt[2])
+        argb := 0
+        DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", px, "int", py, "uint*", &argb)
+        c := argb & 0x00FFFFFF
+        r := (c >> 16) & 0xFF
+        g := (c >> 8) & 0xFF
+        b := c & 0xFF
+        if (g > r && g > b + 15 && g >= 80)
+            greenCount++
     }
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+    return greenCount >= 4
 }
 
 GetBuilderCount(&free, &total) {
