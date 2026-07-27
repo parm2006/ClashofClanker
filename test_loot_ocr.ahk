@@ -226,13 +226,13 @@ RunLootOCR() {
     WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
     
     ; Calculate crop region starting to the right of the icon
-    goldCropX := cx + GoldIconX + 35
-    goldCropY := cy + GoldIconY - 18
-    goldW := 260, goldH := 42
+    goldCropX := cx + GoldIconX + 20
+    goldCropY := cy + GoldIconY - 12
+    goldW := 240, goldH := 45
     
-    elixirCropX := cx + ElixirIconX + 35
-    elixirCropY := cy + ElixirIconY - 18
-    elixirW := 260, elixirH := 42
+    elixirCropX := cx + ElixirIconX + 20
+    elixirCropY := cy + ElixirIconY - 12
+    elixirW := 240, elixirH := 45
     
     LogToConsole("--- Scanning Gold Loot OCR ---")
     SaveRegionToPNG(goldCropX, goldCropY, goldW, goldH, A_ScriptDir "\scratch\gold_crop.png")
