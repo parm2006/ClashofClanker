@@ -3892,26 +3892,26 @@ Space:: {
         case 19:
             GoldIconX := mx
             GoldIconY := my
-            GoldAreaX := mx + 20
-            GoldAreaY := my - 12
+            GoldAreaX := mx + 17
+            GoldAreaY := my - 8
             adbArea := ClientToADBPoint(GoldAreaX, GoldAreaY)
             ADBGoldAreaX := adbArea.x
             ADBGoldAreaY := adbArea.y
-            GoldAreaW := 240
-            GoldAreaH := 45
+            GoldAreaW := 220
+            GoldAreaH := 34
             LogMessage(Format("Calibrated Gold Coin Symbol: {}, {}", mx, my))
             CalibStep := 20
             UpdateCalibrationUI()
         case 20:
             ElixirIconX := mx
             ElixirIconY := my
-            ElixirAreaX := mx + 20
-            ElixirAreaY := my - 12
+            ElixirAreaX := mx + 17
+            ElixirAreaY := my - 6
             adbArea := ClientToADBPoint(ElixirAreaX, ElixirAreaY)
             ADBElixirAreaX := adbArea.x
             ADBElixirAreaY := adbArea.y
-            ElixirAreaW := 240
-            ElixirAreaH := 45
+            ElixirAreaW := 220
+            ElixirAreaH := 34
             LogMessage(Format("Calibrated Elixir Drop Symbol: {}, {}", mx, my))
             CalibStep := 21
             UpdateCalibrationUI()
