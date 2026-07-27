@@ -2088,14 +2088,11 @@ GetTroopCountsBattle() {
     return activeCounts
 }
 GetStoragePixelColor(x, y) {
-    global TargetWindowTitle
-    hwnd := WinExist(TargetWindowTitle)
-    if hwnd {
-        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
-        if (cx != "" && cy != "") {
-            CoordMode "Pixel", "Screen"
-            return PixelGetColor(cx + x, cy + y)
-        }
+    try {
+        pt := ClientToADBPoint(x, y)
+        if (pt.x > 0 && pt.y > 0)
+            return GetADBPixelColor(pt.x, pt.y)
+    } catch {
     }
     CoordMode "Pixel", "Client"
     return PixelGetColor(x, y)
