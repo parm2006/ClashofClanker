@@ -4,43 +4,38 @@
 SetTitleMatchMode 2
 
 ; ==============================================================================
-; Gold & Elixir Icon-Based OCR Visual Debugger with Auto-Update Loop
+; Gold & Elixir Icon-Based OCR Visual Debugger with Live Offset Adjusters
 ; ==============================================================================
 
 global TargetWindowTitle := "Clash of Clans"
-global GoldIconX := 100, GoldIconY := 120
-global ElixirIconX := 100, ElixirIconY := 160
+global GoldIconX := 45, GoldIconY := 145
+global ElixirIconX := 45, ElixirIconY := 195
 
-global ADBGoldIconX := 0, ADBGoldIconY := 0
-global ADBElixirIconX := 0, ADBElixirIconY := 0
-global ADBAttackBtnX := 0
+global LootCropOffsetX := 20
+global LootCropOffsetY := -4
+global LootCropW := 240
+global LootCropH := 45
 
 global IsAutoScanning := false
 
 ReloadConfig() {
-    global TargetWindowTitle, GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH, ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
-    global ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY, ADBAttackBtnX
+    global TargetWindowTitle, GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
     
     if FileExist("config.ini") {
         iniTarget := Trim(IniRead("config.ini", "Settings", "TargetWindowTitle", ""))
         if (iniTarget != "")
             TargetWindowTitle := iniTarget
             
-        GoldAreaX := Integer(IniRead("config.ini", "Coordinates", "GoldAreaX", 75))
-        GoldAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 136))
-        GoldAreaW := Integer(IniRead("config.ini", "Coordinates", "GoldAreaW", 220))
-        GoldAreaH := Integer(IniRead("config.ini", "Coordinates", "GoldAreaH", 40))
+        LootCropOffsetX := Integer(IniRead("config.ini", "Settings", "LootCropOffsetX", 20))
+        LootCropOffsetY := Integer(IniRead("config.ini", "Settings", "LootCropOffsetY", -4))
+        LootCropW       := Integer(IniRead("config.ini", "Settings", "LootCropW", 240))
+        LootCropH       := Integer(IniRead("config.ini", "Settings", "LootCropH", 45))
         
-        ElixirAreaX := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaX", 75))
-        ElixirAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 186))
-        ElixirAreaW := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaW", 220))
-        ElixirAreaH := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaH", 40))
-        
-        ADBGoldAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaX", 75))
-        ADBGoldAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaY", 136))
-        ADBElixirAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaX", 75))
-        ADBElixirAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaY", 186))
-        ADBAttackBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "AttackBtnX", 0))
+        GoldIconX   := Integer(IniRead("config.ini", "Coordinates", "GoldIconX", 45))
+        GoldIconY   := Integer(IniRead("config.ini", "Coordinates", "GoldIconY", 145))
+        ElixirIconX := Integer(IniRead("config.ini", "Coordinates", "ElixirIconX", 45))
+        ElixirIconY := Integer(IniRead("config.ini", "Coordinates", "ElixirIconY", 195))
     }
 }
 
@@ -59,28 +54,48 @@ EditTarget := MyGui.Add("Edit", "x120 y10 w220 h26 vEditTarget", TargetWindowTit
 ChkTop := MyGui.Add("Checkbox", "x355 y14 w130 h25 vChkTop", "Always On Top")
 StatusText := MyGui.Add("Text", "x500 y14 w200 h25 vStatusText Right cGray", "Status: Idle")
 
-; Buttons
-BtnScan  := MyGui.Add("Button", "x15 y48 w150 h35", "Scan Once (F1)")
-BtnToggleAuto := MyGui.Add("Button", "x175 y48 w160 h35 vBtnToggleAuto", "Start Auto Scan")
-BtnClear := MyGui.Add("Button", "x590 y48 w110 h35", "Clear Console")
+; Adjuster GroupBox
+MyGui.Add("GroupBox", "x15 y42 w685 h60", "Live Bounding Box Adjusters (Shared Gold & Elixir Offsets)")
+MyGui.Add("Text", "x25 y68 w75 h20", "Offset X:")
+EditOffsetX := MyGui.Add("Edit", "x100 y65 w50 h24 Number vEditOffsetX", String(LootCropOffsetX))
+MyGui.Add("UpDown", "vSpinOffsetX Range-100-200", LootCropOffsetX)
+
+MyGui.Add("Text", "x165 y68 w75 h20", "Offset Y:")
+EditOffsetY := MyGui.Add("Edit", "x240 y65 w50 h24 vEditOffsetY", String(LootCropOffsetY))
+MyGui.Add("UpDown", "vSpinOffsetY Range-100-200", LootCropOffsetY)
+
+MyGui.Add("Text", "x305 y68 w75 h20", "Width:")
+EditWidth := MyGui.Add("Edit", "x380 y65 w55 h24 Number vEditWidth", String(LootCropW))
+MyGui.Add("UpDown", "vSpinWidth Range50-500", LootCropW)
+
+MyGui.Add("Text", "x450 y68 w75 h20", "Height:")
+EditHeight := MyGui.Add("Edit", "x525 y65 w55 h24 Number vEditHeight", String(LootCropH))
+MyGui.Add("UpDown", "vSpinHeight Range10-200", LootCropH)
+
+BtnSaveOffsets := MyGui.Add("Button", "x595 y63 w95 h28", "Save Offsets")
+
+; Action Buttons
+BtnScan       := MyGui.Add("Button", "x15 y110 w150 h35", "Scan Once (F1)")
+BtnToggleAuto := MyGui.Add("Button", "x175 y110 w160 h35 vBtnToggleAuto", "Start Auto Scan")
+BtnClear      := MyGui.Add("Button", "x590 y110 w110 h35", "Clear Console")
 
 ; GroupBox: Verdict Header
-MyGui.Add("GroupBox", "x15 y90 w685 h75", "Parsed Loot Quantities")
+MyGui.Add("GroupBox", "x15 y152 w685 h70", "Parsed Loot Quantities")
 MyGui.SetFont("s14 Bold", "Segoe UI")
-VerdictText := MyGui.Add("Text", "x30 y115 w655 h40 vVerdictText cBlue", "Gold: ? | Elixir: ?")
+VerdictText := MyGui.Add("Text", "x30 y175 w655 h40 vVerdictText cBlue", "Gold: ? | Elixir: ?")
 MyGui.SetFont("s10 Norm", "Segoe UI")
 
 ; Picture Previews
-MyGui.Add("GroupBox", "x15 y170 w335 h140", "Gold Digit Crop (Offset from Coin Icon)")
-PicGold := MyGui.Add("Picture", "x25 y195 w315 h105 +Border vPicGold", "")
+MyGui.Add("GroupBox", "x15 y230 w335 h130", "Gold Digit Crop (Icon Center + Offsets)")
+PicGold := MyGui.Add("Picture", "x25 y252 w315 h98 +Border vPicGold", "")
 
-MyGui.Add("GroupBox", "x365 y170 w335 h140", "Elixir Digit Crop (Offset from Drop Icon)")
-PicElixir := MyGui.Add("Picture", "x375 y195 w315 h105 +Border vPicElixir", "")
+MyGui.Add("GroupBox", "x365 y230 w335 h130", "Elixir Digit Crop (Icon Center + Offsets)")
+PicElixir := MyGui.Add("Picture", "x375 y252 w315 h98 +Border vPicElixir", "")
 
 ; Console
-MyGui.Add("GroupBox", "x15 y320 w685 h340", "OCR Diagnostic Output & Multi-Scale Results")
+MyGui.Add("GroupBox", "x15 y370 w685 h340", "OCR Diagnostic Output & Multi-Scale Results")
 MyGui.SetFont("s9", "Consolas")
-ConsoleEdit := MyGui.Add("Edit", "x25 y345 w665 h305 ReadOnly +VScroll +HScroll vConsoleEdit", "")
+ConsoleEdit := MyGui.Add("Edit", "x25 y395 w665 h305 ReadOnly +VScroll +HScroll vConsoleEdit", "")
 MyGui.SetFont("s10", "Segoe UI")
 
 ; Event Handlers
@@ -89,9 +104,15 @@ ChkTop.OnEvent("Click", (*) => MyGui.Opt((ChkTop.Value ? "+" : "-") "AlwaysOnTop
 BtnScan.OnEvent("Click", (*) => RunLootOCR())
 BtnToggleAuto.OnEvent("Click", (*) => ToggleAutoScan())
 BtnClear.OnEvent("Click", (*) => ClearConsole())
+BtnSaveOffsets.OnEvent("Click", (*) => SaveCurrentOffsets())
+
+EditOffsetX.OnEvent("Change", (*) => OnOffsetChanged())
+EditOffsetY.OnEvent("Change", (*) => OnOffsetChanged())
+EditWidth.OnEvent("Change", (*) => OnOffsetChanged())
+EditHeight.OnEvent("Change", (*) => OnOffsetChanged())
 
 MyGui.OnEvent("Close", (*) => ExitApp())
-MyGui.Show("w715 h675")
+MyGui.Show("w715 h725")
 
 ; ------------------------------------------------------------------------------
 ; Functions
@@ -110,6 +131,31 @@ LogToConsole(msg) {
 
 ClearConsole() {
     ConsoleEdit.Value := ""
+}
+
+SaveCurrentOffsets() {
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
+    if FileExist("config.ini") {
+        IniWrite(String(LootCropOffsetX), "config.ini", "Settings", "LootCropOffsetX")
+        IniWrite(String(LootCropOffsetY), "config.ini", "Settings", "LootCropOffsetY")
+        IniWrite(String(LootCropW),       "config.ini", "Settings", "LootCropW")
+        IniWrite(String(LootCropH),       "config.ini", "Settings", "LootCropH")
+        LogToConsole(Format("Saved Offsets to config.ini: OffsetX={}, OffsetY={}, W={}, H={}", LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH))
+    }
+}
+
+OnOffsetChanged() {
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
+    try {
+        if (EditOffsetX.Value != "")
+            LootCropOffsetX := Integer(EditOffsetX.Value)
+        if (EditOffsetY.Value != "")
+            LootCropOffsetY := Integer(EditOffsetY.Value)
+        if (EditWidth.Value != "")
+            LootCropW := Integer(EditWidth.Value)
+        if (EditHeight.Value != "")
+            LootCropH := Integer(EditHeight.Value)
+    }
 }
 
 ToggleAutoScan() {
@@ -201,7 +247,6 @@ ScanLootRegion(cropX, cropY, cropW, cropH, label) {
     if (readings.Length == 0)
         return 0
         
-    ; Find highest candidate
     bestVal := 0
     for v in readings {
         if (v > bestVal)
@@ -211,9 +256,9 @@ ScanLootRegion(cropX, cropY, cropW, cropH, label) {
 }
 
 RunLootOCR() {
-    global TargetWindowTitle, GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH, ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
+    global TargetWindowTitle, GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
     
-    ; Dynamic config reloading at start of cycle
     ReloadConfig()
     
     if !WinExist(TargetWindowTitle) {
@@ -224,13 +269,14 @@ RunLootOCR() {
     
     WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
     
-    goldCropX := cx + GoldAreaX
-    goldCropY := cy + GoldAreaY
-    goldW := GoldAreaW, goldH := GoldAreaH
+    ; Shared offset math from icon center for both Gold & Elixir
+    goldCropX := cx + GoldIconX + LootCropOffsetX
+    goldCropY := cy + GoldIconY + LootCropOffsetY
+    goldW := LootCropW, goldH := LootCropH
     
-    elixirCropX := cx + ElixirAreaX
-    elixirCropY := cy + ElixirAreaY
-    elixirW := ElixirAreaW, elixirH := ElixirAreaH
+    elixirCropX := cx + ElixirIconX + LootCropOffsetX
+    elixirCropY := cy + ElixirIconY + LootCropOffsetY
+    elixirW := LootCropW, elixirH := LootCropH
     
     LogToConsole("--- Scanning Gold Loot OCR ---")
     SaveRegionToPNG(goldCropX, goldCropY, goldW, goldH, A_ScriptDir "\scratch\gold_crop.png")

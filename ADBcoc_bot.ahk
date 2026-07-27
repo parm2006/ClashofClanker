@@ -83,6 +83,10 @@ global ElixirAreaX := 50
 global ElixirAreaY := 90
 global ElixirAreaW := 150
 global ElixirAreaH := 30
+global LootCropOffsetX := 20
+global LootCropOffsetY := -4
+global LootCropW := 240
+global LootCropH := 45
 global NextMatchBtnX := 1630
 global NextMatchBtnY := 850
 ; --- Storage Bar Check Coordinates ---
@@ -888,6 +892,10 @@ LoadConfig() {
     ElixirAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaY", ""), 90)
     ElixirAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaW", ""), 150)
     ElixirAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaH", ""), 30)
+    LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 20)
+    LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -4)
+    LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 240)
+    LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 45)
     NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1630))
     NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 850))
     UpgradeMoreBtnX := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnX", 960))
