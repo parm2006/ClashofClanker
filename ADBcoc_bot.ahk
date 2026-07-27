@@ -2088,9 +2088,14 @@ GetTroopCountsBattle() {
     return activeCounts
 }
 IsGoldBarFilled(x, y) {
-    global ADBGoldBarThreshX
+    global ADBGoldBarThreshX, ADBGoldBarThreshY
     try {
-        color := (ADBGoldBarThreshX > 0) ? GetADBPixelColor(x, y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
+        if (ADBGoldBarThreshX > 0 && ADBGoldBarThreshY > 0) {
+            color := GetADBPixelColor(ADBGoldBarThreshX, ADBGoldBarThreshY)
+        } else {
+            CoordMode "Pixel", "Client"
+            color := PixelGetColor(x, y)
+        }
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2102,9 +2107,14 @@ IsGoldBarFilled(x, y) {
     }
 }
 IsElixirBarFilled(x, y) {
-    global ADBElixirBarThreshX
+    global ADBElixirBarThreshX, ADBElixirBarThreshY
     try {
-        color := (ADBElixirBarThreshX > 0) ? GetADBPixelColor(x, y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
+        if (ADBElixirBarThreshX > 0 && ADBElixirBarThreshY > 0) {
+            color := GetADBPixelColor(ADBElixirBarThreshX, ADBElixirBarThreshY)
+        } else {
+            CoordMode "Pixel", "Client"
+            color := PixelGetColor(x, y)
+        }
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2120,10 +2130,16 @@ IsElixirBarFilled(x, y) {
     }
 }
 IsDarkElixirBarFilled(x, y) {
-    global ADBDarkElixirBarThreshX
+    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY
     try {
-        topColor := (ADBDarkElixirBarThreshX > 0) ? GetADBPixelColor(x, y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
-        bottomColor := (ADBDarkElixirBarThreshX > 0) ? GetADBPixelColor(x, y + 3) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y + 3))
+        if (ADBDarkElixirBarThreshX > 0 && ADBDarkElixirBarThreshY > 0) {
+            topColor := GetADBPixelColor(ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY)
+            bottomColor := GetADBPixelColor(ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY + 3)
+        } else {
+            CoordMode "Pixel", "Client"
+            topColor := PixelGetColor(x, y)
+            bottomColor := PixelGetColor(x, y + 3)
+        }
         
         topR := (topColor >> 16) & 0xFF
         topG := (topColor >> 8) & 0xFF
