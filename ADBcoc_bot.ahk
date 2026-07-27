@@ -1184,6 +1184,10 @@ SaveConfig() {
     IniWrite(GoldBarThreshY, "config.ini", "Coordinates", "GoldBarThreshY")
     IniWrite(ElixirBarThreshX, "config.ini", "Coordinates", "ElixirBarThreshX")
     IniWrite(ElixirBarThreshY, "config.ini", "Coordinates", "ElixirBarThreshY")
+    IniWrite(GoldIconX, "config.ini", "Coordinates", "GoldIconX")
+    IniWrite(GoldIconY, "config.ini", "Coordinates", "GoldIconY")
+    IniWrite(ElixirIconX, "config.ini", "Coordinates", "ElixirIconX")
+    IniWrite(ElixirIconY, "config.ini", "Coordinates", "ElixirIconY")
     IniWrite(GoldAreaX, "config.ini", "Coordinates", "GoldAreaX")
     IniWrite(GoldAreaY, "config.ini", "Coordinates", "GoldAreaY")
     IniWrite(GoldAreaW, "config.ini", "Coordinates", "GoldAreaW")
@@ -3900,26 +3904,26 @@ Space:: {
         case 19:
             GoldIconX := mx
             GoldIconY := my
-            GoldAreaX := mx + 20
-            GoldAreaY := my - 4
+            GoldAreaX := mx + LootCropOffsetX
+            GoldAreaY := my + LootCropOffsetY
             adbArea := ClientToADBPoint(GoldAreaX, GoldAreaY)
             ADBGoldAreaX := adbArea.x
             ADBGoldAreaY := adbArea.y
-            GoldAreaW := 240
-            GoldAreaH := 45
+            GoldAreaW := LootCropW
+            GoldAreaH := LootCropH
             LogMessage(Format("Calibrated Gold Coin Symbol: {}, {}", mx, my))
             CalibStep := 20
             UpdateCalibrationUI()
         case 20:
             ElixirIconX := mx
             ElixirIconY := my
-            ElixirAreaX := mx + 20
-            ElixirAreaY := my - 4
+            ElixirAreaX := mx + LootCropOffsetX
+            ElixirAreaY := my + LootCropOffsetY
             adbArea := ClientToADBPoint(ElixirAreaX, ElixirAreaY)
             ADBElixirAreaX := adbArea.x
             ADBElixirAreaY := adbArea.y
-            ElixirAreaW := 240
-            ElixirAreaH := 45
+            ElixirAreaW := LootCropW
+            ElixirAreaH := LootCropH
             LogMessage(Format("Calibrated Elixir Drop Symbol: {}, {}", mx, my))
             CalibStep := 21
             UpdateCalibrationUI()
