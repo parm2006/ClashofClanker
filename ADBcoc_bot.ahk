@@ -2860,10 +2860,8 @@ StartBotLoop() {
     CheckGameTimeout(true)
     ; Send an ADB tap without activating the emulator window.
     if WinExist(TargetWindowTitle) {
-        WinGetClientPos ,, &cw, &ch, TargetWindowTitle
-        LogMessage("Performing initial ADB tap inside the Android viewport...")
-        ADBClickPoint(1400, 40)
-        SafeSleep(300)
+        LogMessage("Performing initial ADB focus clicks inside viewport...")
+        ClearingClick()
     } else {
         LogMessage("Error: Game window not found. Skipping initial focus click.")
     }
@@ -3117,9 +3115,9 @@ IsTimerUp() {
 ; ==============================================================================
 ClearingClick() {
     global TargetWindowTitle
-    if WinExist(TargetWindowTitle) {
-        ADBClickPoint(1400, 40)
-        SafeSleep(300)
+    Loop 3 {
+        RunADBTapAt(1700, 400)
+        Sleep 200
     }
 }
 SafeSleep(ms) {
