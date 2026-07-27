@@ -35,6 +35,21 @@ Each operation hides its internal captures, retries, waits, random choices,
 error correction, and low-level inputs. The controller shows the required
 business sequence without exposing individual taps or polling loops.
 
+## Capture freshness
+
+ADB screenshots are expensive, so each section takes only the captures needed
+to make a current decision. A section reuses one fresh frame for every pixel
+and OCR read that describes the same instant. For example, village detection
+reads all attack-button and war-logo pixels from one frame; the three resource
+threshold booleans also come from one frame.
+
+Sections never reuse a frame after an input or wait may have changed game
+state. Resource thresholds, builder availability, wall decisions, lab
+availability, cloud checks, loot checks, and home confirmation each request a
+fresh frame at their own decision boundary. Polling loops complete one capture
+and its analysis before starting the next capture. A section must reject a
+missing or stale frame instead of silently using the previous section's image.
+
 ## Section responsibilities
 
 `clear_tap` performs three taps at the calibrated clearing point. Each tap gets
@@ -53,14 +68,15 @@ elixir, and dark-elixir threshold points from that image. It returns:
 ```
 
 `run_builder_upgrade` returns immediately unless all three thresholds are met.
-It takes one builder screenshot, rejects a zero builder count or Goblin
-Builder, reserves the last builder when wall upgrades are enabled, opens the
-builder menu, finds the suggested upgrade, selects it, confirms it, and invokes
-one `clear_tap`.
+It takes a new builder screenshot after the threshold section, rejects a zero
+builder count or Goblin Builder, reserves the last builder when wall upgrades
+are enabled, opens the builder menu, finds the suggested upgrade, selects it,
+confirms it, and invokes one `clear_tap`. Wall checks take another fresh frame
+because the builder upgrade may have changed resources or builder availability.
 
-`run_lab_upgrade` takes one lab screenshot, rejects an unavailable lab or
-Goblin Researcher, opens the lab menu, finds the suggested upgrade, selects it,
-confirms it, and invokes one `clear_tap`.
+`run_lab_upgrade` takes a new lab screenshot after builder and wall work,
+rejects an unavailable lab or Goblin Researcher, opens the lab menu, finds the
+suggested upgrade, selects it, confirms it, and invokes one `clear_tap`.
 
 `enter_main_battle` performs Attack, Find Match, and Attack in order. It owns
 the randomized input delays and reports failure if an input cannot be sent.
@@ -122,8 +138,9 @@ or the user pauses the bot. Runtime code never activates the emulator window.
 The interaction tests prove triple clearing taps, independent offsets, both
 timing bands, and the component-wise spell shift after translation.
 
-The flow tests assert the short section-level Main Village sequence and the
-three threshold booleans. Focused operation tests cover collector iteration,
+The flow tests assert the short section-level Main Village sequence, the three
+threshold booleans, one-frame multi-pixel decisions, and fresh-frame boundaries
+between mutable sections. Focused operation tests cover collector iteration,
 builder reservation, lab rejection, battle entry order, cloud retry cadence,
 loot retry behavior, deployment order, Return Home retry, and timer-at-end
 behavior. The actual refactor must load without AutoHotkey warnings, and
