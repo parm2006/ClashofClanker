@@ -27,19 +27,19 @@ ReloadConfig() {
             TargetWindowTitle := iniTarget
             
         GoldAreaX := Integer(IniRead("config.ini", "Coordinates", "GoldAreaX", 75))
-        GoldAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 128))
+        GoldAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 136))
         GoldAreaW := Integer(IniRead("config.ini", "Coordinates", "GoldAreaW", 220))
         GoldAreaH := Integer(IniRead("config.ini", "Coordinates", "GoldAreaH", 40))
         
         ElixirAreaX := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaX", 75))
-        ElixirAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 178))
+        ElixirAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 186))
         ElixirAreaW := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaW", 220))
         ElixirAreaH := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaH", 40))
         
         ADBGoldAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaX", 75))
-        ADBGoldAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaY", 128))
+        ADBGoldAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaY", 136))
         ADBElixirAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaX", 75))
-        ADBElixirAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaY", 178))
+        ADBElixirAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaY", 186))
         ADBAttackBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "AttackBtnX", 0))
     }
 }
