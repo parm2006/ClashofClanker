@@ -18,7 +18,7 @@ global LootCropH := 45
 
 global IsAutoScanning := false
 
-ReloadConfig() {
+ReloadConfig(force := false) {
     global TargetWindowTitle, GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
     global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
     
@@ -27,10 +27,12 @@ ReloadConfig() {
         if (iniTarget != "")
             TargetWindowTitle := iniTarget
             
-        LootCropOffsetX := Integer(IniRead("config.ini", "Settings", "LootCropOffsetX", 20))
-        LootCropOffsetY := Integer(IniRead("config.ini", "Settings", "LootCropOffsetY", -4))
-        LootCropW       := Integer(IniRead("config.ini", "Settings", "LootCropW", 240))
-        LootCropH       := Integer(IniRead("config.ini", "Settings", "LootCropH", 45))
+        if force {
+            LootCropOffsetX := Integer(IniRead("config.ini", "Settings", "LootCropOffsetX", 35))
+            LootCropOffsetY := Integer(IniRead("config.ini", "Settings", "LootCropOffsetY", -17))
+            LootCropW       := Integer(IniRead("config.ini", "Settings", "LootCropW", 220))
+            LootCropH       := Integer(IniRead("config.ini", "Settings", "LootCropH", 40))
+        }
         
         GoldIconX   := Integer(IniRead("config.ini", "Coordinates", "GoldIconX", 45))
         GoldIconY   := Integer(IniRead("config.ini", "Coordinates", "GoldIconY", 145))
@@ -39,7 +41,7 @@ ReloadConfig() {
     }
 }
 
-ReloadConfig()
+ReloadConfig(true)
 
 ; ------------------------------------------------------------------------------
 ; GUI Construction
@@ -155,6 +157,7 @@ OnOffsetChanged() {
             LootCropW := Integer(EditWidth.Value)
         if (EditHeight.Value != "")
             LootCropH := Integer(EditHeight.Value)
+        SetTimer RunLootOCR, -100
     }
 }
 
