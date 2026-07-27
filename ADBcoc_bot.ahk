@@ -2088,11 +2088,14 @@ GetTroopCountsBattle() {
     return activeCounts
 }
 GetStoragePixelColor(x, y) {
-    try {
-        pt := ClientToADBPoint(x, y)
-        if (pt.x > 0 && pt.y > 0)
-            return GetADBPixelColor(pt.x, pt.y)
-    } catch {
+    global TargetWindowTitle
+    hwnd := WinExist(TargetWindowTitle)
+    if hwnd {
+        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
+        if (cx != "" && cy != "") {
+            CoordMode "Pixel", "Screen"
+            return PixelGetColor(cx + x, cy + y)
+        }
     }
     CoordMode "Pixel", "Client"
     return PixelGetColor(x, y)
@@ -2162,21 +2165,27 @@ GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
 }
 
 IsGoblinFace(centerX, centerY) {
-    global ADBBuilderFaceX, TargetWindowTitle
+    global TargetWindowTitle
     if (centerX <= 0 || centerY <= 0)
         return false
         
+    hwnd := WinExist(TargetWindowTitle)
+    if !hwnd
+        return false
+    WinGetClientPos &cx, &cy, &cw, &ch, hwnd
+    
     offsets := [
         [0, 0], [-7, 0], [7, 0], [0, -7], [0, 7],
         [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
     ]
     
     greenCount := 0
+    CoordMode "Pixel", "Screen"
     for pt in offsets {
-        px := centerX + pt[1]
-        py := centerY + pt[2]
+        px := cx + centerX + pt[1]
+        py := cy + centerY + pt[2]
         try {
-            colorHex := (ADBBuilderFaceX > 0) ? GetADBPixelColor(px, py) : (CoordMode("Pixel", "Screen"), PixelGetColor(px, py))
+            colorHex := PixelGetColor(px, py)
             c := Integer(colorHex)
             r := (c >> 16) & 0xFF
             g := (c >> 8) & 0xFF
