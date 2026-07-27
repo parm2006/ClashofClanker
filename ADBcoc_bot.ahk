@@ -2087,10 +2087,23 @@ GetTroopCountsBattle() {
     LogMessage(Format("Troop counts for battle: {}, {}, {}", summaryList[1], summaryList[2], summaryList[3]))
     return activeCounts
 }
+GetStoragePixelColor(x, y) {
+    global TargetWindowTitle
+    hwnd := WinExist(TargetWindowTitle)
+    if hwnd {
+        WinGetClientPos &cx, &cy, &cw, &ch, hwnd
+        if (cx != "" && cy != "") {
+            CoordMode "Pixel", "Screen"
+            return PixelGetColor(cx + x, cy + y)
+        }
+    }
+    CoordMode "Pixel", "Client"
+    return PixelGetColor(x, y)
+}
+
 IsGoldBarFilled(x, y) {
     try {
-        pt := ClientToADBPoint(x, y)
-        color := (pt.x > 0 && pt.y > 0) ? GetADBPixelColor(pt.x, pt.y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
+        color := GetStoragePixelColor(x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2103,8 +2116,7 @@ IsGoldBarFilled(x, y) {
 }
 IsElixirBarFilled(x, y) {
     try {
-        pt := ClientToADBPoint(x, y)
-        color := (pt.x > 0 && pt.y > 0) ? GetADBPixelColor(pt.x, pt.y) : (CoordMode("Pixel", "Client"), PixelGetColor(x, y))
+        color := GetStoragePixelColor(x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2121,15 +2133,8 @@ IsElixirBarFilled(x, y) {
 }
 IsDarkElixirBarFilled(x, y) {
     try {
-        pt := ClientToADBPoint(x, y)
-        if (pt.x > 0 && pt.y > 0) {
-            topColor := GetADBPixelColor(pt.x, pt.y)
-            bottomColor := GetADBPixelColor(pt.x, pt.y + 3)
-        } else {
-            CoordMode "Pixel", "Client"
-            topColor := PixelGetColor(x, y)
-            bottomColor := PixelGetColor(x, y + 3)
-        }
+        topColor := GetStoragePixelColor(x, y)
+        bottomColor := GetStoragePixelColor(x, y + 3)
         
         topR := (topColor >> 16) & 0xFF
         topG := (topColor >> 8) & 0xFF
