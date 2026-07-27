@@ -18,29 +18,28 @@ global ADBAttackBtnX := 0
 global IsAutoScanning := false
 
 ReloadConfig() {
-    global TargetWindowTitle, GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
-    global ADBGoldIconX, ADBGoldIconY, ADBElixirIconX, ADBElixirIconY, ADBAttackBtnX
+    global TargetWindowTitle, GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH, ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
+    global ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY, ADBAttackBtnX
     
     if FileExist("config.ini") {
         iniTarget := Trim(IniRead("config.ini", "Settings", "TargetWindowTitle", ""))
         if (iniTarget != "")
             TargetWindowTitle := iniTarget
             
-        ; Try reading icon coords first, fall back to area coords + 120 if uncalibrated
-        gAreaX := Integer(IniRead("config.ini", "Coordinates", "GoldAreaX", 100))
-        gAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 120))
-        eAreaX := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaX", 100))
-        eAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 160))
+        GoldAreaX := Integer(IniRead("config.ini", "Coordinates", "GoldAreaX", 75))
+        GoldAreaY := Integer(IniRead("config.ini", "Coordinates", "GoldAreaY", 128))
+        GoldAreaW := Integer(IniRead("config.ini", "Coordinates", "GoldAreaW", 220))
+        GoldAreaH := Integer(IniRead("config.ini", "Coordinates", "GoldAreaH", 40))
         
-        GoldIconX := Integer(IniRead("config.ini", "Coordinates", "GoldIconX", gAreaX + 120))
-        GoldIconY := Integer(IniRead("config.ini", "Coordinates", "GoldIconY", gAreaY + 15))
-        ElixirIconX := Integer(IniRead("config.ini", "Coordinates", "ElixirIconX", eAreaX + 120))
-        ElixirIconY := Integer(IniRead("config.ini", "Coordinates", "ElixirIconY", eAreaY + 15))
+        ElixirAreaX := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaX", 75))
+        ElixirAreaY := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaY", 178))
+        ElixirAreaW := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaW", 220))
+        ElixirAreaH := Integer(IniRead("config.ini", "Coordinates", "ElixirAreaH", 40))
         
-        ADBGoldIconX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldIconX", 0))
-        ADBGoldIconY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldIconY", 0))
-        ADBElixirIconX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirIconX", 0))
-        ADBElixirIconY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirIconY", 0))
+        ADBGoldAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaX", 75))
+        ADBGoldAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaY", 128))
+        ADBElixirAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaX", 75))
+        ADBElixirAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaY", 178))
         ADBAttackBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "AttackBtnX", 0))
     }
 }
@@ -212,7 +211,7 @@ ScanLootRegion(cropX, cropY, cropW, cropH, label) {
 }
 
 RunLootOCR() {
-    global TargetWindowTitle, GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global TargetWindowTitle, GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH, ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
     
     ; Dynamic config reloading at start of cycle
     ReloadConfig()
@@ -225,14 +224,13 @@ RunLootOCR() {
     
     WinGetClientPos &cx, &cy, &cw, &ch, TargetWindowTitle
     
-    ; Calculate crop region starting to the right of the icon
-    goldCropX := cx + GoldIconX + 20
-    goldCropY := cy + GoldIconY - 12
-    goldW := 240, goldH := 45
+    goldCropX := cx + GoldAreaX
+    goldCropY := cy + GoldAreaY
+    goldW := GoldAreaW, goldH := GoldAreaH
     
-    elixirCropX := cx + ElixirIconX + 20
-    elixirCropY := cy + ElixirIconY - 12
-    elixirW := 240, elixirH := 45
+    elixirCropX := cx + ElixirAreaX
+    elixirCropY := cy + ElixirAreaY
+    elixirW := ElixirAreaW, elixirH := ElixirAreaH
     
     LogToConsole("--- Scanning Gold Loot OCR ---")
     SaveRegionToPNG(goldCropX, goldCropY, goldW, goldH, A_ScriptDir "\scratch\gold_crop.png")
