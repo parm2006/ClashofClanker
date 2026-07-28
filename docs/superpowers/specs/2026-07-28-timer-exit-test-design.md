@@ -25,8 +25,11 @@ Pressing F1:
 4. Moves the Windows mouse to the client coordinate without clicking.
 5. Logs the client coordinate and translated ADB coordinate.
 
-This phase lets the user confirm the target visually. After inspection, the
-user dismisses the dialog manually before starting Phase 2.
+This phase lets the user confirm the target visually. If the estimate is
+wrong, the user places the mouse at the center of Okay and presses Space. The
+harness records that exact client coordinate, updates the controls, and saves
+it under `[VisualTests]`. After inspection, the user dismisses the dialog
+manually before starting Phase 2.
 
 ### Phase 2: Complete Background ADB Test
 
@@ -59,6 +62,7 @@ The final ADB tap applies the standard independent `-7..+8` pixel offsets.
 The visual debugger contains:
 
 - editable Okay X and Y client-coordinate controls;
+- Space-to-calibrate capture from the current mouse position;
 - F1 **Preview Okay Location** and F2 **Run Real ADB Exit** buttons;
 - a high-contrast READY, PREVIEW, SUCCESS, or ERROR verdict;
 - a fresh ADB preview marked at the translated target;
