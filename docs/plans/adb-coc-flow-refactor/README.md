@@ -15,6 +15,7 @@ Execute in the order below. Each executor must read the selected plan fully, run
 | [005](005-prove-builder-info-ocr-detector.md) | Prove the Builder Info OCR detector in isolation | M | 003 | IN PROGRESS |
 | [006](006-integrate-builder-info-before-confirmation.md) | Require Builder Info before upgrade confirmation | M | 005 + user validation | TODO |
 | [007](007-prove-timer-exit-interaction.md) | Prove the end-of-loop timer exit interaction in isolation | M | 002 | DONE |
+| [008](008-integrate-builder-base-attack-flow.md) | Route production Builder Base attacks through the proven flow | M | 003 + user validation | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDED (one-line pointer to what replaced it)
 
@@ -30,6 +31,16 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDE
   that the live visual inspector finds Info across variable action rows.
 
 ## Reconciliation log
+
+- **2026-07-30**: Closed Plan 008. Production now delegates Builder Base
+  attacks to the proven four-check flow, analyzes all three calibrated stars
+  from one fresh ADB frame, performs a distinct post-Return-Home home check,
+  and preserves the shared viewport-top coordinate transform.
+
+- **2026-07-30**: Added Plan 008 after the user confirmed the Builder Base
+  visual flow and requested production integration. The current approved
+  cadence is Return Home after every fourth completed star analysis; this
+  supersedes the older design document's fifth-check wording.
 
 - **2026-07-28**: Closed Plan 007 after the user confirmed both visual phases.
   Integrated the proven Main Village timer exit as one end-of-cycle operation:

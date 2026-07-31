@@ -7,6 +7,7 @@
 #include "loot_ocr_logic.ahk"
 #include "resource_threshold_logic.ahk"
 #include "builder_info_ocr_logic.ahk"
+#include "builder_base_loop_logic.ahk"
 ; Every gameplay input must enter through the client-coordinate interaction
 ; contract in this support file. Callers must never pretranslate coordinates.
 #include "ADBcocbotrefactor_support.ahk"
@@ -4180,162 +4181,222 @@ DeployBBTroops(side, phase) {
     }
     LogMessage(Format("Phase {} troop deployment complete.", phase))
 }
-RunBuilderBaseLoop() {
-    global IsBBRunning, TransitionDelay, BattleLoadDelay, ReturnHomeClickX, ReturnHomeClickY, StartBtn, PauseBtn
-    LogMessage("--- Starting Builder Base Loop ---")
-    while IsBBRunning {
-        LogMessage("Step 1: Clicking BB Attack Button")
-        ADBClickPoint(BBAttackBtnX, BBAttackBtnY)
-        if !SafeSleep(TransitionDelay)
-            break
-        LogMessage("Step 2: Clicking BB Find Match")
-        ADBClickPoint(BBFindMatchBtnX, BBFindMatchBtnY)
-        if !SafeSleep(TransitionDelay)
-            break
-        LogMessage("Waiting 7s for matchmaking transition...")
-        if !SafeSleep(7000)
-            goto BBLoopExit
-        if AreCloudsPresent() {
-            LogMessage("Step 4: Waiting for battle to load...")
-            while AreCloudsPresent() {
-                if !SafeSleep(5000)
-                    goto BBLoopExit
-                CheckGameTimeout()
-            }
-        }
-        ; Deduct 10s from BattleLoadDelay to start faster, minimum 100ms
-        actualLoadDelay := (BattleLoadDelay > 10000) ? (BattleLoadDelay - 10000) : 100
-        if !SafeSleep(actualLoadDelay)
-            break
-        sideIdx := Random(1, 4)
-        chosenSide := BBSides[sideIdx]
-        p1TimerEnd := A_TickCount + 130000 ; 2 minutes 10 seconds timer
-        LogMessage("Step 5: Picked Side " sideIdx " for BB deployment.")
-        ZoomOutBB()
-        DeployBBTroops(chosenSide, 1)
-        LogMessage("Step 6: Phase 1 battle running. Clicking Return Home every 15s, checking stars/village every 5s...")
-        threeStars := false
-        early3Stars := false
-        lastReturnHomeClick := A_TickCount - 15000 ; Force click on first pass
-        lastCheckTick := 0
-        while (A_TickCount < p1TimerEnd) {
-            if !IsBBRunning
-                goto BBLoopExit
-            
-            ; 1. Click Return Home location every 15 seconds
-            if (A_TickCount - lastReturnHomeClick >= 15000) {
-                LogMessage("Clicking Return Home location...")
-                ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                lastReturnHomeClick := A_TickCount
-            }
-            
-            ; 2. Check status every 5 seconds
-            if (A_TickCount - lastCheckTick >= 5000) {
-                lastCheckTick := A_TickCount
-                CaptureADBFrame(true)
-                
-                if IsAtBuilderBase() {
-                    LogMessage("Returned to Builder Base during Phase 1.")
-                    break
-                }
-                if IsGolden(BBStar3X, BBStar3Y) {
-                    threeStars := true
-                    early3Stars := true
-                    LogMessage("Phase 1 cleared! 3 stars detected early!")
-                    break
-                }
-            }
-            
-            if !SafeSleep(200)
-                goto BBLoopExit
-        }
-        
-        ; Fallback: If 2m 10s timer expired while still in battle and not back at village, Phase 2 is ready
-        if (!threeStars && !IsAtBuilderBase() && A_TickCount >= p1TimerEnd) {
-            threeStars := true
-            LogMessage("Phase 1 2m 10s timer expired! Troops walked to Stage 2, starting Phase 2.")
-        }
-
-        if threeStars {
-            if early3Stars {
-                LogMessage("Step 7: Early 3 stars detected! Waiting 6s for stage transition...")
-                if !SafeSleep(6000)
-                    goto BBLoopExit
-            } else {
-                LogMessage("Step 7: 2m 10s timer reached! Stage 2 ready, deploying Phase 2 immediately...")
-            }
-            
-            LogMessage("Step 7.5: Phase 2 deployment starting on Side " sideIdx)
-            ZoomOutBB()
-            DeployBBTroops(chosenSide, 2)
-            
-            LogMessage("Step 8: Phase 2 battle running. Clicking Return Home every 15s until village...")
-            p2StartTime := A_TickCount
-            p2LastReturnHomeClick := A_TickCount - 15000 ; Force click on first pass
-            p2LastCheckTick := 0
-            while ((A_TickCount - p2StartTime) < 180000) { ; 3 minutes max for Phase 2
-                if !IsBBRunning
-                    goto BBLoopExit
-                
-                ; 1. Click Return Home location every 15 seconds
-                if (A_TickCount - p2LastReturnHomeClick >= 15000) {
-                    LogMessage("Clicking Return Home location...")
-                    ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-                    p2LastReturnHomeClick := A_TickCount
-                }
-                
-                ; 2. Check village status every 5 seconds
-                if (A_TickCount - p2LastCheckTick >= 5000) {
-                    p2LastCheckTick := A_TickCount
-                    CaptureADBFrame(true)
-                    
-                    if IsAtBuilderBase() {
-                        LogMessage("Returned to Builder Base during Phase 2.")
-                        break
-                    }
-                }
-                
-                if !SafeSleep(200)
-                    goto BBLoopExit
-            }
-        }
-        LogMessage("Step 9: Battle Over. Clicking Return Home.")
-        ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-        if !SafeSleep(5000)
-            goto BBLoopExit
-        LogMessage("Step 10: Waiting to return to Builder Base...")
-        if !SafeSleep(2000)
-            break
-        while !IsAtBuilderBase() {
-            if !IsBBRunning
-                goto BBLoopExit
-            ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
-            if !SafeSleep(2000)
-                goto BBLoopExit
-            ; Unconditionally click where the Star Bonus "Okay" button would be
-            WinGetClientPos ,, &cw, &ch, TargetWindowTitle
-            if (cw && ch) {
-                ADBClickFraction(0.5, 0.77)
-                SafeSleep(400)
-            }
-            ; Dismiss Star Bonus or other post-battle popup screens
-            ClearingClick()
-            if IsAtBuilderBase()
-                break
-            CheckGameTimeout()
-            if !SafeSleep(Random(12000, 14000))
-                goto BBLoopExit
-        }
-        LogMessage("Returned to Builder Base. Reloading loop...")
-        if !SafeSleep(2000)
-            break
+class LiveBuilderBasePrimitives {
+    __New() {
+        this.DeploymentPhase := 0
     }
-BBLoopExit:
-    LogMessage("--- Builder Base Loop Stopped ---")
-    IsBBRunning := false
-    StatusText.Value := "Status: Stopped"
-    StartBtn.Enabled := true
-    PauseBtn.Enabled := false
+
+    Do(name, args*) {
+        switch name {
+            case "log":
+                LogMessage(args[1])
+                return true
+            case "is_builder_running":
+                global IsBBRunning
+                return IsBBRunning
+            case "tap_builder_attack":
+                global BBAttackBtnX, BBAttackBtnY
+                this.DeploymentPhase := 0
+                return RunADBTapAt(BBAttackBtnX, BBAttackBtnY, 300)
+            case "tap_builder_find_match":
+                global BBFindMatchBtnX, BBFindMatchBtnY
+                return RunADBTapAt(BBFindMatchBtnX, BBFindMatchBtnY, 500)
+            case "wait":
+                return SafeSleep(args[1])
+            case "prepare_builder_viewport":
+                ZoomOutBB()
+                return true
+            case "random_builder_side":
+                global BBSides
+                if (BBSides.Length == 0)
+                    throw Error("No calibrated Builder Base deployment sides exist.")
+                return Random(1, BBSides.Length)
+            case "deploy_builder_troops":
+                global BBSides
+                sideIndex := args[1]
+                if (sideIndex < 1 || sideIndex > BBSides.Length)
+                    throw Error("Builder Base deployment side is invalid.")
+                this.DeploymentPhase := this.DeploymentPhase == 1 ? 2 : 1
+                DeployBBTroops(
+                    BBSides[sideIndex],
+                    this.DeploymentPhase
+                )
+                return true
+            case "capture_builder_frame":
+                return CaptureLiveBuilderBaseFrame(args[1])
+            case "analyze_builder_three_stars":
+                return AnalyzeLiveBuilderBaseThreeStars(args[1])
+            case "tap_return_home":
+                global ReturnHomeClickX, ReturnHomeClickY
+                return RunADBTapAt(
+                    ReturnHomeClickX,
+                    ReturnHomeClickY,
+                    300
+                )
+            case "detect_builder_home_from_frame":
+                return DetectLiveBuilderBaseHome(args[1])
+        }
+        throw Error("Unknown live Builder Base operation: " name)
+    }
+}
+
+CaptureLiveBuilderBaseFrame(section) {
+    if (section == "")
+        throw Error("A Builder Base capture section is required.")
+    framePath := CaptureADBFrame(true)
+    if !IsLiveBuilderBasePNG(framePath) {
+        LogMessage(
+            "Fresh Builder Base " section
+                " frame was invalid; retrying synchronously."
+        )
+        return false
+    }
+    return {
+        valid: true,
+        path: framePath,
+        section: section,
+        capturedAt: A_TickCount
+    }
+}
+
+IsLiveBuilderBasePNG(framePath) {
+    if (framePath == "" || !FileExist(framePath) || FileGetSize(framePath) < 8)
+        return false
+    file := FileOpen(framePath, "r")
+    if !IsObject(file)
+        return false
+    expected := [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    try {
+        Loop 8 {
+            if (file.ReadUChar() != expected[A_Index])
+                return false
+        }
+        return true
+    } finally {
+        file.Close()
+    }
+}
+
+AnalyzeLiveBuilderBaseThreeStars(frame) {
+    global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y
+    if !IsObject(frame) || !frame.HasOwnProp("path")
+        return false
+    if !IsLiveBuilderBasePNG(frame.path)
+        return false
+
+    stars := [
+        {x: BBStar1X, y: BBStar1Y},
+        {x: BBStar2X, y: BBStar2Y},
+        {x: BBStar3X, y: BBStar3Y}
+    ]
+    InitGDIPlus()
+    bitmap := 0
+    if DllCall(
+        "gdiplus\GdipCreateBitmapFromFile",
+        "wstr",
+        frame.path,
+        "ptr*",
+        &bitmap
+    ) != 0
+        return false
+
+    goldenCount := 0
+    try {
+        for index, star in stars {
+            adbPoint := ClientToADBPoint(star.x, star.y)
+            isGolden := IsLiveBuilderBaseGoldenStar(
+                bitmap,
+                adbPoint.x,
+                adbPoint.y
+            )
+            if isGolden
+                goldenCount += 1
+            centerColor := ReadLiveBuilderBasePixel(
+                bitmap,
+                adbPoint.x,
+                adbPoint.y
+            )
+            LogMessage(
+                "Builder Base star " index ": #"
+                    Format("{:06X}", centerColor) " at ADB("
+                    adbPoint.x "," adbPoint.y ") "
+                    (isGolden ? "GOLD" : "BRONZE") "."
+            )
+        }
+    } finally {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", bitmap)
+    }
+    LogMessage("Builder Base star analysis: " goldenCount "/3 gold.")
+    return goldenCount == 3
+}
+
+IsLiveBuilderBaseGoldenStar(bitmap, centerX, centerY) {
+    for dx in [-7, -3, 0, 3, 7] {
+        for dy in [-7, -3, 0, 3, 7] {
+            color := ReadLiveBuilderBasePixel(
+                bitmap,
+                centerX + dx,
+                centerY + dy
+            )
+            if IsLiveBuilderBaseGoldenColor(color)
+                return true
+        }
+    }
+    return false
+}
+
+IsLiveBuilderBaseGoldenColor(color) {
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+    return (r > 130) && (g > 100)
+        && (r > b + 15) && (g > b - 30)
+}
+
+ReadLiveBuilderBasePixel(bitmap, x, y) {
+    color := 0
+    status := DllCall(
+        "gdiplus\GdipBitmapGetPixel",
+        "ptr",
+        bitmap,
+        "int",
+        Round(x),
+        "int",
+        Round(y),
+        "uint*",
+        &color
+    )
+    if (status != 0)
+        return 0
+    return color & 0xFFFFFF
+}
+
+DetectLiveBuilderBaseHome(frame) {
+    if !IsObject(frame) || !frame.HasOwnProp("path")
+        return false
+    if !IsLiveBuilderBasePNG(frame.path)
+        return false
+    return DetectVillageFromADBFrame(frame.path) == "builder"
+}
+
+RunBuilderBaseLoop() {
+    global IsBBRunning, StatusText, StartBtn, PauseBtn
+    LogMessage("--- Starting Builder Base Loop ---")
+    try {
+        flow := BuilderBaseFlow(LiveBuilderBasePrimitives())
+        flow.RunLoop()
+    } catch as err {
+        LogMessage(
+            "Builder Base loop failed: " err.Message
+                " | " err.File ":" err.Line
+        )
+    } finally {
+        LogMessage("--- Builder Base Loop Stopped ---")
+        IsBBRunning := false
+        StatusText.Value := "Status: Stopped"
+        StartBtn.Enabled := true
+        PauseBtn.Enabled := false
+    }
 }
 ResetViewport() {
     global IsRunning, IsCalibrating

@@ -1008,6 +1008,87 @@ TestBuilderBaseFlowLogsCheckAndReturnHomeProgress() {
     }
 }
 
+TestLiveBuilderBaseUsesProvenFlow() {
+    source := FileRead(A_ScriptDir "\ADBcocbotrefactor.ahk")
+    AssertTrue(
+        InStr(source, '#include "builder_base_loop_logic.ahk"') > 0,
+        "production includes the proven Builder Base flow"
+    )
+
+    adapterStart := InStr(source, "class LiveBuilderBasePrimitives {")
+    AssertTrue(
+        adapterStart > 0,
+        "production defines a dedicated live Builder Base adapter"
+    )
+    loopStart := InStr(source, "RunBuilderBaseLoop() {", false, adapterStart)
+    AssertTrue(
+        loopStart > adapterStart,
+        "live Builder Base adapter is inspectable before the loop wrapper"
+    )
+    adapterSource := SubStr(
+        source,
+        adapterStart,
+        loopStart - adapterStart
+    )
+    for required in [
+        'case "log"',
+        'case "is_builder_running"',
+        'case "tap_builder_attack"',
+        'case "tap_builder_find_match"',
+        'case "wait"',
+        'case "prepare_builder_viewport"',
+        'case "random_builder_side"',
+        'case "deploy_builder_troops"',
+        'case "capture_builder_frame"',
+        'case "analyze_builder_three_stars"',
+        'case "tap_return_home"',
+        'case "detect_builder_home_from_frame"',
+        "CaptureADBFrame(true)",
+        "AnalyzeLiveBuilderBaseThreeStars(",
+        "DetectLiveBuilderBaseHome(",
+        "BBStar1X",
+        "BBStar2X",
+        "BBStar3X",
+        "ClientToADBPoint(",
+        "DetectVillageFromADBFrame("
+    ] {
+        AssertTrue(
+            InStr(adapterSource, required) > 0,
+            "live Builder Base adapter includes " required
+        )
+    }
+
+    loopEnd := InStr(source, "ZoomOutBB() {", false, loopStart)
+    AssertTrue(
+        loopEnd > loopStart,
+        "production Builder Base loop wrapper can be isolated"
+    )
+    loopSource := SubStr(source, loopStart, loopEnd - loopStart)
+    for required in [
+        "BuilderBaseFlow(LiveBuilderBasePrimitives())",
+        ".RunLoop()",
+        "Builder Base loop failed:",
+        "IsBBRunning := false"
+    ] {
+        AssertTrue(
+            InStr(loopSource, required) > 0,
+            "production Builder Base loop includes " required
+        )
+    }
+    for forbidden in [
+        "p1TimerEnd",
+        "p2StartTime",
+        "IsGolden(BBStar3X, BBStar3Y)",
+        "130000",
+        "while !IsAtBuilderBase()"
+    ] {
+        AssertTrue(
+            !InStr(loopSource, forbidden),
+            "production Builder Base loop removes legacy path " forbidden
+        )
+    }
+}
+
 TestScaleCacheAndTranslation() {
     ConfigureADBClientMapping(10, 20, 110, 220, 200, 400)
     global ADBScaleX, ADBScaleY
@@ -2299,6 +2380,7 @@ RunTest("isolated Builder Base star inspector follows the visual-debugger contra
 RunTest("Builder Base GDI+ runtime loads and samples a PNG", TestBuilderBaseGdipRuntimeLoadsAndSamplesPng)
 RunTest("Builder Base harness reports actionable errors", TestBuilderBaseHarnessReportsActionableErrors)
 RunTest("Builder Base monitor reports check and Return Home progress", TestBuilderBaseFlowLogsCheckAndReturnHomeProgress)
+RunTest("production Builder Base loop uses the proven flow", TestLiveBuilderBaseUsesProvenFlow)
 
 FileAppend(
     Format("RESULT: {} passed, {} failed.`n", TestPassCount, TestFailCount),
