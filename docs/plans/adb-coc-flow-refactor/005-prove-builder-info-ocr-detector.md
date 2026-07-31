@@ -17,6 +17,23 @@
 - **Depends on**: 003-align-main-and-builder-loops-to-flow.md
 - **Planned at**: revision `26544a48ab31ba1bac71c2687a9262f53d197307`, 2026-07-27
 
+## Execution amendment: end-to-end test boundary
+
+The user replaced the detection-only harness requirement after approving the
+original plan. The test must now execute this complete background-ADB sequence:
+
+`thresholds → builder availability → open builder menu → first suggestion → Info`
+
+It stops with the confirmation screen visible and must never tap confirmation.
+The test may tap the Builder icon, suggestion, and Info only through
+`ADBClientInteraction`. It makes one Info OCR attempt. If any prerequisite or
+Info detection fails, it skips the remaining actions. This amendment supersedes
+the detection-only and forbidden-input statements below where they conflict.
+
+`test_storage_thresholds.ahk` is added to scope as the existing working
+threshold visual debugger that will receive an explicit F2 end-to-end action.
+Production files remain out of scope.
+
 ## Why this matters
 
 The refactor bot taps the calibrated confirmation point immediately after it

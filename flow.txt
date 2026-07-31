@@ -1,0 +1,67 @@
+1 calibrate main village :
+    0 pressing calibation or controlf1 or f2 should automatically bring up the coc window this is the only time the window should be brought to the front
+    1 top left of adb screen to find top and left
+    2 bottom right of adb screen to find bottom and right   
+        with this we will calculate the actual resolution and compare to adb screen caprute andriond resolution (ie 1920x1080p)
+        then we scale all calibrated client coords to get the ADBusagecoords = ADBmaxresX/(clientright-clientleft) and ADBmaxresY/(clienttop-clientbottom)
+    3 we get te dark elixir theshold point(must compare the dark elixir color of this pixel to its transparent color during loop)
+    4 we do the same for elixir and gold theshold points
+    5 we get the nose of the builde and the bottom of the list of upgrades to scroll from and also look for suggested upgrade from
+    6 then we get the lab icon  -> we will use the bottom of the builder y and the lab icon x to scroll between to find the suggested upgrades
+    7 then we get the upgrade wall button, 
+        add one more,
+        remove one wall,
+        upgrade with gold, 
+        and upgrade with elixir
+    7.5 Select the Upgrade confimration button in the upgrade menu
+    8 We need a way to see if we are attacking, in the builder base, or main village. -> we will store the War Button location and the Attack button location so we can look at the pixels around them to see if we are attacking
+    9 Find a match location
+    10 Attack! location
+    11 Gold Coin and Elixir Drop so we can place an OCR window slightly to the right that is 7 digits long after we change the contrast of the image to be more regonizable or we greysacle or smth
+    12 we pick the deploy troop sections -> pick X and Y for start and end of Bottom right, bottom left, top left, top right. The lines will be generated between those two points and then troops will be deployed based on the selected count and split along the line, then Siege, then Heros, then spells, will be deployed on a line 35 pixels veritcally and 35 pixels horizontally closed to the center of the base and split evenly along the new line.
+    13 Select the next button, and then the return home button.
+    14 then we pick the collectors to collect every 40 battles
+
+2 calibrate builder base:
+    1 Select the Attack button
+    2 Find a match 
+    3 select the builder deployment locattions by selecting for 4 sides start and ends
+    4 Select the center of each of the three starts
+
+1 check if game is open with correct emulator window. 
+2 Check if calibrated. Also check if there is a timer that is not 0h0m. if so start the timer
+3 Once the game is open, do a clear  click 3 times
+4 then do a main village, or builder base check. -> main village is if the attack and war logo both show up, builder base is only the war logo shows up
+...
+Assuming main village:
+    Start Loop: 
+4.5 Reset viewport
+5 roll dice to collect resources.  if 1 click  on the three collectors, if anything else skip
+6 Take a ADB scrreen capture to look at the resouce thresholds. If gold, elixir and dark elixir are all met, run a builder screepcapture OCR, If the numerator of the builder avability is 0, skip this step. if the golbin recognition of the builder face is triggered also ignore. 
+    the thresholds should be viewed based on translated client coords that we got from calibration times the scale x/y ratios, that is where we will look at for OCR for all three
+    If wall upgrades are enabled, then make sure we leave one builder left, if the wall upgrades are not enabled use them all. 
+    How this works: if all thresholds are met, check for the builder number, if its 1 and walls are enabled skip. if its greater than 1, click on the builder face, and then use OCR to find Suggested Upgrade:
+    then click below and to the left of it where we see the next name for an upgrade. then click on the upgrade confirmation button. and then clear click three times.
+    if the walls are not enabled and we have 1 still, we can go to the suggested upgrades with ocr and do the same thing. The OCR bounding box is defined by the builder face icon, and the bottom of the builder menu.
+7 After that, take another ADB screen capture, and look at the lab avability, if its 0 or there is a goblin based on our goblin check(using 1 ADB capture, look at all the points at once) skip, if its non 0, then use the lab icon for y top and x values, and the builder bottom for the y bottom, and use the ocr of that region to find suggested upgrades, then do the same below seletion picking the upgrade that is immeidalty underneath. Then we clear click three times.
+8 Then we click on attack, and find a match and atack to get into a battle for the main village 
+9 We wait 4 seconds,then run a clouds check cuz it should be gone. if its not gone wait 2 seconds, and repeat until gone, Then we reset viewport We also then we do a home check , if should be false for attack button and war button. If both are false, we are in a base and using the last valid screencapture (the one that shows we are out of the clouds and we used it to check the home/battle/builderbase) ->use that screenshot for an OCR detection left of the two loot icons. Since the contrast of the font colors is low we need to change the contrast of this, either by converting to B/W or some other contrast checking. The final image transformation will we decided after testig. If either is above 500k, we attack, otherwise we press next until we see above 500k 
+10 Once we find a 500k+ base, we select one of the 4 sides, We place troops based on the current rate / time gap, and we shift their positions along the line for each type of troop, so we press key 1, deploy Troop #1 along the line from start to end, then press slot 2 and repeat starting at the start then end, etc, we can put this into a funcion that takes the key we want to press and repeat this for the following keys, 1,2,3,z,q,w,e,r. Then we create another function for the spells (or we add a bool parameter for spells which will add or subtract 35 to the y and x of the deploymetn location . This shift is to move the spells close to the center of the base.(add or subtract 35 from the adb coord, do not change the client coords and then retranslate.))
+11 Once all troops are deplyed wait 30 seconds, send a adb key event Q,W,E,R to trigger hero abiltiesThen start clicking on return home button , 2 seconds after each click, screen capture and check if we are home until we are home.
+12Once we are home we reset viewport and end the loop.  if the timer boolean was triggered at anypoint during the loop, we update the boolean and only now do we exit out of coc bot. 
+13 if the coc bot timer does not go off, then we  start loop again.
+
+
+
+...
+Assuming builder base:
+    Start loop:"
+5 Attack, find a match, wait 4 seconds, run a cloud check, if its not gone wait 2 seconds and repeat.
+6 once clouds are gone reset viewport -> the builder base has a different reset viewport than the main village that we have to account for since we only zoom, not slide (i think we have to look at the current BB viewport code)
+7 then we select a random side and deploy troops, Press the keys q 1 2 3 4 5 6 7 8, and deploy them all same as for the main vaillage but at the different start to end coords. ( Note: update the read me to say builder base loop is optimzied for super pekkas with a bomber at slot 5)
+8 then we need to keep an OCR checker on the starts, constantly, checking as fast as it can :ie, take screenshot, wait for it to load, dont do overlap just wait for each, then check the colors of the three star centers) if all three are bronze, then start phase 2 attack
+8.5 Also after we deploy the troops, we need to keep clicking return home, after every 5th screenshot, click where the return home button might be, and then do a are we are home or in battle check. If we hit a three stars stop doing this, if the home check says true for we are at the builder base, stop the start screen capture and restart the loop
+9 if the return home tap and then home check end up not returning home, and the three star goes off, wait 5 seconds, and then place down troops again, as follow q 1 2 3 4 5 6 7 8, one of the 4 random sides, then start clickng return home and checking if we are home until we get home.
+
+
+Also after every 5 attacks/loops, we need to check the center of the screen for a grey reload button incase we get disconnected but the bot cant tell, in that case we ocr the center of the coc window, search for reload in blue text, press it and wait 15 seconds, then do a home check, once the home check tells us if we are at home village or BB, we start the loop over. this hsould happen for both Builder base (bb and main village)

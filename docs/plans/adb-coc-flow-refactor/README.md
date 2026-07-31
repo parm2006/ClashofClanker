@@ -12,8 +12,9 @@ Execute in the order below. Each executor must read the selected plan fully, run
 | [002](002-migrate-client-coordinates-and-remove-desktop-runtime.md) | Make the refactor client-coordinate and ADB-only at runtime | L | 001 | DONE |
 | [003](003-align-main-and-builder-loops-to-flow.md) | Align both runtime loops and recovery paths with flow.txt | L | 002 | IN PROGRESS |
 | [004](004-restore-adb-visual-ocr-inspectors.md) | Restore ADB-based visual OCR inspectors outside scratch | M | 003 | TODO |
-| [005](005-prove-builder-info-ocr-detector.md) | Prove the Builder Info OCR detector in isolation | M | 003 | TODO |
+| [005](005-prove-builder-info-ocr-detector.md) | Prove the Builder Info OCR detector in isolation | M | 003 | IN PROGRESS |
 | [006](006-integrate-builder-info-before-confirmation.md) | Require Builder Info before upgrade confirmation | M | 005 + user validation | TODO |
+| [007](007-prove-timer-exit-interaction.md) | Prove the end-of-loop timer exit interaction in isolation | M | 002 | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDED (one-line pointer to what replaced it)
 
@@ -29,6 +30,16 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDE
   that the live visual inspector finds Info across variable action rows.
 
 ## Reconciliation log
+
+- **2026-07-28**: Closed Plan 007 after the user confirmed both visual phases.
+  Integrated the proven Main Village timer exit as one end-of-cycle operation:
+  Escape, viewport-relative randomized ADB tap on Okay, then stop. Builder Base
+  remains unchanged.
+
+- **2026-07-28**: Added Plan 007 for the approved two-phase timer exit test.
+  It can execute now because it depends only on the established client/ADB
+  interaction boundary. Production timer integration remains deferred until
+  the user validates both visual phases.
 
 - **2026-07-27**: Added Plans 005-006 for the approved Builder Info OCR
   transition. Execute 005 now; hold 006 until the user validates the isolated

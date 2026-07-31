@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.cocbot.pinchtest.instrumentation">
+
+    <uses-sdk
+        android:minSdkVersion="18"
+        android:targetSdkVersion="36" />
+
+    <application
+        android:allowBackup="false"
+        android:debuggable="true"
+        android:hasCode="true"
+        android:label="Pinch Test Instrumentation" />
+
+    <instrumentation
+        android:name="com.cocbot.pinchtest.PinchInstrumentation"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="Pinch Test"
+        android:targetPackage="com.cocbot.pinchtest.target" />
+</manifest>
