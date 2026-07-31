@@ -3,6 +3,65 @@ import os
 import cv2
 import numpy as np
 
+
+def run_info_match(img_path, client_height):
+    img = cv2.imread(img_path)
+    if img is None:
+        print(f"ERROR: Could not load image from {img_path}")
+        sys.exit(1)
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(
+        script_dir,
+        "OCRimages",
+        "cropped images",
+        "info_button_template.png",
+    )
+    template = cv2.imread(template_path)
+    if template is None:
+        print("ERROR: Could not load info_button_template.png")
+        sys.exit(1)
+
+    reference_height = 1028
+    base_scale = client_height / reference_height
+    best_score = -1.0
+    best_loc = (0, 0)
+    best_size = (0, 0)
+
+    # The ADB frame has a stable logical size, but this sweep tolerates a
+    # recalibrated emulator and small UI-scale changes.
+    for scale_mult in [1.0, 0.9, 1.1, 0.8, 1.2, 0.7, 1.3]:
+        scale = base_scale * scale_mult
+        width = max(1, round(template.shape[1] * scale))
+        height = max(1, round(template.shape[0] * scale))
+        if width > img.shape[1] or height > img.shape[0]:
+            continue
+
+        scaled = cv2.resize(
+            template,
+            (width, height),
+            interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC,
+        )
+        result = cv2.matchTemplate(img, scaled, cv2.TM_CCOEFF_NORMED)
+        _, score, _, location = cv2.minMaxLoc(result)
+        if score > best_score:
+            best_score = score
+            best_loc = location
+            best_size = (width, height)
+
+    if best_score >= 0.60:
+        width, height = best_size
+        center_x = best_loc[0] + width // 2
+        center_y = best_loc[1] + height // 2
+        print(
+            "SUCCESS: "
+            f"{center_x}/{center_y}/{best_score:.4f}/"
+            f"{best_loc[0]}/{best_loc[1]}/{width}/{height}"
+        )
+    else:
+        print(f"FAILED: Best Info template score {best_score:.4f}")
+
+
 def run_hammer_match(img_path, client_height):
     img = cv2.imread(img_path)
     if img is None:
@@ -185,6 +244,8 @@ def main():
 
     if mode == "hammer":
         run_hammer_match(img_path, client_height)
+    elif mode == "info":
+        run_info_match(img_path, client_height)
     elif mode == "lab":
         run_fraction_ocr(img_path, client_height, "lab")
     elif mode == "builders":

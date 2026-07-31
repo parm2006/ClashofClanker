@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.cocbot.pinchtest.target">
+
+    <uses-sdk
+        android:minSdkVersion="18"
+        android:targetSdkVersion="36" />
+
+    <application
+        android:allowBackup="false"
+        android:debuggable="true"
+        android:hasCode="true"
+        android:label="Pinch Test Target" />
+</manifest>

@@ -1,4 +1,4 @@
-﻿#Requires AutoHotkey v2
+#Requires AutoHotkey v2
 
 /**
  * OCR library: a wrapper for the the UWP Windows.Media.Ocr library.
@@ -517,7 +517,7 @@ class OCR {
          * @returns {OCR.Result}
          */
         Filter(callback) {
-            if !HasMethod(callback)
+            if (!IsObject(callback) || !HasMethod(callback))
                 throw ValueError("Filter callback must be a function", -1)
             local result := this.Clone(), line, croppedLines := [], croppedText := "", croppedWords := [], lineText := "", word
             ObjAddRef(result.ptr)
@@ -1145,7 +1145,7 @@ class OCR {
         local hString, Language:=ComValue(13, 0), OcrEngine:=ComValue(13, 0)
         if this.HasOwnProp("CurrentLanguage") && this.HasOwnProp("OcrEngine") && this.CurrentLanguage = lang
             return
-        if HasMethod(lang)
+        if (IsObject(lang) && HasMethod(lang))
             lang := lang()
         if (lang = "FirstFromAvailableLanguages")
             ComCall(10, this.OcrEngineStatics, "ptr*", OcrEngine)   ; TryCreateFromUserProfileLanguages
@@ -1228,7 +1228,7 @@ class OCR {
             throw ValueError("objs argument must be an Array", -1)
         if !objs.Length
             return []
-        if IsSet(compareFunc) && !HasMethod(compareFunc)
+        if IsSet(compareFunc) && (!IsObject(compareFunc) || !HasMethod(compareFunc))
             throw ValueError("compareFunc must be a valid function", -1)
 
         if !IsSet(compareFunc) {
@@ -1304,7 +1304,7 @@ class OCR {
     static SortArray(arr, optionsOrCallback:="N", key?) {
         if (arr.Length < 2)
             return this
-        if HasMethod(optionsOrCallback)
+        if (IsObject(optionsOrCallback) && HasMethod(optionsOrCallback))
             compareFunc := optionsOrCallback, optionsOrCallback := ""
         else {
             if InStr(optionsOrCallback, "N")
