@@ -345,9 +345,9 @@ TestBuilderBaseStageOneReturnsHomeAfterFourCompletedAnalyses() {
         "four completed star analyses run before Return Home"
     )
     AssertEqual(
-        4,
+        5,
         CountBuilderBaseOperations(recorder, "wait"),
-        "star checks are paced, then Return Home waits for the home transition"
+        "star checks and both Return Home taps are paced"
     )
     Loop 3 {
         AssertEqual(
@@ -359,20 +359,42 @@ TestBuilderBaseStageOneReturnsHomeAfterFourCompletedAnalyses() {
     AssertEqual(
         2000,
         FindBuilderBaseOperation(recorder, "wait", 4).Args[1],
-        "Return Home waits two seconds before the fresh Builder Base home check"
+        "first Return Home tap waits two seconds"
     )
-    returnHomeIndex := FindBuilderBaseOperationIndex(recorder, "tap_return_home")
-    settleWaitIndex := FindBuilderBaseOperationIndex(recorder, "wait", 4)
+    AssertEqual(
+        2000,
+        FindBuilderBaseOperation(recorder, "wait", 5).Args[1],
+        "second Return Home tap waits two seconds before the fresh home check"
+    )
+    AssertEqual(
+        2,
+        CountBuilderBaseOperations(recorder, "tap_return_home"),
+        "one Builder Base home attempt sends two Return Home taps"
+    )
+    firstReturnHomeIndex := FindBuilderBaseOperationIndex(
+        recorder,
+        "tap_return_home",
+        1
+    )
+    firstSettleWaitIndex := FindBuilderBaseOperationIndex(recorder, "wait", 4)
+    secondReturnHomeIndex := FindBuilderBaseOperationIndex(
+        recorder,
+        "tap_return_home",
+        2
+    )
+    secondSettleWaitIndex := FindBuilderBaseOperationIndex(recorder, "wait", 5)
     homeCaptureIndex := FindBuilderBaseOperationIndex(
         recorder,
         "capture_builder_frame",
         5
     )
     AssertTrue(
-        returnHomeIndex > 0
-            && settleWaitIndex > returnHomeIndex
-            && homeCaptureIndex > settleWaitIndex,
-        "Return Home settles before the fresh Builder Base home capture"
+        firstReturnHomeIndex > 0
+            && firstSettleWaitIndex > firstReturnHomeIndex
+            && secondReturnHomeIndex > firstSettleWaitIndex
+            && secondSettleWaitIndex > secondReturnHomeIndex
+            && homeCaptureIndex > secondSettleWaitIndex,
+        "both Return Home taps settle before the fresh Builder Base home capture"
     )
 }
 
@@ -394,12 +416,12 @@ TestBuilderBaseStageOneResetsFourCheckCycle() {
 
     AssertEqual("stopped", result, "stage one remains stoppable after a failed home check")
     AssertEqual(
-        1,
+        2,
         CountBuilderBaseOperations(recorder, "tap_return_home"),
-        "exactly one Return Home attempt occurs in the first four-check cycle"
+        "the first four-check cycle sends one two-tap Return Home attempt"
     )
     AssertEqual(
-        6,
+        7,
         CountBuilderBaseOperations(recorder, "wait"),
         "completed non-star checks and the home transition are paced"
     )
@@ -453,9 +475,9 @@ TestBuilderBaseInvalidCaptureDoesNotAdvanceTheFourthCheck() {
         "invalid capture does not count as a star analysis"
     )
     AssertEqual(
-        1,
+        2,
         CountBuilderBaseOperations(recorder, "tap_return_home"),
-        "Return Home waits for four successful analyses"
+        "Return Home waits for four successful analyses, then taps twice"
     )
     invalidCaptureIndex := FindBuilderBaseOperationIndex(
         recorder,
@@ -546,13 +568,18 @@ TestBuilderBaseStageTwoTracksDeploymentAndInvalidCaptureRetry() {
     AssertEqual("home", result, "stage two returns home after a valid home frame")
     AssertEqual(
         1000,
-        FindBuilderBaseOperation(recorder, "wait", 4).Args[1],
+        FindBuilderBaseOperation(recorder, "wait", 5).Args[1],
         "invalid home capture waits one second before synchronous retry"
     )
     AssertEqual(
         2000,
         FindBuilderBaseOperation(recorder, "wait", 3).Args[1],
-        "stage two lets Return Home settle before the first home capture"
+        "stage two lets the first Return Home tap settle"
+    )
+    AssertEqual(
+        2000,
+        FindBuilderBaseOperation(recorder, "wait", 4).Args[1],
+        "stage two lets the second Return Home tap settle before capture"
     )
     AssertTrue(
         !flow.State.stageTwoDeployed,
@@ -598,6 +625,32 @@ TestBuilderBaseOuterLoopCanCompleteAndStartTheNextAttack() {
         3,
         FindBuilderBaseOperation(recorder, "deploy_builder_troops", 3).Args[1],
         "next attack selects its own side after state reset"
+    )
+    AssertEqual(
+        1,
+        CountBuilderBaseOperations(recorder, "complete_global_cycle"),
+        "Builder Base completes the shared lifecycle only after reaching home"
+    )
+    completion := FindBuilderBaseOperation(
+        recorder,
+        "complete_global_cycle"
+    )
+    AssertEqual(
+        "builder",
+        completion.Args[1],
+        "Builder Base identifies its village to the shared lifecycle"
+    )
+    homeDetectionIndex := FindBuilderBaseOperationIndex(
+        recorder,
+        "detect_builder_home_from_frame"
+    )
+    completionIndex := FindBuilderBaseOperationIndex(
+        recorder,
+        "complete_global_cycle"
+    )
+    AssertTrue(
+        completionIndex > homeDetectionIndex,
+        "shared completion runs only after fresh Builder Base home detection"
     )
 }
 
@@ -650,6 +703,7 @@ TestBuilderBaseVisualHarnessContract() {
         "F6:: TestBuilderBaseStageTwoMonitor()",
         "F7:: TestBuilderBaseAttack()",
         "F8:: ToggleBuilderBaseLoop()",
+        'case "complete_global_cycle"',
         "^F1:: TestBuilderBaseAttackTap()",
         "^F2:: TestBuilderBaseFindMatchTap()",
         "^F3:: TestBuilderBaseStageOneDeployment()",
@@ -1087,6 +1141,114 @@ TestLiveBuilderBaseUsesProvenFlow() {
             "production Builder Base loop removes legacy path " forbidden
         )
     }
+}
+
+TestExplicitReloadActionLabels() {
+    for text in ["Reload", "RELOAD", "Retry", "Try Again", "TryAgain"] {
+        AssertTrue(
+            IsExplicitReloadActionText(text),
+            "explicit reconnect action is accepted: " text
+        )
+    }
+    for text in ["Okay", "Connection Lost", "Another Device", ""] {
+        AssertTrue(
+            !IsExplicitReloadActionText(text),
+            "non-action text is rejected: " text
+        )
+    }
+}
+
+TestLiveGlobalCycleProductionContract() {
+    source := FileRead(A_ScriptDir "\ADBcocbotrefactor.ahk")
+    support := FileRead(A_ScriptDir "\ADBcocbotrefactor_support.ahk")
+
+    for required in [
+        "global SessionCompletedAttacks := 0",
+        'case "complete_global_cycle"',
+        'case "find_reload_action_from_frame"',
+        'case "tap_reload_action"',
+        'case "route_village"',
+        "CompleteLiveGlobalCycle(",
+        "FindReloadActionFromADBFrame(",
+        "SaveADBFrameRegionToPNG(",
+        "RunADBTapAt(",
+        "SessionCompletedAttacks += 1"
+    ] {
+        AssertTrue(
+            InStr(source, required) > 0,
+            "live common lifecycle includes " required
+        )
+    }
+    AssertTrue(
+        InStr(support, "class ADBGlobalCycleFlow") > 0
+            && InStr(support, "IsExplicitReloadActionText(") > 0,
+        "support owns the shared cycle controller and action classifier"
+    )
+
+    builderStart := InStr(source, "class LiveBuilderBasePrimitives {")
+    builderEnd := InStr(
+        source,
+        "CaptureLiveBuilderBaseFrame(section) {",
+        false,
+        builderStart
+    )
+    AssertTrue(
+        builderStart > 0 && builderEnd > builderStart,
+        "live Builder adapter can be isolated"
+    )
+    builderSource := SubStr(
+        source,
+        builderStart,
+        builderEnd - builderStart
+    )
+    AssertTrue(
+        InStr(builderSource, 'case "complete_global_cycle"') > 0
+            && InStr(builderSource, "CompleteLiveGlobalCycle(") > 0,
+        "Builder adapter delegates to the live common lifecycle"
+    )
+
+    mainLoopStart := InStr(source, "StartBotLoop() {")
+    mainLoopEnd := InStr(source, "LegacyStartBotLoop() {", false, mainLoopStart)
+    AssertTrue(
+        mainLoopStart > 0 && mainLoopEnd > mainLoopStart,
+        "active Main loop can be isolated"
+    )
+    activeMainSource := SubStr(
+        source,
+        mainLoopStart,
+        mainLoopEnd - mainLoopStart
+    )
+    AssertTrue(
+        !InStr(activeMainSource, "CheckGameTimeout("),
+        "active Main loop does not call legacy timeout recovery"
+    )
+
+    routeStart := InStr(source, "RouteLiveVillage(village) {")
+    routeEnd := InStr(source, "StartBotLoop() {", false, routeStart)
+    AssertTrue(
+        routeStart > 0 && routeEnd > routeStart,
+        "live reconnect router can be isolated"
+    )
+    routeSource := SubStr(source, routeStart, routeEnd - routeStart)
+    AssertTrue(
+        InStr(routeSource, "ADBMainCalibrationVersion") > 0
+            && InStr(routeSource, "ADBBBCalibrationVersion") > 0
+            && InStr(routeSource, "ADB_COORDINATE_VERSION") > 0,
+        "cross-village reconnect routing validates target calibration"
+    )
+
+    stopStart := InStr(source, "    StopBot() {")
+    stopEnd := InStr(source, "`n}", false, stopStart)
+    AssertTrue(
+        stopStart > 0 && stopEnd > stopStart,
+        "live StopBot method can be isolated"
+    )
+    stopSource := SubStr(source, stopStart, stopEnd - stopStart)
+    AssertTrue(
+        InStr(stopSource, "IsRunning := false") > 0
+            && InStr(stopSource, "IsBBRunning := false") > 0,
+        "common stop clears both village run flags"
+    )
 }
 
 TestScaleCacheAndTranslation() {
@@ -1928,9 +2090,13 @@ TestTimerExitVisualHarnessContract() {
 
 TestTimerExitRunsOnlyAfterTriggeredEndOfCycleCheck() {
     primitives := TimerCycleRecorder(true)
-    flow := ADBMainFlowSections(primitives)
+    flow := ADBGlobalCycleFlow(primitives)
 
-    AssertTrue(flow.FinishMainCycle(), "triggered cycle finishes")
+    AssertEqual(
+        "stopped",
+        flow.Complete("main"),
+        "triggered shared cycle stops"
+    )
     timerIndex := FindOperationIndex(
         primitives.Operations,
         "timer_triggered"
@@ -1953,9 +2119,13 @@ TestTimerExitRunsOnlyAfterTriggeredEndOfCycleCheck() {
 
 TestTimerExitDoesNothingBeforeTimerIsTriggered() {
     primitives := TimerCycleRecorder(false)
-    flow := ADBMainFlowSections(primitives)
+    flow := ADBGlobalCycleFlow(primitives)
 
-    AssertTrue(flow.FinishMainCycle(), "untriggered cycle finishes")
+    AssertEqual(
+        "continue",
+        flow.Complete("builder"),
+        "untriggered shared cycle continues"
+    )
     AssertEqual(
         0,
         FindOperationIndex(
@@ -2381,6 +2551,8 @@ RunTest("Builder Base GDI+ runtime loads and samples a PNG", TestBuilderBaseGdip
 RunTest("Builder Base harness reports actionable errors", TestBuilderBaseHarnessReportsActionableErrors)
 RunTest("Builder Base monitor reports check and Return Home progress", TestBuilderBaseFlowLogsCheckAndReturnHomeProgress)
 RunTest("production Builder Base loop uses the proven flow", TestLiveBuilderBaseUsesProvenFlow)
+RunTest("reload OCR accepts only explicit action labels", TestExplicitReloadActionLabels)
+RunTest("production uses one shared live cycle lifecycle", TestLiveGlobalCycleProductionContract)
 
 FileAppend(
     Format("RESULT: {} passed, {} failed.`n", TestPassCount, TestFailCount),

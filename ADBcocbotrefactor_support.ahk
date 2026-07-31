@@ -125,6 +125,13 @@ ResolveTimerExitOkayClientPoint(
     }
 }
 
+IsExplicitReloadActionText(text) {
+    normalized := StrLower(RegExReplace(String(text), "[^A-Za-z]", ""))
+    return normalized == "reload"
+        || normalized == "retry"
+        || normalized == "tryagain"
+}
+
 InvalidateADBClientMapping() {
     global ADBScaleX, ADBScaleY
     global ADBRefactorDisplayWidth, ADBRefactorDisplayHeight
@@ -789,6 +796,12 @@ class ADBMainFlowSections {
             )
             this.Primitives.Do("tap_return_home")
             this.Primitives.Do("wait", 2000)
+            this._Log(
+                "Return Home attempt " attempt
+                    ": sending the second tap for result/Star Bonus recovery."
+            )
+            this.Primitives.Do("tap_return_home")
+            this.Primitives.Do("wait", 2000)
             frame := this._CaptureFreshFrame("home")
             atHome := this.Primitives.Do(
                 "detect_main_home_from_frame",
@@ -808,27 +821,8 @@ class ADBMainFlowSections {
     }
 
     FinishMainCycle() {
-        completedAttacks := this.Primitives.Do("record_completed_attack")
-        this._Log(
-            "Main Village cycle complete. Completed attacks: "
-                completedAttacks "."
-        )
-        timerTriggered := this.Primitives.Do("timer_triggered")
-        this._Log(
-            "Auto-stop timer check: "
-                (timerTriggered ? "TRIGGERED" : "not triggered") "."
-        )
-        if timerTriggered {
-            this._Log(
-                "Auto-stop timer elapsed; exiting Clash of Clans."
-            )
-            this.Primitives.Do("exit_game_after_timer")
-            this._Log("Timer exit complete; stopping the bot.")
-            this.Primitives.Do("stop_bot")
-        } else {
-            this._Log("Starting the next Main Village cycle.")
-        }
-        return true
+        this._Log("Main Village cycle complete; entering shared lifecycle.")
+        return this.Primitives.Do("complete_global_cycle", "main")
     }
 
     _CaptureFreshFrame(section) {
@@ -887,6 +881,146 @@ class ADBMainFlowSections {
 
 CreateADBMainFlowSections(primitives) {
     return ADBMainFlowSections(primitives)
+}
+
+class ADBGlobalCycleFlow {
+    __New(primitives) {
+        if !IsObject(primitives)
+            throw Error("Global cycle primitives are required.")
+        this.Primitives := primitives
+    }
+
+    Complete(currentVillage) {
+        this._RequireVillage(currentVillage)
+        completedAttacks := this.Primitives.Do(
+            "record_completed_attack",
+            currentVillage
+        )
+        this._Log(
+            "Shared cycle complete for " currentVillage
+                ". Session attacks: " completedAttacks "."
+        )
+
+        timerTriggered := this.Primitives.Do("timer_triggered")
+        this._Log(
+            "Shared auto-stop timer: "
+                (timerTriggered ? "TRIGGERED" : "not triggered") "."
+        )
+        if timerTriggered {
+            this._Log("Shared timer elapsed; exiting Clash of Clans.")
+            this.Primitives.Do("exit_game_after_timer")
+            this.Primitives.Do("stop_bot")
+            return "stopped"
+        }
+
+        if (Mod(completedAttacks, 5) != 0) {
+            this._Log("Reconnect checkpoint skipped until attack multiple 5.")
+            return "continue"
+        }
+        return this.RunReloadRecovery(currentVillage, completedAttacks)
+    }
+
+    RunReloadRecovery(currentVillage, completedAttacks) {
+        this._RequireVillage(currentVillage)
+        this._Log(
+            "Reconnect checkpoint after attack " completedAttacks
+                ": capturing a fresh center frame."
+        )
+        Loop {
+            frame := this._CaptureFreshFrame("reload")
+            try {
+                reloadAction := this.Primitives.Do(
+                    "find_reload_action_from_frame",
+                    frame
+                )
+                break
+            } catch as err {
+                this._Log(
+                    "Reconnect OCR failed: " err.Message
+                        "; retrying with a fresh frame in 1000 ms."
+                )
+                if !this.Primitives.Do("wait", 1000)
+                    return "stopped"
+            }
+        }
+        if !IsObject(reloadAction) {
+            this._Log("Reconnect checkpoint: no explicit Reload/Retry action.")
+            return "continue"
+        }
+
+        this._Log("Reconnect checkpoint: tapping explicit reload action.")
+        this.Primitives.Do("tap_reload_action", reloadAction)
+        if !this.Primitives.Do("wait", 15000)
+            return "stopped"
+
+        Loop {
+            frame := this._CaptureFreshFrame("reconnect")
+            detectedVillage := this.Primitives.Do(
+                "detect_village_from_frame",
+                frame
+            )
+            this._Log(
+                "Reconnect village detection: " detectedVillage "."
+            )
+            if (detectedVillage == "main"
+                || detectedVillage == "builder") {
+                if (detectedVillage != currentVillage) {
+                    this.Primitives.Do(
+                        "route_village",
+                        detectedVillage
+                    )
+                    return "routed"
+                }
+                return "continue"
+            }
+            if !this.Primitives.Do("wait", 2000)
+                return "stopped"
+        }
+    }
+
+    _CaptureFreshFrame(section) {
+        Loop {
+            frame := false
+            try {
+                frame := this.Primitives.Do(
+                    "capture_fresh_frame",
+                    section
+                )
+            } catch as err {
+                this._Log(
+                    "Fresh " section " capture failed: " err.Message
+                        "; retrying in 1000 ms."
+                )
+            }
+            if (IsObject(frame)
+                && frame.HasOwnProp("section")
+                && frame.section == section) {
+                return frame
+            }
+            if !IsObject(frame) {
+                this._Log(
+                    "Fresh " section
+                        " capture was invalid; retrying in 1000 ms."
+                )
+            } else {
+                this._Log(
+                    "Fresh frame belongs to another cycle decision; "
+                        "retrying in 1000 ms."
+                )
+            }
+            if !this.Primitives.Do("wait", 1000)
+                throw Error("Global cycle stopped during capture retry.")
+        }
+    }
+
+    _RequireVillage(village) {
+        if (village != "main" && village != "builder")
+            throw Error("Global cycle village must be main or builder.")
+    }
+
+    _Log(message) {
+        this.Primitives.Do("log", message)
+    }
 }
 
 class ADBRefactorFlowController {
@@ -960,6 +1094,28 @@ class ADBRefactorFlowController {
         operations.Do("attack_main_base")
         operations.Do("return_main_home")
         operations.Do("finish_main_cycle")
+    }
+
+    RunCycleCompletion(operations, state) {
+        if !IsObject(state) || !state.HasOwnProp("currentVillage")
+            throw Error("Cycle completion requires the current village.")
+        return ADBGlobalCycleFlow(operations).Complete(
+            state.currentVillage
+        )
+    }
+
+    RunReloadRecovery(operations, state) {
+        if (!IsObject(state)
+            || !state.HasOwnProp("currentVillage")
+            || !state.HasOwnProp("completedAttacks")) {
+            throw Error(
+                "Reload recovery requires village and completed attacks."
+            )
+        }
+        return ADBGlobalCycleFlow(operations).RunReloadRecovery(
+            state.currentVillage,
+            state.completedAttacks
+        )
     }
 }
 

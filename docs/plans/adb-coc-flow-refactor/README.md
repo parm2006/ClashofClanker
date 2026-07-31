@@ -16,6 +16,7 @@ Execute in the order below. Each executor must read the selected plan fully, run
 | [006](006-integrate-builder-info-before-confirmation.md) | Require Builder Info before upgrade confirmation | M | 005 + user validation | TODO |
 | [007](007-prove-timer-exit-interaction.md) | Prove the end-of-loop timer exit interaction in isolation | M | 002 | DONE |
 | [008](008-integrate-builder-base-attack-flow.md) | Route production Builder Base attacks through the proven flow | M | 003 + user validation | DONE |
+| [009](009-share-game-loop-qol-recovery.md) | Share cycle recovery, timer exit, and double Return Home | L | 008 | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDED (one-line pointer to what replaced it)
 
@@ -31,6 +32,18 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | SUPERSEDE
   that the live visual inspector finds Info across variable action rows.
 
 ## Reconciliation log
+
+- **2026-07-31**: Closed Plan 009. Main and Builder now share one session
+  completion counter, timer/game exit, fifth-cycle Reload recovery, fresh-frame
+  rerouting, and the two-tap Return Home sequence.
+
+- **2026-07-31**: Plan 009 memo added a no-op common-completion adapter to the
+  F8 Builder Base harness. This preserves the validated standalone battle
+  debugger after the shared production flow gained a cycle-completion call.
+
+- **2026-07-31**: Added Plan 009 after the user approved a shared completion
+  counter, fifth-cycle reconnect recovery, common timer/game exit, and a
+  two-tap Return Home sequence for both active village loops.
 
 - **2026-07-30**: Closed Plan 008. Production now delegates Builder Base
   attacks to the proven four-check flow, analyzes all three calibrated stars

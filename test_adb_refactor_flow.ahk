@@ -623,8 +623,12 @@ TestReturnHomeOwnsFreshRetryLoop() {
         [
             "tap_return_home",
             "wait:2000",
+            "tap_return_home",
+            "wait:2000",
             "capture_fresh_frame:home",
             "detect_main_home_from_frame:<object>",
+            "tap_return_home",
+            "wait:2000",
             "tap_return_home",
             "wait:2000",
             "capture_fresh_frame:home",
@@ -636,22 +640,60 @@ TestReturnHomeOwnsFreshRetryLoop() {
     )
 }
 
-TestFinishMainCycleOwnsTimerExit() {
+TestFinishMainCycleUsesCommonLifecycle() {
     primitives := FakeFlowOperations()
-    primitives.Queue("timer_triggered", true)
     sections := GetFlowAPI().CreateMainSections(primitives)
 
     sections.Do("finish_main_cycle")
 
     AssertLogEquals(
+        ["complete_global_cycle:main"],
+        primitives.Log,
+        "Main finish cycle common lifecycle delegation"
+    )
+}
+
+TestCommonCycleSkipsReloadBeforeFifth() {
+    operations := FakeFlowOperations()
+    operations.Queue("record_completed_attack", 4)
+    operations.Queue("timer_triggered", false)
+
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "main"}
+    )
+
+    AssertEqual("continue", result, "non-fifth completion continues")
+    AssertLogEquals(
         [
-            "record_completed_attack",
+            "record_completed_attack:main",
+            "timer_triggered"
+        ],
+        operations.Log,
+        "non-fifth completion skips reconnect OCR"
+    )
+}
+
+TestCommonTimerExitTakesPrecedence() {
+    operations := FakeFlowOperations()
+    operations.Queue("record_completed_attack", 5)
+    operations.Queue("timer_triggered", true)
+
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "builder"}
+    )
+
+    AssertEqual("stopped", result, "elapsed common timer stops the session")
+    AssertLogEquals(
+        [
+            "record_completed_attack:builder",
             "timer_triggered",
             "exit_game_after_timer",
             "stop_bot"
         ],
-        primitives.Log,
-        "finish cycle timer order"
+        operations.Log,
+        "timer exit precedes fifth-cycle reconnect"
     )
 }
 
@@ -882,47 +924,139 @@ TestBuilderLoopDoesNotRunPhaseTwoAfterHome() {
 
 TestEveryFifthMainAttackReloadRecovery() {
     operations := FakeFlowOperations()
-    operations.Queue("ocr_blue_reload", true)
-    operations.Queue("detect_village", "main")
-    state := {completedAttacks: 5, currentVillage: "main"}
+    operations.Queue("record_completed_attack", 5)
+    operations.Queue("timer_triggered", false)
+    operations.Queue(
+        "capture_fresh_frame",
+        {section: "reload", id: 1}
+    )
+    operations.Queue("find_reload_action_from_frame", false)
 
-    GetFlowAPI().RunReloadRecovery(operations, state)
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "main"}
+    )
 
+    AssertEqual("continue", result, "no Reload action continues Main")
     AssertLogEquals(
         [
-            "capture_center_frame",
-            "ocr_blue_reload",
-            "tap_reload",
-            "wait:15000",
-            "capture_village_frame",
-            "detect_village",
-            "start_main_loop"
+            "record_completed_attack:main",
+            "timer_triggered",
+            "capture_fresh_frame:reload",
+            "find_reload_action_from_frame:<object>"
         ],
         operations.Log,
-        "fifth Main Village attack reload recovery"
+        "fifth Main Village attack checks without blind tap"
     )
 }
 
 TestEveryFifthBuilderAttackReloadRecovery() {
     operations := FakeFlowOperations()
-    operations.Queue("ocr_blue_reload", true)
-    operations.Queue("detect_village", "builder")
-    state := {completedAttacks: 10, currentVillage: "builder"}
+    operations.Queue("record_completed_attack", 10)
+    operations.Queue("timer_triggered", false)
+    operations.Queue(
+        "capture_fresh_frame",
+        {section: "reload", id: 1},
+        {section: "reconnect", id: 2}
+    )
+    operations.Queue(
+        "find_reload_action_from_frame",
+        {name: "Reload", x: 900, y: 600}
+    )
+    operations.Queue("detect_village_from_frame", "main")
 
-    GetFlowAPI().RunReloadRecovery(operations, state)
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "builder"}
+    )
 
+    AssertEqual("routed", result, "reconnect can route Builder to Main")
     AssertLogEquals(
         [
-            "capture_center_frame",
-            "ocr_blue_reload",
-            "tap_reload",
+            "record_completed_attack:builder",
+            "timer_triggered",
+            "capture_fresh_frame:reload",
+            "find_reload_action_from_frame:<object>",
+            "tap_reload_action:Reload",
             "wait:15000",
-            "capture_village_frame",
-            "detect_village",
-            "start_builder_loop"
+            "capture_fresh_frame:reconnect",
+            "detect_village_from_frame:<object>",
+            "route_village:main"
         ],
         operations.Log,
-        "fifth Builder Base attack reload recovery"
+        "fifth Builder Base attack reload recovery and routing"
+    )
+}
+
+TestReconnectRetriesUnknownFreshFrames() {
+    operations := FakeFlowOperations()
+    operations.Queue("record_completed_attack", 5)
+    operations.Queue("timer_triggered", false)
+    operations.Queue(
+        "capture_fresh_frame",
+        {section: "reload", id: 1},
+        {section: "reconnect", id: 2},
+        {section: "reconnect", id: 3}
+    )
+    operations.Queue(
+        "find_reload_action_from_frame",
+        {name: "Retry", x: 900, y: 600}
+    )
+    operations.Queue("detect_village_from_frame", "battle", "main")
+
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "main"}
+    )
+
+    AssertEqual("continue", result, "same-village reconnect continues")
+    AssertLogEquals(
+        [
+            "record_completed_attack:main",
+            "timer_triggered",
+            "capture_fresh_frame:reload",
+            "find_reload_action_from_frame:<object>",
+            "tap_reload_action:Retry",
+            "wait:15000",
+            "capture_fresh_frame:reconnect",
+            "detect_village_from_frame:<object>",
+            "wait:2000",
+            "capture_fresh_frame:reconnect",
+            "detect_village_from_frame:<object>"
+        ],
+        operations.Log,
+        "unknown reconnect frames retry sequentially"
+    )
+}
+
+TestReconnectRetriesInvalidFreshCapture() {
+    operations := FakeFlowOperations()
+    operations.Queue("record_completed_attack", 5)
+    operations.Queue("timer_triggered", false)
+    operations.Queue(
+        "capture_fresh_frame",
+        false,
+        {section: "reload", id: 2}
+    )
+    operations.Queue("find_reload_action_from_frame", false)
+
+    result := GetFlowAPI().RunCycleCompletion(
+        operations,
+        {currentVillage: "main"}
+    )
+
+    AssertEqual("continue", result, "capture retry can continue Main")
+    AssertLogEquals(
+        [
+            "record_completed_attack:main",
+            "timer_triggered",
+            "capture_fresh_frame:reload",
+            "wait:1000",
+            "capture_fresh_frame:reload",
+            "find_reload_action_from_frame:<object>"
+        ],
+        operations.Log,
+        "invalid reconnect capture retries before OCR"
     )
 }
 
@@ -988,8 +1122,32 @@ flowTests := [
         callback: TestReturnHomeOwnsFreshRetryLoop
     },
     {
-        name: "finish cycle owns completion and timer exit",
-        callback: TestFinishMainCycleOwnsTimerExit
+        name: "Main finish cycle uses the common lifecycle",
+        callback: TestFinishMainCycleUsesCommonLifecycle
+    },
+    {
+        name: "common cycle skips reconnect before the fifth attack",
+        callback: TestCommonCycleSkipsReloadBeforeFifth
+    },
+    {
+        name: "common timer exit precedes reconnect recovery",
+        callback: TestCommonTimerExitTakesPrecedence
+    },
+    {
+        name: "fifth Main attack checks reload without a blind tap",
+        callback: TestEveryFifthMainAttackReloadRecovery
+    },
+    {
+        name: "fifth Builder attack can reconnect and route Main",
+        callback: TestEveryFifthBuilderAttackReloadRecovery
+    },
+    {
+        name: "reconnect retries unknown fresh frames sequentially",
+        callback: TestReconnectRetriesUnknownFreshFrames
+    },
+    {
+        name: "reconnect retries an invalid fresh capture",
+        callback: TestReconnectRetriesInvalidFreshCapture
     },
     {
         name: "detailed messages expose Main Village decisions",
@@ -999,11 +1157,9 @@ flowTests := [
         name: "runtime uses the shared startup and Main Village controller",
         callback: TestRuntimeUsesSharedStartupAndMainController
     },
-    ; Builder Base is proven with its dedicated fake-primitives suite in
-    ; test_adb_refactor_interactions.ahk. Its production integration is
-    ; intentionally deferred until the user completes visual proof.
-    ; The older fifth-attack reload proposal was never integrated and is not
-    ; an active runtime contract.
+    ; Builder battle mechanics remain covered by the dedicated fake-primitives
+    ; suite in test_adb_refactor_interactions.ahk. Shared cycle recovery is
+    ; covered here for both village values.
 ]
 
 if !IsObject(ADBRefactorFlowAPI) {

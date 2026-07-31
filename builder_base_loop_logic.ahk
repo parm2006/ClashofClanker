@@ -17,6 +17,14 @@ class BuilderBaseFlow {
             result := this.Attack()
             if (result == "stopped")
                 break
+            if (result == "home") {
+                completion := this.Primitives.Do(
+                    "complete_global_cycle",
+                    "builder"
+                )
+                if (completion == "stopped")
+                    break
+            }
         }
         return true
     }
@@ -155,6 +163,9 @@ class BuilderBaseFlow {
     _CheckHomeAfterReturn() {
         ; The battle-result transition takes longer than an ADB screencap.
         ; Do not mistake the just-dismissed battle screen for a failed return.
+        if !this._Wait(2000)
+            return "stopped"
+        this.Primitives.Do("tap_return_home")
         if !this._Wait(2000)
             return "stopped"
         Loop {

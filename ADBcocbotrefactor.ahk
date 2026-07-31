@@ -185,7 +185,7 @@ global CalibStep := 0
 global BBCalibStep := 0
 global TimerStartTick := 0
 global TimerDurationMs := 0
-global MainCompletedAttacks := 0
+global SessionCompletedAttacks := 0
 
 
 ; ==============================================================================
@@ -3291,12 +3291,20 @@ class LiveADBFlowPrimitives {
                 return DetectVillageFromADBFrame(
                     this.RequireFramePath(args[1], "home")
                 ) == "main"
+            case "complete_global_cycle":
+                return CompleteLiveGlobalCycle(args[1])
             case "record_completed_attack":
-                return this.RecordCompletedAttack()
+                return this.RecordCompletedAttack(args[1])
             case "timer_triggered":
                 return IsTimerUp()
             case "exit_game_after_timer":
                 return this.ExitGameAfterTimer()
+            case "find_reload_action_from_frame":
+                return FindReloadActionFromADBFrame(args[1])
+            case "tap_reload_action":
+                return TapLiveReloadAction(args[1])
+            case "route_village":
+                return RouteLiveVillage(args[1])
             case "stop_bot":
                 return this.StopBot()
         }
@@ -3394,12 +3402,11 @@ class LiveADBFlowPrimitives {
     }
 
     StartMainLoop() {
-        global IsRunning, IsBBRunning, MainCompletedAttacks
+        global IsRunning, IsBBRunning
         global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION
         global StatusText, StartBtn, PauseBtn
         if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION)
             throw Error("Main Village calibration is missing or stale.")
-        MainCompletedAttacks := 0
         IsBBRunning := false
         IsRunning := true
         StatusText.Value := "Status: Running Main"
@@ -3570,11 +3577,16 @@ class LiveADBFlowPrimitives {
         return true
     }
 
-    RecordCompletedAttack() {
-        global MainCompletedAttacks
-        MainCompletedAttacks += 1
-        LogMessage("Main Village completed attacks: " MainCompletedAttacks ".")
-        return MainCompletedAttacks
+    RecordCompletedAttack(village) {
+        global SessionCompletedAttacks
+        if (village != "main" && village != "builder")
+            throw Error("Completed attack village must be main or builder.")
+        SessionCompletedAttacks += 1
+        LogMessage(
+            "Session completed attacks: " SessionCompletedAttacks
+                " (latest: " village ")."
+        )
+        return SessionCompletedAttacks
     }
 
     ExitGameAfterTimer() {
@@ -3617,20 +3629,126 @@ class LiveADBFlowPrimitives {
     }
 
     StopBot() {
-        global IsRunning
+        global IsRunning, IsBBRunning
         IsRunning := false
+        IsBBRunning := false
         return true
     }
 }
 
+CompleteLiveGlobalCycle(village) {
+    return ADBRefactorFlowAPI.RunCycleCompletion(
+        LiveADBFlowPrimitives(),
+        {currentVillage: village}
+    )
+}
+
+FindReloadActionFromADBFrame(frame) {
+    framePath := LiveADBFlowPrimitives().RequireFramePath(frame, "reload")
+    viewport := GetADBClientViewportRect()
+    searchX := Round(viewport.x + viewport.width * 0.25)
+    searchY := Round(viewport.y + viewport.height * 0.40)
+    searchW := Max(1, Round(viewport.width * 0.50))
+    searchH := Max(1, Round(viewport.height * 0.40))
+    processId := DllCall("GetCurrentProcessId", "uint")
+    imagePath := (
+        A_Temp "\coc_reload_recovery_" processId "_"
+            A_TickCount ".png"
+    )
+    try {
+        adbCrop := SaveADBFrameRegionToPNG(
+            framePath,
+            searchX,
+            searchY,
+            searchW,
+            searchH,
+            imagePath
+        )
+        result := OCR.FromFile(imagePath, {scale: 1.5})
+        for line in result.Lines {
+            if !IsExplicitReloadActionText(line.Text)
+                continue
+            clientPoint := ADBFramePointToClient(
+                adbCrop,
+                line.x + line.w / 2,
+                line.y + line.h / 2
+            )
+            actionName := Trim(line.Text, " `t`r`n")
+            LogMessage(
+                "Reconnect OCR: explicit action '" actionName
+                    "' at client (" clientPoint.x ", "
+                    clientPoint.y ")."
+            )
+            return {
+                name: actionName,
+                x: clientPoint.x,
+                y: clientPoint.y
+            }
+        }
+        LogMessage("Reconnect OCR: no explicit Reload/Retry action found.")
+        return false
+    } finally {
+        try FileDelete(imagePath)
+    }
+}
+
+TapLiveReloadAction(action) {
+    if (!IsObject(action)
+        || !action.HasOwnProp("x")
+        || !action.HasOwnProp("y")) {
+        throw Error("Reload action is missing its client point.")
+    }
+    tapped := RunADBTapAt(action.x, action.y, 300)
+    if !IsObject(tapped)
+        throw Error("Could not tap the explicit Reload/Retry action.")
+    return tapped
+}
+
+RouteLiveVillage(village) {
+    global IsRunning, IsBBRunning
+    global StatusText, StartBtn, PauseBtn
+    global ADBMainCalibrationVersion, ADBBBCalibrationVersion
+    global ADB_COORDINATE_VERSION
+    if (village == "main") {
+        if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION) {
+            throw Error(
+                "Reconnect cannot route Main Village: calibration is "
+                    "missing or stale."
+            )
+        }
+        IsBBRunning := false
+        IsRunning := true
+        StatusText.Value := "Status: Running Main"
+        LogMessage("Reconnect route: scheduling Main Village flow.")
+        SetTimer(StartBotLoop, -10)
+    } else if (village == "builder") {
+        if (ADBBBCalibrationVersion != ADB_COORDINATE_VERSION) {
+            throw Error(
+                "Reconnect cannot route Builder Base: calibration is "
+                    "missing or stale."
+            )
+        }
+        IsRunning := false
+        IsBBRunning := true
+        StatusText.Value := "Status: Running BB"
+        LogMessage("Reconnect route: scheduling Builder Base flow.")
+        SetTimer(RunBuilderBaseLoop, -100)
+    } else {
+        throw Error("Reconnect route must be main or builder.")
+    }
+    StartBtn.Enabled := false
+    PauseBtn.Enabled := true
+    return true
+}
+
 StartBotLoop() {
-    global IsRunning, MainCompletedAttacks
+    global IsRunning, IsBBRunning, SessionCompletedAttacks
     global CollectorCoords, EnableWallUpgrade, MinGold, MinElixir
     global TimerDurationMs, StatusText, StartBtn, PauseBtn
     operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
     while IsRunning {
         state := {
-            completedAttacks: MainCompletedAttacks,
+            completedAttacks: SessionCompletedAttacks,
             collectorCount: CollectorCoords.Length,
             wallUpgradesEnabled: EnableWallUpgrade,
             minGold: MinGold,
@@ -3645,10 +3763,14 @@ StartBotLoop() {
             IsRunning := false
         }
     }
-    StatusText.Value := "Status: Idle"
-    StartBtn.Enabled := true
-    PauseBtn.Enabled := false
-    LogMessage("Main Village flow ended.")
+    if !IsBBRunning {
+        StatusText.Value := "Status: Idle"
+        StartBtn.Enabled := true
+        PauseBtn.Enabled := false
+        LogMessage("Main Village flow ended.")
+    } else {
+        LogMessage("Main Village flow handed control to Builder Base.")
+    }
 }
 
 LegacyStartBotLoop() {
@@ -4235,6 +4357,8 @@ class LiveBuilderBasePrimitives {
                 )
             case "detect_builder_home_from_frame":
                 return DetectLiveBuilderBaseHome(args[1])
+            case "complete_global_cycle":
+                return CompleteLiveGlobalCycle(args[1])
         }
         throw Error("Unknown live Builder Base operation: " name)
     }
@@ -4380,7 +4504,7 @@ DetectLiveBuilderBaseHome(frame) {
 }
 
 RunBuilderBaseLoop() {
-    global IsBBRunning, StatusText, StartBtn, PauseBtn
+    global IsRunning, IsBBRunning, StatusText, StartBtn, PauseBtn
     LogMessage("--- Starting Builder Base Loop ---")
     try {
         flow := BuilderBaseFlow(LiveBuilderBasePrimitives())
@@ -4393,9 +4517,13 @@ RunBuilderBaseLoop() {
     } finally {
         LogMessage("--- Builder Base Loop Stopped ---")
         IsBBRunning := false
-        StatusText.Value := "Status: Stopped"
-        StartBtn.Enabled := true
-        PauseBtn.Enabled := false
+        if !IsRunning {
+            StatusText.Value := "Status: Stopped"
+            StartBtn.Enabled := true
+            PauseBtn.Enabled := false
+        } else {
+            LogMessage("Builder Base flow handed control to Main Village.")
+        }
     }
 }
 ResetViewport() {
@@ -4877,6 +5005,7 @@ Esc:: {
 #HotIf !IsCalibrating && !IsBBCalibrating
 UnifiedStart() {
     global IsRunning, IsBBRunning, TimerDurationMs, TimerStartTick
+    global SessionCompletedAttacks
     global DDHours, DDMinutes, StatusText
     if (IsRunning || IsBBRunning) {
         PauseBot()
@@ -4888,6 +5017,7 @@ UnifiedStart() {
         minutes := Integer(DDMinutes.Text)
         TimerDurationMs := (hours * 3600 + minutes * 60) * 1000
         TimerStartTick := 0
+        SessionCompletedAttacks := 0
         state := {
             timerMs: TimerDurationMs,
             mainCalibrated: true,

@@ -155,6 +155,12 @@ class BuilderBaseHarnessPrimitives {
                 return TapBuilderBaseClient("return_home", 300)
             case "detect_builder_home_from_frame":
                 return DetectBuilderBaseHome(args[1])
+            case "complete_global_cycle":
+                BuilderBaseHarnessLog(
+                    "F8 attack reached Builder Base home; isolated harness "
+                        "continues without production timer/reconnect routing."
+                )
+                return "continue"
         }
         throw Error("Unknown Builder Base harness operation: " name)
     }
