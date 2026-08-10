@@ -5265,6 +5265,7 @@ IsBotMaximizedAndActive() {
     return WinActive("ahk_id " MyGui.Hwnd) && (WinGetMinMax("ahk_id " MyGui.Hwnd) == 1)
 }
 
+; Milestone Checkpoint 2.6: Revamped Escape Hotkey for Active & Maximized Bot Window
 #HotIf !IsCalibrating && !IsBBCalibrating && IsBotMaximizedAndActive()
 Esc:: {
     ShowToolTip("Exiting Clash of Clans Bot...")
