@@ -1,9 +1,16 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+; Active production ADB bot.
 #include "OCR.ahk"
+#include "loot_ocr_logic.ahk"
+#include "resource_threshold_logic.ahk"
+#include "builder_info_ocr_logic.ahk"
+#include "builder_base_loop_logic.ahk"
+; Every gameplay input must enter through the client-coordinate interaction
+; contract in this support file. Callers must never pretranslate coordinates.
+#include "ADBcocbotrefactor_support.ahk"
 ; Set coordinate modes relative to the active window's client area and match substring titles
 CoordMode "Mouse", "Client"
-CoordMode "Pixel", "Client"
 SetTitleMatchMode 2
 ; ==============================================================================
 ; CONFIGURATION VARIABLES (GLOBAL DEFAULTS)
@@ -51,6 +58,8 @@ global ReturnHomeClickX := 960
 global ReturnHomeClickY := 920
 global ReturnHomeColor := 0x5FA41A
 global ReturnHomeTolerance := 35
+global ClearTapX := 1676
+global ClearTapY := 416
 ; --- Builder Base Coordinates & Stars ---
 global BBAttackBtnX := 100
 global BBAttackBtnY := 970
@@ -83,10 +92,14 @@ global ElixirAreaX := 50
 global ElixirAreaY := 90
 global ElixirAreaW := 150
 global ElixirAreaH := 30
-global LootCropOffsetX := 20
-global LootCropOffsetY := -4
-global LootCropW := 240
-global LootCropH := 45
+global GoldIconX := 45
+global GoldIconY := 145
+global ElixirIconX := 45
+global ElixirIconY := 195
+global LootCropOffsetX := 10
+global LootCropOffsetY := -27
+global LootCropW := 161
+global LootCropH := 59
 global NextMatchBtnX := 1630
 global NextMatchBtnY := 850
 ; --- Storage Bar Check Coordinates ---
@@ -119,7 +132,6 @@ global CloudPt4Y := 780
 global CloudGreyTolerance := 15
 ; --- Resource Collection Coordinates ---
 global CollectorCoords := []
-global ADBCollectorCoords := []
 global ADBMainCalibrationVersion := 0
 global ADBBBCalibrationVersion := 0
 global ADB_COORDINATE_VERSION := 2
@@ -133,43 +145,11 @@ global ADBViewportProvider := ""
 global ADBViewportSerial := ""
 global ADBViewportVersion := 0
 global ADB_VIEWPORT_VERSION := 1
+global ReconnectCropLeftRatio := 0.28, ReconnectCropRightRatio := 0.72
+global ReconnectCropTopRatio := 0.51, ReconnectCropBottomRatio := 0.64
 global PendingViewportLeft := 0
 global PendingViewportTop := 0
 global BuilderMenuBottomX := 960, BuilderMenuBottomY := 800
-; --- Native Android display coordinates computed from client calibration points ---
-global ADBAttackBtnX := 100, ADBAttackBtnY := 970
-global ADBFindMatchBtnX := 250, ADBFindMatchBtnY := 750
-global ADBAttackStartBtnX := 1630, ADBAttackStartBtnY := 920
-global ADBReturnHomeClickX := 960, ADBReturnHomeClickY := 920
-global ADBBBAttackBtnX := 100, ADBBBAttackBtnY := 970
-global ADBBBFindMatchBtnX := 250, ADBBBFindMatchBtnY := 750
-global ADBBBStar1X := 960, ADBBBStar1Y := 540
-global ADBBBStar2X := 960, ADBBBStar2Y := 540
-global ADBBBStar3X := 960, ADBBBStar3Y := 540
-global ADBWarLogoX := 100, ADBWarLogoY := 700
-global ADBBuilderFaceX := 960, ADBBuilderFaceY := 30
-global ADBBuilderMenuBottomX := 960, ADBBuilderMenuBottomY := 800
-global ADBLabFaceX := 960, ADBLabFaceY := 30
-global ADBUpgradeConfirmX := 960, ADBUpgradeConfirmY := 540
-global ADBGoldAreaX := 50, ADBGoldAreaY := 50
-global ADBElixirAreaX := 50, ADBElixirAreaY := 90
-global ADBNextMatchBtnX := 1630, ADBNextMatchBtnY := 850
-global ADBDarkElixirBarThreshX := 1750, ADBDarkElixirBarThreshY := 100
-global ADBGoldBarThreshX := 1750, ADBGoldBarThreshY := 100
-global ADBElixirBarThreshX := 1750, ADBElixirBarThreshY := 160
-global ADBUpgradeMoreBtnX := 960, ADBUpgradeMoreBtnY := 850
-global ADBAddWall1X := 960, ADBAddWall1Y := 800
-global ADBRemoveWallX := 960, ADBRemoveWallY := 800
-global ADBGoldUpgradeX := 960, ADBGoldUpgradeY := 800
-global ADBElixirUpgradeX := 960, ADBElixirUpgradeY := 800
-global ADBSide1StartX := 1750, ADBSide1StartY := 520, ADBSide1EndX := 1400, ADBSide1EndY := 800
-global ADBSide2StartX := 150, ADBSide2StartY := 510, ADBSide2EndX := 600, ADBSide2EndY := 850
-global ADBSide3StartX := 150, ADBSide3StartY := 510, ADBSide3EndX := 507, ADBSide3EndY := 230
-global ADBSide4StartX := 1131, ADBSide4StartY := 40, ADBSide4EndX := 1506, ADBSide4EndY := 312
-global ADBBBSide1StartX := 1750, ADBBBSide1StartY := 520, ADBBBSide1EndX := 1400, ADBBBSide1EndY := 800
-global ADBBBSide2StartX := 150, ADBBBSide2StartY := 510, ADBBBSide2EndX := 600, ADBBBSide2EndY := 850
-global ADBBBSide3StartX := 150, ADBBBSide3StartY := 510, ADBBBSide3EndX := 507, ADBBBSide3EndY := 230
-global ADBBBSide4StartX := 1131, ADBBBSide4StartY := 40, ADBBBSide4EndX := 1506, ADBBBSide4EndY := 312
 ; --- Attack Sides Calibration Globals ---
 global Side1StartX := 1750, Side1StartY := 520, Side1EndX := 1400, Side1EndY := 800
 global Side2StartX := 150, Side2StartY := 510, Side2EndX := 600, Side2EndY := 850
@@ -193,18 +173,6 @@ global BBSides := [
     {startX: BBSide3StartX, startY: BBSide3StartY, endX: BBSide3EndX, endY: BBSide3EndY},
     {startX: BBSide4StartX, startY: BBSide4StartY, endX: BBSide4EndX, endY: BBSide4EndY}
 ]
-global ADBSides := [
-    {startX: ADBSide1StartX, startY: ADBSide1StartY, endX: ADBSide1EndX, endY: ADBSide1EndY},
-    {startX: ADBSide2StartX, startY: ADBSide2StartY, endX: ADBSide2EndX, endY: ADBSide2EndY},
-    {startX: ADBSide3StartX, startY: ADBSide3StartY, endX: ADBSide3EndX, endY: ADBSide3EndY},
-    {startX: ADBSide4StartX, startY: ADBSide4StartY, endX: ADBSide4EndX, endY: ADBSide4EndY}
-]
-global ADBBBSides := [
-    {startX: ADBBBSide1StartX, startY: ADBBBSide1StartY, endX: ADBBBSide1EndX, endY: ADBBBSide1EndY},
-    {startX: ADBBBSide2StartX, startY: ADBBBSide2StartY, endX: ADBBBSide2EndX, endY: ADBBBSide2EndY},
-    {startX: ADBBBSide3StartX, startY: ADBBBSide3StartY, endX: ADBBBSide3EndX, endY: ADBBBSide3EndY},
-    {startX: ADBBBSide4StartX, startY: ADBBBSide4StartY, endX: ADBBBSide4EndX, endY: ADBBBSide4EndY}
-]
 ; ==============================================================================
 ; STATE CONTROL
 ; ==============================================================================
@@ -217,6 +185,7 @@ global CalibStep := 0
 global BBCalibStep := 0
 global TimerStartTick := 0
 global TimerDurationMs := 0
+global SessionCompletedAttacks := 0
 
 
 ; ==============================================================================
@@ -248,102 +217,11 @@ global ADBStatusText := ""
 global ADBFramePath := ""
 global LastADBFrameTick := 0
 
-if HasArgument("--adb-self-test") {
-    RunADBIntegrationSelfTestEntry()
-}
-
 ; Load configuration settings
 LoadConfig()
 ; Initialize GUI
 CreateGUI()
 LogMessage("Bot initialized. Ready.")
-
-HasArgument(expected) {
-    for argument in A_Args {
-        if (argument == expected)
-            return true
-    }
-    return false
-}
-
-RunADBIntegrationSelfTests() {
-    AssertADBEqual("localhost:6520", ResolveADBSerial("Google Play Games Developer Emulator", "127.0.0.1:5555"), "GPGDE serial")
-    AssertADBEqual("127.0.0.1:5555", ResolveADBSerial("BlueStacks", "127.0.0.1:5555"), "BlueStacks serial")
-    AssertADBEqual('-s "localhost:6520" shell input tap 500 400', BuildADBTapArguments("localhost:6520", 500, 400), "tap arguments")
-    AssertADBEqual('-s "localhost:6520" shell input swipe 100 200 300 400 200', BuildADBSwipeArguments("localhost:6520", 100, 200, 300, 400, 200), "swipe arguments")
-    topLeft := ScaleClientToADB(20, 40, 20, 40, 1820, 1040, 1920, 1080)
-    AssertADBEqual(0, topLeft.x, "viewport top-left X")
-    AssertADBEqual(0, topLeft.y, "viewport top-left Y")
-    bottomRight := ScaleClientToADB(1820, 1040, 20, 40, 1820, 1040, 1920, 1080)
-    AssertADBEqual(1919, bottomRight.x, "viewport bottom-right X")
-    AssertADBEqual(1079, bottomRight.y, "viewport bottom-right Y")
-    center := ScaleClientToADB(920, 540, 20, 40, 1820, 1040, 1920, 1080)
-    AssertADBEqual(960, center.x, "offset viewport center X")
-    AssertADBEqual(540, center.y, "offset viewport center Y")
-    unequalScale := ScaleClientToADB(920, 290, 20, 40, 1820, 1040, 1920, 1080)
-    AssertADBEqual(960, unequalScale.x, "independent viewport X scale")
-    AssertADBEqual(270, unequalScale.y, "independent viewport Y scale")
-    clampedLeft := ScaleClientToADB(10, 40, 20, 40, 1820, 1040, 1920, 1080)
-    AssertADBEqual(0, clampedLeft.x, "clamped point left of viewport X")
-    AssertADBThrows(() => ScaleClientToADB(20, 40, 100, 40, 100, 1040, 1920, 1080), "zero-width viewport")
-    AssertADBEqual(true, IsADBViewportValid(20, 40, 1820, 1040, 1900, 1100), "valid viewport metadata")
-    AssertADBEqual(false, IsADBViewportValid(20, 40, 1920, 1040, 1900, 1100), "viewport outside client")
-    AssertADBEqual(true, DoesADBViewportMatchRuntime(1900, 1100, "BlueStacks", "127.0.0.1:5555",
-        1900, 1100, "BlueStacks", "127.0.0.1:5555"), "matching viewport runtime")
-    AssertADBEqual(false, DoesADBViewportMatchRuntime(1900, 1100, "BlueStacks", "127.0.0.1:5555",
-        1920, 1080, "BlueStacks", "127.0.0.1:5555"), "resized client mismatch")
-    AssertADBEqual(false, DoesADBViewportMatchRuntime(1900, 1100, "BlueStacks", "127.0.0.1:5555",
-        1900, 1100, "Google Play Games Developer Emulator", "localhost:6520"), "provider identity mismatch")
-    if !ParseBuilderFraction("I / 7", &parsedFree, &parsedTotal)
-        throw Error("builder fraction parser rejected OCR substitutions")
-    AssertADBEqual(1, parsedFree, "parsed builder free count")
-    AssertADBEqual(7, parsedTotal, "parsed builder total count")
-    menuSwipe := BuildBuilderMenuSwipe(839, 600, 49)
-    AssertADBEqual(839, menuSwipe.startX, "builder swipe start X")
-    AssertADBEqual(600, menuSwipe.startY, "builder swipe start Y")
-    AssertADBEqual(839, menuSwipe.endX, "builder swipe end X")
-    AssertADBEqual(187, menuSwipe.endY, "builder swipe end Y")
-    Loop 250 {
-        offset := RandomADBOffset()
-        if (offset < -7 || offset > 8)
-            throw Error("coordinate randomization escaped -7..8")
-        duration := RandomADBDuration()
-        if (duration < 185 || duration > 215)
-            throw Error("duration randomization escaped 185..215")
-    }
-    pinch := BuildADBPinchArguments("localhost:6520", 960, 540, 200, 45, 200)
-    if !InStr(pinch, "-e startRadius 200 -e endRadius 45 -e durationMs 200")
-        throw Error("pinch arguments do not use 200 -> 45 over 200 ms")
-}
-
-RunADBIntegrationSelfTestEntry() {
-    resultPath := A_ScriptDir "\scratch\coc_bot_adb_selftest.txt"
-    DirCreate(A_ScriptDir "\scratch")
-    if FileExist(resultPath)
-        FileDelete(resultPath)
-    try {
-        RunADBIntegrationSelfTests()
-        FileAppend("PASS: all integrated ADB tests passed`n", resultPath)
-        ExitApp 0
-    } catch as err {
-        FileAppend("FAIL: " err.Message "`n", resultPath)
-        ExitApp 1
-    }
-}
-
-AssertADBEqual(expected, actual, description) {
-    if (expected != actual)
-        throw Error(description ": expected [" expected "], got [" actual "]")
-}
-
-AssertADBThrows(callback, description) {
-    try {
-        callback.Call()
-    } catch {
-        return
-    }
-    throw Error(description ": expected an error")
-}
 
 ResolveADBSerial(provider, blueStacksSerial) {
     global GPGDE_PROVIDER, BLUESTACKS_PROVIDER, GPGDE_SERIAL
@@ -366,39 +244,6 @@ ValidateBlueStacksSerial(serial) {
 
 QuoteADBArgument(value) {
     return '"' value '"'
-}
-
-BuildADBTapArguments(serial, x, y) {
-    return '-s "' serial '" shell input tap ' Round(x) ' ' Round(y)
-}
-
-BuildADBSwipeArguments(serial, startX, startY, endX, endY, durationMs) {
-    return '-s "' serial '" shell input swipe ' Round(startX) ' ' Round(startY) ' ' Round(endX) ' ' Round(endY) ' ' durationMs
-}
-
-BuildADBPinchArguments(serial, centerX, centerY, startRadius, endRadius, durationMs) {
-    global ADB_PINCH_COMPONENT
-    return '-s ' QuoteADBArgument(serial)
-        . ' shell am instrument -w'
-        . ' -e centerX ' Round(centerX)
-        . ' -e centerY ' Round(centerY)
-        . ' -e startRadius ' startRadius
-        . ' -e endRadius ' endRadius
-        . ' -e durationMs ' durationMs
-        . ' ' QuoteADBArgument(ADB_PINCH_COMPONENT)
-}
-
-ScaleClientToADB(x, y, viewportLeft, viewportTop, viewportRight, viewportBottom, adbWidth, adbHeight) {
-    if (viewportRight <= viewportLeft || viewportBottom <= viewportTop)
-        throw Error("Android viewport must have positive width and height.")
-    if (adbWidth <= 0 || adbHeight <= 0)
-        throw Error("Android display dimensions must be positive.")
-    xClamped := Max(viewportLeft, Min(viewportRight, x))
-    yClamped := Max(viewportTop, Min(viewportBottom, y))
-    return {
-        x: Max(0, Min(adbWidth - 1, Round((xClamped - viewportLeft) * (adbWidth - 1) / (viewportRight - viewportLeft)))),
-        y: Max(0, Min(adbHeight - 1, Round((yClamped - viewportTop) * (adbHeight - 1) / (viewportBottom - viewportTop))))
-    }
 }
 
 IsADBViewportValid(left, top, right, bottom, clientWidth, clientHeight) {
@@ -432,25 +277,48 @@ ParseBuilderFraction(text, &free, &total) {
 }
 
 ClientToADBPoint(x, y) {
-    global TargetWindowTitle
+    viewportState := ValidateADBViewportRuntime()
+    if !viewportState.Ok
+        throw Error(viewportState.Message)
+    return TranslateClientPointToADB(x, y)
+}
+
+GetADBClientViewportRect() {
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
-    global ADBViewportClientWidth, ADBViewportClientHeight
-    static lastMapping := ""
-    hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
-        throw Error("The configured emulator window was not found.")
-    WinGetClientPos ,, &clientWidth, &clientHeight, hwnd
-    if !IsADBViewportValid(ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom,
-        ADBViewportClientWidth, ADBViewportClientHeight)
-        throw Error("Android viewport calibration is missing. Run Main Calibration.")
-    display := GetADBDisplaySize()
-    mappingKey := ADBViewportLeft "," ADBViewportTop "-" ADBViewportRight "," ADBViewportBottom
-        . "->" display.width "x" display.height
-    if (mappingKey != lastMapping) {
-        lastMapping := mappingKey
+    viewportState := ValidateADBViewportRuntime()
+    if !viewportState.Ok
+        throw Error(viewportState.Message)
+    return {
+        x: ADBViewportLeft,
+        y: ADBViewportTop,
+        width: ADBViewportRight - ADBViewportLeft,
+        height: ADBViewportBottom - ADBViewportTop
     }
-    return ScaleClientToADB(x, y, ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom,
-        display.width, display.height)
+}
+
+ClientRectToADBRect(x, y, width, height) {
+    viewportState := ValidateADBViewportRuntime()
+    if !viewportState.Ok
+        throw Error(viewportState.Message)
+    return TranslateClientRectToADB(x, y, width, height)
+}
+
+ADBFramePointToClient(adbRect, localX, localY) {
+    viewportState := ValidateADBViewportRuntime()
+    if !viewportState.Ok
+        throw Error(viewportState.Message)
+    return TranslateADBPointToClient(
+        adbRect.x + localX,
+        adbRect.y + localY
+    )
+}
+
+ClientViewportPointFromFraction(xRatio, yRatio) {
+    viewport := GetADBClientViewportRect()
+    return {
+        x: Round(viewport.x + (viewport.width - 1) * Max(0, Min(1, xRatio))),
+        y: Round(viewport.y + (viewport.height - 1) * Max(0, Min(1, yRatio)))
+    }
 }
 
 ValidateADBViewportRuntime() {
@@ -464,13 +332,71 @@ ValidateADBViewportRuntime() {
         ADBViewportClientWidth, ADBViewportClientHeight)
         return {Ok: false, Message: "Android viewport bounds are invalid. Run Main Calibration."}
     hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
+    if !hwnd {
+        InvalidateADBClientMapping()
         return {Ok: false, Message: "The configured emulator window was not found."}
+    }
+    isMinimized := WinGetMinMax(hwnd) == -1
+    currentClientWidth := 0
+    currentClientHeight := 0
+    if !isMinimized
+        WinGetClientPos ,, &currentClientWidth, &currentClientHeight, hwnd
+    validationSize := ResolveADBValidationClientSize(
+        isMinimized,
+        currentClientWidth,
+        currentClientHeight,
+        ADBViewportClientWidth,
+        ADBViewportClientHeight
+    )
+    clientWidth := validationSize.width
+    clientHeight := validationSize.height
+    currentSerial := GetSelectedADBSerial()
+    if !DoesADBViewportMatchRuntime(
+        ADBViewportClientWidth,
+        ADBViewportClientHeight,
+        ADBViewportProvider,
+        ADBViewportSerial,
+        clientWidth,
+        clientHeight,
+        ADBProvider,
+        currentSerial
+    ) {
+        InvalidateADBClientMapping()
+        return {Ok: false, Message: "The emulator identity or client size changed. Run Main Calibration."}
+    }
+    try {
+        display := GetADBDisplaySize()
+    } catch as err {
+        InvalidateADBClientMapping()
+        return {Ok: false, Message: err.Message}
+    }
+    if !ValidateADBClientMappingIdentity(
+        clientWidth,
+        clientHeight,
+        ADBProvider,
+        currentSerial,
+        display.width,
+        display.height
+    ) {
+        ConfigureADBClientMapping(
+            ADBViewportLeft,
+            ADBViewportTop,
+            ADBViewportRight,
+            ADBViewportBottom,
+            display.width,
+            display.height,
+            clientWidth,
+            clientHeight,
+            ADBProvider,
+            currentSerial
+        )
+    }
     return {Ok: true, Message: "Android viewport is valid."}
 }
 
 InvalidateADBViewport() {
     global ADBViewportVersion, ADBMainCalibrationVersion, ADBBBCalibrationVersion
+    InvalidateADBClientMapping()
     ADBViewportVersion := 0
     ADBMainCalibrationVersion := 0
     ADBBBCalibrationVersion := 0
@@ -483,14 +409,6 @@ BuildBuilderMenuSwipe(builderFaceX, menuBottomY, builderFaceY) {
         endX: Round(builderFaceX),
         endY: Round(menuBottomY + ((builderFaceY - menuBottomY) * 0.75))
     }
-}
-
-RandomADBOffset() {
-    return Random(-7, 8)
-}
-
-RandomADBDuration() {
-    return Random(185, 215)
 }
 
 ResolveADBPath() {
@@ -598,6 +516,7 @@ CaptureADBFrame(force := false) {
         ADBFramePath := A_ScriptDir "\scratch\adb_frame.png"
     
     DirCreate(A_ScriptDir "\scratch")
+    PruneRefactorDiagnosticImages()
     if (!force && FileExist(ADBFramePath) && (A_TickCount - LastADBFrameTick < 150))
         return ADBFramePath
 
@@ -613,7 +532,8 @@ CaptureADBFrame(force := false) {
     return ADBFramePath
 }
 
-GetADBPixelColor(adbX, adbY, forceRefresh := false) {
+GetADBPixelColor(clientX, clientY, forceRefresh := false) {
+    adbPoint := ClientToADBPoint(clientX, clientY)
     framePath := CaptureADBFrame(forceRefresh)
     if !FileExist(framePath)
         return 0x000000
@@ -624,14 +544,317 @@ GetADBPixelColor(adbX, adbY, forceRefresh := false) {
         return 0x000000
 
     argb := 0
-    DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", Round(adbX), "int", Round(adbY), "uint*", &argb)
+    DllCall(
+        "gdiplus\GdipBitmapGetPixel",
+        "ptr",
+        pBitmap,
+        "int",
+        adbPoint.x,
+        "int",
+        adbPoint.y,
+        "uint*",
+        &argb
+    )
     DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
     return argb & 0x00FFFFFF
 }
 
-IsBrownADB(adbX, adbY) {
+GetADBFramePixelColor(framePath, clientX, clientY) {
+    if (framePath == "" || !FileExist(framePath))
+        return 0x000000
+    adbPoint := ClientToADBPoint(clientX, clientY)
+    InitGDIPlus()
+    pBitmap := 0
+    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
+        return 0x000000
+    argb := 0
+    DllCall(
+        "gdiplus\GdipBitmapGetPixel",
+        "ptr",
+        pBitmap,
+        "int",
+        adbPoint.x,
+        "int",
+        adbPoint.y,
+        "uint*",
+        &argb
+    )
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+    return argb & 0x00FFFFFF
+}
+
+GetADBFrameThresholdNeighborhood(
+    framePath,
+    clientX,
+    clientY,
+    clientRadiusX := 24,
+    clientRadiusY := 0,
+    clientStep := 1
+) {
+    if (framePath == "" || !FileExist(framePath))
+        throw Error("Fresh ADB threshold frame is missing.")
+
+    center := ClientToADBPoint(clientX, clientY)
+    InitGDIPlus()
+    pBitmap := 0
+    if DllCall(
+        "gdiplus\GdipCreateBitmapFromFile",
+        "wstr",
+        framePath,
+        "ptr*",
+        &pBitmap
+    ) != 0
+        throw Error("Fresh ADB threshold frame could not be opened.")
+
+    colors := []
     try {
-        color := GetADBPixelColor(adbX, adbY)
+        clientOffsetY := -clientRadiusY
+        while (clientOffsetY <= clientRadiusY) {
+            clientOffsetX := -clientRadiusX
+            while (clientOffsetX <= clientRadiusX) {
+                point := ClientToADBPoint(
+                    clientX + clientOffsetX,
+                    clientY + clientOffsetY
+                )
+                argb := 0
+                status := DllCall(
+                    "gdiplus\GdipBitmapGetPixel",
+                    "ptr",
+                    pBitmap,
+                    "int",
+                    point.x,
+                    "int",
+                    point.y,
+                    "uint*",
+                    &argb
+                )
+                if (status != 0)
+                    throw Error(
+                        "ADB threshold neighborhood sample failed with "
+                            "status " status "."
+                    )
+                colors.Push(argb & 0x00FFFFFF)
+                clientOffsetX += clientStep
+            }
+            clientOffsetY += clientStep
+        }
+    } finally {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+    }
+
+    analysis := AnalyzeThresholdNeighborhood(colors)
+    analysis.adbX := center.x
+    analysis.adbY := center.y
+    return analysis
+}
+
+ReadResourceThresholdsFromADBFrame(framePath) {
+    global GoldBarThreshX, GoldBarThreshY
+    global ElixirBarThreshX, ElixirBarThreshY
+    global DarkElixirBarThreshX, DarkElixirBarThreshY
+
+    goldSample := GetADBFrameThresholdNeighborhood(
+        framePath,
+        GoldBarThreshX,
+        GoldBarThreshY
+    )
+    goldColor := goldSample.color
+    goldR := (goldColor >> 16) & 0xFF
+    goldG := (goldColor >> 8) & 0xFF
+    goldB := goldColor & 0xFF
+    goldFilled := goldSample.valid
+        && goldR > 120
+        && goldG > 100
+        && goldR > goldB + 20
+        && goldG > goldB + 10
+
+    elixirSample := GetADBFrameThresholdNeighborhood(
+        framePath,
+        ElixirBarThreshX,
+        ElixirBarThreshY
+    )
+    elixirColor := elixirSample.color
+    elixirR := (elixirColor >> 16) & 0xFF
+    elixirG := (elixirColor >> 8) & 0xFF
+    elixirB := elixirColor & 0xFF
+    elixirFilled := elixirSample.valid
+        && elixirR >= 180
+        && elixirG >= 80
+        && elixirG <= 220
+        && elixirB >= 100
+        && elixirB <= 230
+        && elixirR > elixirG
+        && elixirR >= elixirB * 0.75
+        && (elixirR + elixirG + elixirB) / 3 > 140
+    elixirFilled := elixirFilled
+        || (elixirR > 120 && elixirB > 100 && elixirR > elixirG + 20)
+
+    darkSample := GetADBFrameThresholdNeighborhood(
+        framePath,
+        DarkElixirBarThreshX,
+        DarkElixirBarThreshY
+    )
+    darkColor := darkSample.color
+    darkR := (darkColor >> 16) & 0xFF
+    darkG := (darkColor >> 8) & 0xFF
+    darkB := darkColor & 0xFF
+    darkFilled := darkSample.valid
+        && darkR < 70
+        && darkG < 60
+        && darkB < 80
+
+    LogMessage(
+        Format(
+            "Resource threshold Gold: median RGB=({}, {}, {}), "
+                "ignored-light={}/{}, evaluated={}, result={}.",
+            goldR,
+            goldG,
+            goldB,
+            goldSample.ignored,
+            goldSample.total,
+            goldSample.evaluated,
+            goldFilled ? "YES" : "NO"
+        )
+    )
+    LogMessage(
+        Format(
+            "Resource threshold Elixir: median RGB=({}, {}, {}), "
+                "ignored-light={}/{}, evaluated={}, result={}.",
+            elixirR,
+            elixirG,
+            elixirB,
+            elixirSample.ignored,
+            elixirSample.total,
+            elixirSample.evaluated,
+            elixirFilled ? "YES" : "NO"
+        )
+    )
+    LogMessage(
+        Format(
+            "Resource threshold Dark Elixir: median RGB=({}, {}, {}), "
+                "ignored-light={}/{}, evaluated={}, result={}.",
+            darkR,
+            darkG,
+            darkB,
+            darkSample.ignored,
+            darkSample.total,
+            darkSample.evaluated,
+            darkFilled ? "YES" : "NO"
+        )
+    )
+
+    return {
+        gold: goldFilled,
+        elixir: elixirFilled,
+        darkElixir: darkFilled
+    }
+}
+
+IsGoblinFaceInADBFrame(framePath, centerX, centerY) {
+    if (centerX <= 0 || centerY <= 0)
+        return false
+    offsets := [
+        [0, 0], [-7, 0], [7, 0], [0, -7], [0, 7],
+        [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
+    ]
+    greenCount := 0
+    for pt in offsets {
+        color := GetADBFramePixelColor(
+            framePath,
+            centerX + pt[1],
+            centerY + pt[2]
+        )
+        r := (color >> 16) & 0xFF
+        g := (color >> 8) & 0xFF
+        b := color & 0xFF
+        if (g > r && g > b + 15 && g >= 80)
+            greenCount += 1
+    }
+    return greenCount >= 4
+}
+
+IsAttackButtonInADBFrame(framePath, x, y) {
+    color := GetADBFramePixelColor(framePath, x, y)
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+    return IsAttackBtnColor(r, g, b)
+}
+
+IsWarLogoInADBFrame(framePath) {
+    global WarLogoX, WarLogoY, MVLogoX, MVLogoY
+    targetX := WarLogoX > 0 ? WarLogoX : MVLogoX
+    targetY := WarLogoY > 0 ? WarLogoY : MVLogoY
+    offsets := [
+        {x: 0, y: 0},
+        {x: -20, y: -20},
+        {x: 20, y: -20},
+        {x: -20, y: 20},
+        {x: 20, y: 20}
+    ]
+    for pt in offsets {
+        color := GetADBFramePixelColor(
+            framePath,
+            targetX + pt.x,
+            targetY + pt.y
+        )
+        r := (color >> 16) & 0xFF
+        g := (color >> 8) & 0xFF
+        b := color & 0xFF
+        if IsWarLogoColor(r, g, b)
+            return true
+    }
+    return false
+}
+
+DetectVillageFromADBFrame(framePath) {
+    global AttackBtnX, AttackBtnY, BBAttackBtnX, BBAttackBtnY
+    mainAttack := IsAttackButtonInADBFrame(framePath, AttackBtnX - 45, AttackBtnY)
+        || IsAttackButtonInADBFrame(framePath, AttackBtnX + 45, AttackBtnY)
+    warLogo := IsWarLogoInADBFrame(framePath)
+    if (mainAttack && warLogo)
+        return "main"
+
+    builderAttack := IsAttackButtonInADBFrame(
+        framePath,
+        BBAttackBtnX - 45,
+        BBAttackBtnY
+    ) || IsAttackButtonInADBFrame(
+        framePath,
+        BBAttackBtnX + 45,
+        BBAttackBtnY
+    )
+    if (builderAttack && !warLogo)
+        return "builder"
+    return "battle"
+}
+
+AreCloudsPresentInADBFrame(framePath) {
+    global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y
+    global CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y, CloudGreyTolerance
+    greyCount := 0
+    for point in [
+        {x: CloudPt1X, y: CloudPt1Y},
+        {x: CloudPt2X, y: CloudPt2Y},
+        {x: CloudPt3X, y: CloudPt3Y},
+        {x: CloudPt4X, y: CloudPt4Y}
+    ] {
+        color := GetADBFramePixelColor(framePath, point.x, point.y)
+        r := (color >> 16) & 0xFF
+        g := (color >> 8) & 0xFF
+        b := color & 0xFF
+        if (r >= 120
+            && Abs(r - g) <= CloudGreyTolerance
+            && Abs(g - b) <= CloudGreyTolerance
+            && Abs(r - b) <= CloudGreyTolerance)
+            greyCount += 1
+    }
+    return greyCount >= 3
+}
+
+IsBrown(clientX, clientY) {
+    try {
+        color := GetADBPixelColor(clientX, clientY)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -642,9 +865,9 @@ IsBrownADB(adbX, adbY) {
     }
 }
 
-IsGreyADB(adbX, adbY, tolerance := 15) {
+IsGrey(clientX, clientY, tolerance := 15) {
     try {
-        color := GetADBPixelColor(adbX, adbY)
+        color := GetADBPixelColor(clientX, clientY)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -655,9 +878,9 @@ IsGreyADB(adbX, adbY, tolerance := 15) {
     }
 }
 
-ColorMatchesADB(adbX, adbY, targetColorRGB, tolerance := 20) {
+ColorMatches(clientX, clientY, targetColorRGB, tolerance := 20) {
     try {
-        color := GetADBPixelColor(adbX, adbY)
+        color := GetADBPixelColor(clientX, clientY)
         actualHex := Integer(color)
         tr := (targetColorRGB >> 16) & 0xFF
         tg := (targetColorRGB >> 8) & 0xFF
@@ -689,37 +912,114 @@ IsClashForeground(serial) {
     return RegExMatch(result.Output, "im)^\s*(topResumedActivity|mResumedActivity|ResumedActivity).*" ADB_TARGET_PACKAGE "/")
 }
 
-RunADBTapAt(x, y) {
+RunADBInteractionCommand(arguments) {
     global ADBConnectionSerial, ADBHelperSerial, ADBDisplaySerial
-    ready := EnsureADBActionReady()
-    if !ready.Ok
-        return false
-    result := RunADB(BuildADBTapArguments(ready.Serial, x, y))
+    captureOutput := InStr(arguments, " am instrument ") > 0
+    result := RunADB(arguments, captureOutput)
     if !result.Ok {
         ADBConnectionSerial := ""
         ADBHelperSerial := ""
         ADBDisplaySerial := ""
-        LogMessage("ADB tap failed: " FormatADBResult(result))
-        return false
+        throw Error(FormatADBResult(result))
     }
-    return true
+    if captureOutput && (InStr(result.Output, "Pinch failed:") || !InStr(result.Output, "Pinch injected successfully."))
+        throw Error(FormatADBResult(result))
+    return result
 }
 
-RunADBSwipeAt(startX, startY, endX, endY, durationMs := "") {
-    global ADBConnectionSerial, ADBHelperSerial
+SleepADBInteractionJitter(milliseconds) {
+    if (milliseconds > 0)
+        Sleep(milliseconds)
+}
+
+RandomADBInteractionInt(minimum, maximum) {
+    return Random(minimum, maximum)
+}
+
+CreateLiveADBClientInteraction() {
     ready := EnsureADBActionReady()
     if !ready.Ok
-        return false
-    if (durationMs == "")
-        durationMs := RandomADBDuration()
-    result := RunADB(BuildADBSwipeArguments(ready.Serial, startX, startY, endX, endY, durationMs))
-    if !result.Ok {
-        ADBConnectionSerial := ""
-        ADBHelperSerial := ""
-        LogMessage("ADB swipe failed: " FormatADBResult(result))
+        throw Error(ready.Message)
+    viewportState := ValidateADBViewportRuntime()
+    if !viewportState.Ok
+        throw Error(viewportState.Message)
+    return CreateADBClientInteraction(
+        ready.Serial,
+        RunADBInteractionCommand,
+        SleepADBInteractionJitter,
+        RandomADBInteractionInt
+    )
+}
+
+WaitForADBActionPreDelay(intendedDelayMs) {
+    timing := GetADBActionTiming(intendedDelayMs)
+    if (timing.PreDelay > 0)
+        Sleep(timing.PreDelay)
+    return timing.PreDelay
+}
+
+RunADBTapAt(clientX, clientY, intendedDelayMs := 0) {
+    try {
+        interaction := CreateLiveADBClientInteraction()
+        WaitForADBActionPreDelay(intendedDelayMs)
+        point := interaction.Tap(clientX, clientY, intendedDelayMs)
+        return point
+    } catch as err {
+        LogMessage("ADB tap failed: " err.Message)
         return false
     }
-    return true
+}
+
+RunADBClearTapAt(clientX, clientY, intendedDelayMs := 0) {
+    try {
+        interaction := CreateLiveADBClientInteraction()
+        interaction.ClearTap(
+            clientX,
+            clientY,
+            intendedDelayMs,
+            WaitForADBActionPreDelay
+        )
+        return true
+    } catch as err {
+        LogMessage("ADB clear tap failed: " err.Message)
+        return false
+    }
+}
+
+RunADBShiftedPlacementAt(clientX, clientY, adbShiftPixels, intendedDelayMs := 0) {
+    try {
+        interaction := CreateLiveADBClientInteraction()
+        WaitForADBActionPreDelay(intendedDelayMs)
+        interaction.PlaceShiftedTowardCenter(
+            clientX,
+            clientY,
+            adbShiftPixels,
+            intendedDelayMs
+        )
+        return true
+    } catch as err {
+        LogMessage("ADB shifted placement failed: " err.Message)
+        return false
+    }
+}
+
+RunADBSwipeAt(startClientX, startClientY, endClientX, endClientY, durationMs := 200, intendedDelayMs := 0) {
+    try {
+        interaction := CreateLiveADBClientInteraction()
+        WaitForADBActionPreDelay(intendedDelayMs)
+        interaction.Swipe(
+            startClientX,
+            startClientY,
+            endClientX,
+            endClientY,
+            durationMs,
+            intendedDelayMs
+        )
+        return true
+    } catch as err {
+        LogMessage("ADB swipe failed: " err.Message)
+        return false
+    }
 }
 
 IsADBPackageInstalled(serial, packageName) {
@@ -748,20 +1048,17 @@ EnsureADBPinchHelper(serial) {
     return true
 }
 
-RunADBPinchAt(centerX, centerY) {
-    global ADBConnectionSerial, ADBHelperSerial
+RunADBPinchAt(centerClientX, centerClientY, intendedDelayMs := 0) {
     try {
         ready := EnsureADBActionReady()
         if !ready.Ok
             return false
         EnsureADBPinchHelper(ready.Serial)
-        result := RunADB(BuildADBPinchArguments(ready.Serial, centerX, centerY, 200, 45, RandomADBDuration()), true)
-        if !result.Ok || InStr(result.Output, "Pinch failed:") || !InStr(result.Output, "Pinch injected successfully.")
-            throw Error(FormatADBResult(result))
+        interaction := CreateLiveADBClientInteraction()
+        WaitForADBActionPreDelay(intendedDelayMs)
+        interaction.Pinch(centerClientX, centerClientY, 200, 45, 200, intendedDelayMs)
         return true
     } catch as err {
-        ADBConnectionSerial := ""
-        ADBHelperSerial := ""
         LogMessage("ADB pinch failed: " err.Message)
         return false
     }
@@ -782,22 +1079,12 @@ LoadConfig() {
     global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
+    global GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
     global NextMatchBtnX, NextMatchBtnY
     global UpgradeMoreBtnX, UpgradeMoreBtnY, AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
     global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y, CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y, CloudGreyTolerance
-    global CollectorCoords, ADBCollectorCoords
-    global ADBAttackBtnX, ADBAttackBtnY, ADBFindMatchBtnX, ADBFindMatchBtnY, ADBAttackStartBtnX, ADBAttackStartBtnY
-    global ADBReturnHomeClickX, ADBReturnHomeClickY, ADBBBAttackBtnX, ADBBBAttackBtnY, ADBBBFindMatchBtnX, ADBBBFindMatchBtnY
-    global ADBBBStar1X, ADBBBStar1Y, ADBBBStar2X, ADBBBStar2Y, ADBBBStar3X, ADBBBStar3Y, ADBWarLogoX, ADBWarLogoY
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBBuilderMenuBottomX, ADBBuilderMenuBottomY, ADBLabFaceX, ADBLabFaceY, ADBUpgradeConfirmX, ADBUpgradeConfirmY
-    global ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY, ADBNextMatchBtnX, ADBNextMatchBtnY
-    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY, ADBGoldBarThreshX, ADBGoldBarThreshY, ADBElixirBarThreshX, ADBElixirBarThreshY
-    global ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY, ADBAddWall1X, ADBAddWall1Y, ADBRemoveWallX, ADBRemoveWallY
-    global ADBGoldUpgradeX, ADBGoldUpgradeY, ADBElixirUpgradeX, ADBElixirUpgradeY
-    global ADBSide1StartX, ADBSide1StartY, ADBSide1EndX, ADBSide1EndY, ADBSide2StartX, ADBSide2StartY, ADBSide2EndX, ADBSide2EndY
-    global ADBSide3StartX, ADBSide3StartY, ADBSide3EndX, ADBSide3EndY, ADBSide4StartX, ADBSide4StartY, ADBSide4EndX, ADBSide4EndY
-    global ADBBBSide1StartX, ADBBBSide1StartY, ADBBBSide1EndX, ADBBBSide1EndY, ADBBBSide2StartX, ADBBBSide2StartY, ADBBBSide2EndX, ADBBBSide2EndY
-    global ADBBBSide3StartX, ADBBBSide3StartY, ADBBBSide3EndX, ADBBBSide3EndY, ADBBBSide4StartX, ADBBBSide4StartY, ADBBBSide4EndX, ADBBBSide4EndY
+    global CollectorCoords
     global Troop1Count, Troop2Count, Troop3Count
     global Side1StartX, Side1StartY, Side1EndX, Side1EndY
     global Side2StartX, Side2StartY, Side2EndX, Side2EndY
@@ -808,11 +1095,12 @@ LoadConfig() {
     global BBSide2StartX, BBSide2StartY, BBSide2EndX, BBSide2EndY
     global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
     global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
-    global BBSides, ADBSides, ADBBBSides
+    global BBSides
     global ADBProvider, BlueStacksSerial, GPGDE_PROVIDER, BLUESTACKS_PROVIDER
     global ADBMainCalibrationVersion, ADBBBCalibrationVersion
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
     global ADBViewportClientWidth, ADBViewportClientHeight, ADBViewportProvider, ADBViewportSerial, ADBViewportVersion
+    global ClearTapX, ClearTapY
     TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", "Clash of Clans")
     ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
     DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 15)
@@ -838,6 +1126,20 @@ LoadConfig() {
     ADBViewportProvider := IniRead("config.ini", "ADBViewport", "Provider", "")
     ADBViewportSerial := IniRead("config.ini", "ADBViewport", "Serial", "")
     ADBViewportVersion := SafeInteger(IniRead("config.ini", "ADBViewport", "Version", ""), 0)
+    defaultClearTapX := Round(
+        ADBViewportLeft + (ADBViewportRight - ADBViewportLeft - 1) * 0.9522
+    )
+    defaultClearTapY := Round(
+        ADBViewportTop + (ADBViewportBottom - ADBViewportTop - 1) * 0.383
+    )
+    ClearTapX := SafeInteger(
+        IniRead("config.ini", "VisualTests", "ClearTapX", ""),
+        defaultClearTapX
+    )
+    ClearTapY := SafeInteger(
+        IniRead("config.ini", "VisualTests", "ClearTapY", ""),
+        defaultClearTapY
+    )
     try BlueStacksSerial := ValidateBlueStacksSerial(BlueStacksSerial)
     catch
         BlueStacksSerial := "127.0.0.1:5555"
@@ -892,10 +1194,14 @@ LoadConfig() {
     ElixirAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaY", ""), 90)
     ElixirAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaW", ""), 150)
     ElixirAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaH", ""), 30)
-    LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 20)
-    LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -4)
-    LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 240)
-    LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 45)
+    GoldIconX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconX", ""), 45)
+    GoldIconY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconY", ""), 145)
+    ElixirIconX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconX", ""), 45)
+    ElixirIconY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconY", ""), 195)
+    LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 10)
+    LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -27)
+    LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 161)
+    LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 59)
     NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1630))
     NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 850))
     UpgradeMoreBtnX := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnX", 960))
@@ -975,111 +1281,6 @@ LoadConfig() {
         {startX: BBSide3StartX, startY: BBSide3StartY, endX: BBSide3EndX, endY: BBSide3EndY},
         {startX: BBSide4StartX, startY: BBSide4StartY, endX: BBSide4EndX, endY: BBSide4EndY}
     ]
-    ADBDarkElixirBarThreshX := Integer(IniRead("config.ini", "ADBCoordinates", "DarkElixirBarThreshX", DarkElixirBarThreshX))
-    ADBDarkElixirBarThreshY := Integer(IniRead("config.ini", "ADBCoordinates", "DarkElixirBarThreshY", DarkElixirBarThreshY))
-    ADBElixirBarThreshX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirBarThreshX", ElixirBarThreshX))
-    ADBElixirBarThreshY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirBarThreshY", ElixirBarThreshY))
-    ADBGoldBarThreshX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldBarThreshX", GoldBarThreshX))
-    ADBGoldBarThreshY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldBarThreshY", GoldBarThreshY))
-    ADBBuilderFaceX := Integer(IniRead("config.ini", "ADBCoordinates", "BuilderFaceX", BuilderFaceX))
-    ADBBuilderFaceY := Integer(IniRead("config.ini", "ADBCoordinates", "BuilderFaceY", BuilderFaceY))
-    ADBBuilderMenuBottomX := Integer(IniRead("config.ini", "ADBCoordinates", "BuilderMenuBottomX", BuilderMenuBottomX))
-    ADBBuilderMenuBottomY := Integer(IniRead("config.ini", "ADBCoordinates", "BuilderMenuBottomY", BuilderMenuBottomY))
-    ADBLabFaceX := Integer(IniRead("config.ini", "ADBCoordinates", "LabFaceX", LabFaceX))
-    ADBLabFaceY := Integer(IniRead("config.ini", "ADBCoordinates", "LabFaceY", LabFaceY))
-    ADBUpgradeMoreBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "UpgradeMoreBtnX", UpgradeMoreBtnX))
-    ADBUpgradeMoreBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "UpgradeMoreBtnY", UpgradeMoreBtnY))
-    ADBAddWall1X := Integer(IniRead("config.ini", "ADBCoordinates", "AddWall1X", AddWall1X))
-    ADBAddWall1Y := Integer(IniRead("config.ini", "ADBCoordinates", "AddWall1Y", AddWall1Y))
-    ADBRemoveWallX := Integer(IniRead("config.ini", "ADBCoordinates", "RemoveWallX", RemoveWallX))
-    ADBRemoveWallY := Integer(IniRead("config.ini", "ADBCoordinates", "RemoveWallY", RemoveWallY))
-    ADBGoldUpgradeX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldUpgradeX", GoldUpgradeX))
-    ADBGoldUpgradeY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldUpgradeY", GoldUpgradeY))
-    ADBElixirUpgradeX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirUpgradeX", ElixirUpgradeX))
-    ADBElixirUpgradeY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirUpgradeY", ElixirUpgradeY))
-    ADBUpgradeConfirmX := Integer(IniRead("config.ini", "ADBCoordinates", "UpgradeConfirmX", UpgradeConfirmX))
-    ADBUpgradeConfirmY := Integer(IniRead("config.ini", "ADBCoordinates", "UpgradeConfirmY", UpgradeConfirmY))
-    ADBWarLogoX := Integer(IniRead("config.ini", "ADBCoordinates", "MVLogoX", WarLogoX))
-    ADBWarLogoY := Integer(IniRead("config.ini", "ADBCoordinates", "MVLogoY", WarLogoY))
-    ADBAttackBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "AttackBtnX", AttackBtnX))
-    ADBAttackBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "AttackBtnY", AttackBtnY))
-    ADBFindMatchBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "FindMatchBtnX", FindMatchBtnX))
-    ADBFindMatchBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "FindMatchBtnY", FindMatchBtnY))
-    ADBAttackStartBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "AttackStartBtnX", AttackStartBtnX))
-    ADBAttackStartBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "AttackStartBtnY", AttackStartBtnY))
-    ADBGoldAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaX", GoldAreaX))
-    ADBGoldAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "GoldAreaY", GoldAreaY))
-    ADBElixirAreaX := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaX", ElixirAreaX))
-    ADBElixirAreaY := Integer(IniRead("config.ini", "ADBCoordinates", "ElixirAreaY", ElixirAreaY))
-    ADBNextMatchBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "NextMatchBtnX", NextMatchBtnX))
-    ADBNextMatchBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "NextMatchBtnY", NextMatchBtnY))
-    ADBSide1StartX := Integer(IniRead("config.ini", "ADBCoordinates", "Side1StartX", Side1StartX))
-    ADBSide1StartY := Integer(IniRead("config.ini", "ADBCoordinates", "Side1StartY", Side1StartY))
-    ADBSide1EndX := Integer(IniRead("config.ini", "ADBCoordinates", "Side1EndX", Side1EndX))
-    ADBSide1EndY := Integer(IniRead("config.ini", "ADBCoordinates", "Side1EndY", Side1EndY))
-    ADBSide2StartX := Integer(IniRead("config.ini", "ADBCoordinates", "Side2StartX", Side2StartX))
-    ADBSide2StartY := Integer(IniRead("config.ini", "ADBCoordinates", "Side2StartY", Side2StartY))
-    ADBSide2EndX := Integer(IniRead("config.ini", "ADBCoordinates", "Side2EndX", Side2EndX))
-    ADBSide2EndY := Integer(IniRead("config.ini", "ADBCoordinates", "Side2EndY", Side2EndY))
-    ADBSide3StartX := Integer(IniRead("config.ini", "ADBCoordinates", "Side3StartX", Side3StartX))
-    ADBSide3StartY := Integer(IniRead("config.ini", "ADBCoordinates", "Side3StartY", Side3StartY))
-    ADBSide3EndX := Integer(IniRead("config.ini", "ADBCoordinates", "Side3EndX", Side3EndX))
-    ADBSide3EndY := Integer(IniRead("config.ini", "ADBCoordinates", "Side3EndY", Side3EndY))
-    ADBSide4StartX := Integer(IniRead("config.ini", "ADBCoordinates", "Side4StartX", Side4StartX))
-    ADBSide4StartY := Integer(IniRead("config.ini", "ADBCoordinates", "Side4StartY", Side4StartY))
-    ADBSide4EndX := Integer(IniRead("config.ini", "ADBCoordinates", "Side4EndX", Side4EndX))
-    ADBSide4EndY := Integer(IniRead("config.ini", "ADBCoordinates", "Side4EndY", Side4EndY))
-    ADBReturnHomeClickX := Integer(IniRead("config.ini", "ADBCoordinates", "ReturnHomeClickX", ReturnHomeClickX))
-    ADBReturnHomeClickY := Integer(IniRead("config.ini", "ADBCoordinates", "ReturnHomeClickY", ReturnHomeClickY))
-    ADBBBAttackBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "BBAttackBtnX", BBAttackBtnX))
-    ADBBBAttackBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "BBAttackBtnY", BBAttackBtnY))
-    ADBBBFindMatchBtnX := Integer(IniRead("config.ini", "ADBCoordinates", "BBFindMatchBtnX", BBFindMatchBtnX))
-    ADBBBFindMatchBtnY := Integer(IniRead("config.ini", "ADBCoordinates", "BBFindMatchBtnY", BBFindMatchBtnY))
-    ADBBBStar1X := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar1X", BBStar1X))
-    ADBBBStar1Y := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar1Y", BBStar1Y))
-    ADBBBStar2X := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar2X", BBStar2X))
-    ADBBBStar2Y := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar2Y", BBStar2Y))
-    ADBBBStar3X := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar3X", BBStar3X))
-    ADBBBStar3Y := Integer(IniRead("config.ini", "ADBCoordinates", "BBStar3Y", BBStar3Y))
-    ADBBBSide1StartX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide1StartX", BBSide1StartX))
-    ADBBBSide1StartY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide1StartY", BBSide1StartY))
-    ADBBBSide1EndX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide1EndX", BBSide1EndX))
-    ADBBBSide1EndY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide1EndY", BBSide1EndY))
-    ADBBBSide2StartX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide2StartX", BBSide2StartX))
-    ADBBBSide2StartY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide2StartY", BBSide2StartY))
-    ADBBBSide2EndX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide2EndX", BBSide2EndX))
-    ADBBBSide2EndY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide2EndY", BBSide2EndY))
-    ADBBBSide3StartX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide3StartX", BBSide3StartX))
-    ADBBBSide3StartY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide3StartY", BBSide3StartY))
-    ADBBBSide3EndX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide3EndX", BBSide3EndX))
-    ADBBBSide3EndY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide3EndY", BBSide3EndY))
-    ADBBBSide4StartX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide4StartX", BBSide4StartX))
-    ADBBBSide4StartY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide4StartY", BBSide4StartY))
-    ADBBBSide4EndX := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide4EndX", BBSide4EndX))
-    ADBBBSide4EndY := Integer(IniRead("config.ini", "ADBCoordinates", "BBSide4EndY", BBSide4EndY))
-    ADBCollectorCoords := []
-    adbCollectorStr := IniRead("config.ini", "ADBCoordinates", "CollectorCoords", "")
-    if (adbCollectorStr != "") {
-        for entry in StrSplit(adbCollectorStr, ";") {
-            if (entry == "")
-                continue
-            parts := StrSplit(entry, ",")
-            if (parts.Length == 2)
-                ADBCollectorCoords.Push({x: Integer(parts[1]), y: Integer(parts[2])})
-        }
-    }
-    ADBSides := [
-        {startX: ADBSide1StartX, startY: ADBSide1StartY, endX: ADBSide1EndX, endY: ADBSide1EndY},
-        {startX: ADBSide2StartX, startY: ADBSide2StartY, endX: ADBSide2EndX, endY: ADBSide2EndY},
-        {startX: ADBSide3StartX, startY: ADBSide3StartY, endX: ADBSide3EndX, endY: ADBSide3EndY},
-        {startX: ADBSide4StartX, startY: ADBSide4StartY, endX: ADBSide4EndX, endY: ADBSide4EndY}
-    ]
-    ADBBBSides := [
-        {startX: ADBBBSide1StartX, startY: ADBBBSide1StartY, endX: ADBBBSide1EndX, endY: ADBBBSide1EndY},
-        {startX: ADBBBSide2StartX, startY: ADBBBSide2StartY, endX: ADBBBSide2EndX, endY: ADBBBSide2EndY},
-        {startX: ADBBBSide3StartX, startY: ADBBBSide3StartY, endX: ADBBBSide3EndX, endY: ADBBBSide3EndY},
-        {startX: ADBBBSide4StartX, startY: ADBBBSide4StartY, endX: ADBBBSide4EndX, endY: ADBBBSide4EndY}
-    ]
 }
 SaveConfig() {
     global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, BattleLoadDelay
@@ -1092,22 +1293,12 @@ SaveConfig() {
     global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
+    global GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
     global NextMatchBtnX, NextMatchBtnY
     global UpgradeMoreBtnX, UpgradeMoreBtnY, AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
     global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y, CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y, CloudGreyTolerance
-    global CollectorCoords, ADBCollectorCoords
-    global ADBAttackBtnX, ADBAttackBtnY, ADBFindMatchBtnX, ADBFindMatchBtnY, ADBAttackStartBtnX, ADBAttackStartBtnY
-    global ADBReturnHomeClickX, ADBReturnHomeClickY, ADBBBAttackBtnX, ADBBBAttackBtnY, ADBBBFindMatchBtnX, ADBBBFindMatchBtnY
-    global ADBBBStar1X, ADBBBStar1Y, ADBBBStar2X, ADBBBStar2Y, ADBBBStar3X, ADBBBStar3Y, ADBWarLogoX, ADBWarLogoY
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBBuilderMenuBottomX, ADBBuilderMenuBottomY, ADBLabFaceX, ADBLabFaceY, ADBUpgradeConfirmX, ADBUpgradeConfirmY
-    global ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY, ADBNextMatchBtnX, ADBNextMatchBtnY
-    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY, ADBGoldBarThreshX, ADBGoldBarThreshY, ADBElixirBarThreshX, ADBElixirBarThreshY
-    global ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY, ADBAddWall1X, ADBAddWall1Y, ADBRemoveWallX, ADBRemoveWallY
-    global ADBGoldUpgradeX, ADBGoldUpgradeY, ADBElixirUpgradeX, ADBElixirUpgradeY
-    global ADBSide1StartX, ADBSide1StartY, ADBSide1EndX, ADBSide1EndY, ADBSide2StartX, ADBSide2StartY, ADBSide2EndX, ADBSide2EndY
-    global ADBSide3StartX, ADBSide3StartY, ADBSide3EndX, ADBSide3EndY, ADBSide4StartX, ADBSide4StartY, ADBSide4EndX, ADBSide4EndY
-    global ADBBBSide1StartX, ADBBBSide1StartY, ADBBBSide1EndX, ADBBBSide1EndY, ADBBBSide2StartX, ADBBBSide2StartY, ADBBBSide2EndX, ADBBBSide2EndY
-    global ADBBBSide3StartX, ADBBBSide3StartY, ADBBBSide3EndX, ADBBBSide3EndY, ADBBBSide4StartX, ADBBBSide4StartY, ADBBBSide4EndX, ADBBBSide4EndY
+    global CollectorCoords
     global Troop1Count, Troop2Count, Troop3Count
     global Side1StartX, Side1StartY, Side1EndX, Side1EndY
     global Side2StartX, Side2StartY, Side2EndX, Side2EndY
@@ -1184,10 +1375,6 @@ SaveConfig() {
     IniWrite(GoldBarThreshY, "config.ini", "Coordinates", "GoldBarThreshY")
     IniWrite(ElixirBarThreshX, "config.ini", "Coordinates", "ElixirBarThreshX")
     IniWrite(ElixirBarThreshY, "config.ini", "Coordinates", "ElixirBarThreshY")
-    IniWrite(GoldIconX, "config.ini", "Coordinates", "GoldIconX")
-    IniWrite(GoldIconY, "config.ini", "Coordinates", "GoldIconY")
-    IniWrite(ElixirIconX, "config.ini", "Coordinates", "ElixirIconX")
-    IniWrite(ElixirIconY, "config.ini", "Coordinates", "ElixirIconY")
     IniWrite(GoldAreaX, "config.ini", "Coordinates", "GoldAreaX")
     IniWrite(GoldAreaY, "config.ini", "Coordinates", "GoldAreaY")
     IniWrite(GoldAreaW, "config.ini", "Coordinates", "GoldAreaW")
@@ -1196,6 +1383,14 @@ SaveConfig() {
     IniWrite(ElixirAreaY, "config.ini", "Coordinates", "ElixirAreaY")
     IniWrite(ElixirAreaW, "config.ini", "Coordinates", "ElixirAreaW")
     IniWrite(ElixirAreaH, "config.ini", "Coordinates", "ElixirAreaH")
+    IniWrite(GoldIconX, "config.ini", "Coordinates", "GoldIconX")
+    IniWrite(GoldIconY, "config.ini", "Coordinates", "GoldIconY")
+    IniWrite(ElixirIconX, "config.ini", "Coordinates", "ElixirIconX")
+    IniWrite(ElixirIconY, "config.ini", "Coordinates", "ElixirIconY")
+    IniWrite(LootCropOffsetX, "config.ini", "Settings", "LootCropOffsetX")
+    IniWrite(LootCropOffsetY, "config.ini", "Settings", "LootCropOffsetY")
+    IniWrite(LootCropW, "config.ini", "Settings", "LootCropW")
+    IniWrite(LootCropH, "config.ini", "Settings", "LootCropH")
     IniWrite(NextMatchBtnX, "config.ini", "Coordinates", "NextMatchBtnX")
     IniWrite(NextMatchBtnY, "config.ini", "Coordinates", "NextMatchBtnY")
     IniWrite(UpgradeMoreBtnX, "config.ini", "Coordinates", "UpgradeMoreBtnX")
@@ -1254,92 +1449,6 @@ SaveConfig() {
         collectorStr .= coord.x "," coord.y ";"
     }
     IniWrite(collectorStr, "config.ini", "Coordinates", "CollectorCoords")
-    IniWrite(ADBDarkElixirBarThreshX, "config.ini", "ADBCoordinates", "DarkElixirBarThreshX")
-    IniWrite(ADBDarkElixirBarThreshY, "config.ini", "ADBCoordinates", "DarkElixirBarThreshY")
-    IniWrite(ADBElixirBarThreshX, "config.ini", "ADBCoordinates", "ElixirBarThreshX")
-    IniWrite(ADBElixirBarThreshY, "config.ini", "ADBCoordinates", "ElixirBarThreshY")
-    IniWrite(ADBGoldBarThreshX, "config.ini", "ADBCoordinates", "GoldBarThreshX")
-    IniWrite(ADBGoldBarThreshY, "config.ini", "ADBCoordinates", "GoldBarThreshY")
-    IniWrite(ADBBuilderFaceX, "config.ini", "ADBCoordinates", "BuilderFaceX")
-    IniWrite(ADBBuilderFaceY, "config.ini", "ADBCoordinates", "BuilderFaceY")
-    IniWrite(ADBBuilderMenuBottomX, "config.ini", "ADBCoordinates", "BuilderMenuBottomX")
-    IniWrite(ADBBuilderMenuBottomY, "config.ini", "ADBCoordinates", "BuilderMenuBottomY")
-    IniWrite(ADBLabFaceX, "config.ini", "ADBCoordinates", "LabFaceX")
-    IniWrite(ADBLabFaceY, "config.ini", "ADBCoordinates", "LabFaceY")
-    IniWrite(ADBUpgradeMoreBtnX, "config.ini", "ADBCoordinates", "UpgradeMoreBtnX")
-    IniWrite(ADBUpgradeMoreBtnY, "config.ini", "ADBCoordinates", "UpgradeMoreBtnY")
-    IniWrite(ADBAddWall1X, "config.ini", "ADBCoordinates", "AddWall1X")
-    IniWrite(ADBAddWall1Y, "config.ini", "ADBCoordinates", "AddWall1Y")
-    IniWrite(ADBRemoveWallX, "config.ini", "ADBCoordinates", "RemoveWallX")
-    IniWrite(ADBRemoveWallY, "config.ini", "ADBCoordinates", "RemoveWallY")
-    IniWrite(ADBGoldUpgradeX, "config.ini", "ADBCoordinates", "GoldUpgradeX")
-    IniWrite(ADBGoldUpgradeY, "config.ini", "ADBCoordinates", "GoldUpgradeY")
-    IniWrite(ADBElixirUpgradeX, "config.ini", "ADBCoordinates", "ElixirUpgradeX")
-    IniWrite(ADBElixirUpgradeY, "config.ini", "ADBCoordinates", "ElixirUpgradeY")
-    IniWrite(ADBUpgradeConfirmX, "config.ini", "ADBCoordinates", "UpgradeConfirmX")
-    IniWrite(ADBUpgradeConfirmY, "config.ini", "ADBCoordinates", "UpgradeConfirmY")
-    IniWrite(ADBWarLogoX, "config.ini", "ADBCoordinates", "MVLogoX")
-    IniWrite(ADBWarLogoY, "config.ini", "ADBCoordinates", "MVLogoY")
-    IniWrite(ADBAttackBtnX, "config.ini", "ADBCoordinates", "AttackBtnX")
-    IniWrite(ADBAttackBtnY, "config.ini", "ADBCoordinates", "AttackBtnY")
-    IniWrite(ADBFindMatchBtnX, "config.ini", "ADBCoordinates", "FindMatchBtnX")
-    IniWrite(ADBFindMatchBtnY, "config.ini", "ADBCoordinates", "FindMatchBtnY")
-    IniWrite(ADBAttackStartBtnX, "config.ini", "ADBCoordinates", "AttackStartBtnX")
-    IniWrite(ADBAttackStartBtnY, "config.ini", "ADBCoordinates", "AttackStartBtnY")
-    IniWrite(ADBGoldAreaX, "config.ini", "ADBCoordinates", "GoldAreaX")
-    IniWrite(ADBGoldAreaY, "config.ini", "ADBCoordinates", "GoldAreaY")
-    IniWrite(ADBElixirAreaX, "config.ini", "ADBCoordinates", "ElixirAreaX")
-    IniWrite(ADBElixirAreaY, "config.ini", "ADBCoordinates", "ElixirAreaY")
-    IniWrite(ADBNextMatchBtnX, "config.ini", "ADBCoordinates", "NextMatchBtnX")
-    IniWrite(ADBNextMatchBtnY, "config.ini", "ADBCoordinates", "NextMatchBtnY")
-    IniWrite(ADBSide1StartX, "config.ini", "ADBCoordinates", "Side1StartX")
-    IniWrite(ADBSide1StartY, "config.ini", "ADBCoordinates", "Side1StartY")
-    IniWrite(ADBSide1EndX, "config.ini", "ADBCoordinates", "Side1EndX")
-    IniWrite(ADBSide1EndY, "config.ini", "ADBCoordinates", "Side1EndY")
-    IniWrite(ADBSide2StartX, "config.ini", "ADBCoordinates", "Side2StartX")
-    IniWrite(ADBSide2StartY, "config.ini", "ADBCoordinates", "Side2StartY")
-    IniWrite(ADBSide2EndX, "config.ini", "ADBCoordinates", "Side2EndX")
-    IniWrite(ADBSide2EndY, "config.ini", "ADBCoordinates", "Side2EndY")
-    IniWrite(ADBSide3StartX, "config.ini", "ADBCoordinates", "Side3StartX")
-    IniWrite(ADBSide3StartY, "config.ini", "ADBCoordinates", "Side3StartY")
-    IniWrite(ADBSide3EndX, "config.ini", "ADBCoordinates", "Side3EndX")
-    IniWrite(ADBSide3EndY, "config.ini", "ADBCoordinates", "Side3EndY")
-    IniWrite(ADBSide4StartX, "config.ini", "ADBCoordinates", "Side4StartX")
-    IniWrite(ADBSide4StartY, "config.ini", "ADBCoordinates", "Side4StartY")
-    IniWrite(ADBSide4EndX, "config.ini", "ADBCoordinates", "Side4EndX")
-    IniWrite(ADBSide4EndY, "config.ini", "ADBCoordinates", "Side4EndY")
-    IniWrite(ADBReturnHomeClickX, "config.ini", "ADBCoordinates", "ReturnHomeClickX")
-    IniWrite(ADBReturnHomeClickY, "config.ini", "ADBCoordinates", "ReturnHomeClickY")
-    IniWrite(ADBBBAttackBtnX, "config.ini", "ADBCoordinates", "BBAttackBtnX")
-    IniWrite(ADBBBAttackBtnY, "config.ini", "ADBCoordinates", "BBAttackBtnY")
-    IniWrite(ADBBBFindMatchBtnX, "config.ini", "ADBCoordinates", "BBFindMatchBtnX")
-    IniWrite(ADBBBFindMatchBtnY, "config.ini", "ADBCoordinates", "BBFindMatchBtnY")
-    IniWrite(ADBBBStar1X, "config.ini", "ADBCoordinates", "BBStar1X")
-    IniWrite(ADBBBStar1Y, "config.ini", "ADBCoordinates", "BBStar1Y")
-    IniWrite(ADBBBStar2X, "config.ini", "ADBCoordinates", "BBStar2X")
-    IniWrite(ADBBBStar2Y, "config.ini", "ADBCoordinates", "BBStar2Y")
-    IniWrite(ADBBBStar3X, "config.ini", "ADBCoordinates", "BBStar3X")
-    IniWrite(ADBBBStar3Y, "config.ini", "ADBCoordinates", "BBStar3Y")
-    IniWrite(ADBBBSide1StartX, "config.ini", "ADBCoordinates", "BBSide1StartX")
-    IniWrite(ADBBBSide1StartY, "config.ini", "ADBCoordinates", "BBSide1StartY")
-    IniWrite(ADBBBSide1EndX, "config.ini", "ADBCoordinates", "BBSide1EndX")
-    IniWrite(ADBBBSide1EndY, "config.ini", "ADBCoordinates", "BBSide1EndY")
-    IniWrite(ADBBBSide2StartX, "config.ini", "ADBCoordinates", "BBSide2StartX")
-    IniWrite(ADBBBSide2StartY, "config.ini", "ADBCoordinates", "BBSide2StartY")
-    IniWrite(ADBBBSide2EndX, "config.ini", "ADBCoordinates", "BBSide2EndX")
-    IniWrite(ADBBBSide2EndY, "config.ini", "ADBCoordinates", "BBSide2EndY")
-    IniWrite(ADBBBSide3StartX, "config.ini", "ADBCoordinates", "BBSide3StartX")
-    IniWrite(ADBBBSide3StartY, "config.ini", "ADBCoordinates", "BBSide3StartY")
-    IniWrite(ADBBBSide3EndX, "config.ini", "ADBCoordinates", "BBSide3EndX")
-    IniWrite(ADBBBSide3EndY, "config.ini", "ADBCoordinates", "BBSide3EndY")
-    IniWrite(ADBBBSide4StartX, "config.ini", "ADBCoordinates", "BBSide4StartX")
-    IniWrite(ADBBBSide4StartY, "config.ini", "ADBCoordinates", "BBSide4StartY")
-    IniWrite(ADBBBSide4EndX, "config.ini", "ADBCoordinates", "BBSide4EndX")
-    IniWrite(ADBBBSide4EndY, "config.ini", "ADBCoordinates", "BBSide4EndY")
-    adbCollectorStr := ""
-    for coord in ADBCollectorCoords
-        adbCollectorStr .= coord.x "," coord.y ";"
-    IniWrite(adbCollectorStr, "config.ini", "ADBCoordinates", "CollectorCoords")
 }
 ; ==============================================================================
 ; USER INTERFACE
@@ -1431,9 +1540,7 @@ CreateGUI() {
     EditTroop2Count := MyGui.Add("Edit", "x210 y303 w45 h20 Number", String(Troop2Count))
     MyGui.Add("Text", "x35 y335 w60 h20", "Troop 3:")
     EditTroop3Count := MyGui.Add("Edit", "x95 y333 w45 h20 Number", String(Troop3Count))
-    ResizeBtn := MyGui.Add("Button", "x20 y370 w320 h30", "Resize Game Window to 1920x1080")
-    ResizeBtn.OnEvent("Click", (*) => ResizeGameWindow())
-    SaveBtn := MyGui.Add("Button", "x20 y405 w320 h35", "Save Settings")
+    SaveBtn := MyGui.Add("Button", "x20 y370 w320 h35", "Save Settings")
     SaveBtn.OnEvent("Click", (*) => ApplyAndSaveSettings())
     ; --- TAB 5: ADB ---
     Tab.UseTab(5)
@@ -1455,10 +1562,31 @@ CreateGUI() {
     MyGui.OnEvent("Close", (*) => ExitApp())
     MyGui.Show("w380 h470")
 }
+PruneRefactorDiagnosticImages() {
+    static lastPruneTick := 0
+
+    if (lastPruneTick != 0 && A_TickCount - lastPruneTick < 900000)
+        return
+    lastPruneTick := A_TickCount
+    cutoff := DateAdd(A_Now, -30, "Minutes")
+    Loop Files, A_Temp "\coc_refactor_*.png", "F" {
+        if (A_LoopFileTimeModified < cutoff)
+            try FileDelete(A_LoopFileFullPath)
+    }
+}
+
+SanitizeLogMessage(message) {
+    safeMessage := String(message)
+    safeMessage := StrReplace(safeMessage, A_ScriptDir, "<workspace>")
+    safeMessage := StrReplace(safeMessage, A_Temp, "<temp>")
+    return RegExReplace(safeMessage, "i)[A-Z]:\\Users\\[^`r`n]+", "<user-path>")
+}
+
 LogMessage(message) {
     global LogEdit
     if !LogEdit
         return
+    message := SanitizeLogMessage(message)
     timeStr := FormatTime(, "HH:mm:ss")
     newLine := "[" timeStr "] " message "`r`n"
 
@@ -1556,16 +1684,6 @@ TestADBConnection(*) {
         ADBStatusText.Value := "Connection failed: " err.Message
     }
 }
-ResizeGameWindow() {
-    global TargetWindowTitle
-    if !WinExist(TargetWindowTitle) {
-        MsgBox("Game window '" TargetWindowTitle "' not found.", "Error", "Iconx")
-        return
-    }
-    WinMove ,, 1920, 1080, TargetWindowTitle
-    LogMessage("Game window resized to 1920x1080.")
-    ShowToolTip("Resized to 1920x1080")
-}
 ; ==============================================================================
 ; STATE CONTROL ACTIONS
 ; ==============================================================================
@@ -1619,18 +1737,6 @@ PauseBot() {
     PauseBtn.Enabled := false
     LogMessage("Bot loop paused.")
 }
-ActivateGameWindow() {
-    global TargetWindowTitle
-    if !WinExist(TargetWindowTitle) {
-        LogMessage("Error: Window '" TargetWindowTitle "' not found!")
-        return false
-    }
-    return true
-}
-EnsureWindowActive() {
-    global TargetWindowTitle
-    return WinExist(TargetWindowTitle) ? true : false
-}
 ; ==============================================================================
 ; INTERACTIVE CALIBRATION STATE MACHINE
 ; ==============================================================================
@@ -1640,10 +1746,11 @@ StartCalibration() {
         CancelCalibration()
         return
     }
-    if !ActivateGameWindow() {
+    if !WinExist(TargetWindowTitle) {
         MsgBox("Game window '" TargetWindowTitle "' must be open before calibrating.", "Calibration Error", "Iconx")
         return
     }
+    WinActivate(TargetWindowTitle)
     try {
         display := GetADBDisplaySize()
         LogMessage(Format("ADB display detected at {}x{}. Main Calibration will now capture the Android viewport.",
@@ -1654,7 +1761,7 @@ StartCalibration() {
     }
     IsCalibrating := true
     CalibStep := 1
-    LogMessage("Calibration started. Switch to the game window.")
+    LogMessage("Calibration started with the game window foregrounded once.")
     UpdateCalibrationUI()
 }
 CancelCalibration() {
@@ -1679,10 +1786,11 @@ StartBBCalibration() {
         CancelBBCalibration()
         return
     }
-    if !ActivateGameWindow() {
+    if !WinExist(TargetWindowTitle) {
         MsgBox("Game window '" TargetWindowTitle "' must be open before calibrating.", "Calibration Error", "Iconx")
         return
     }
+    WinActivate(TargetWindowTitle)
     viewportState := ValidateADBViewportRuntime()
     if !viewportState.Ok {
         MsgBox(viewportState.Message, "Builder Base Calibration Error", "Iconx")
@@ -1699,7 +1807,7 @@ StartBBCalibration() {
     }
     IsBBCalibrating := true
     BBCalibStep := 1
-    LogMessage("Builder Base Calibration started. Switch to the game window.")
+    LogMessage("Builder Base Calibration started with the game window foregrounded once.")
     UpdateBBCalibrationUI()
 }
 CancelBBCalibration() {
@@ -1748,19 +1856,9 @@ UpdateBBCalibrationUI() {
 }
 FinishBBCalibration() {
     global IsBBCalibrating, BBCalibStep, CalibrationText
-    global ADBBBCalibrationVersion, ADB_COORDINATE_VERSION, ADBBBSides
-    global ADBBBSide1StartX, ADBBBSide1StartY, ADBBBSide1EndX, ADBBBSide1EndY
-    global ADBBBSide2StartX, ADBBBSide2StartY, ADBBBSide2EndX, ADBBBSide2EndY
-    global ADBBBSide3StartX, ADBBBSide3StartY, ADBBBSide3EndX, ADBBBSide3EndY
-    global ADBBBSide4StartX, ADBBBSide4StartY, ADBBBSide4EndX, ADBBBSide4EndY
+    global ADBBBCalibrationVersion, ADB_COORDINATE_VERSION, BBSides
     IsBBCalibrating := false
     BBCalibStep := 0
-    ADBBBSides := [
-        {startX: ADBBBSide1StartX, startY: ADBBBSide1StartY, endX: ADBBBSide1EndX, endY: ADBBBSide1EndY},
-        {startX: ADBBBSide2StartX, startY: ADBBBSide2StartY, endX: ADBBBSide2EndX, endY: ADBBBSide2EndY},
-        {startX: ADBBBSide3StartX, startY: ADBBBSide3StartY, endX: ADBBBSide3EndX, endY: ADBBBSide3EndY},
-        {startX: ADBBBSide4StartX, startY: ADBBBSide4StartY, endX: ADBBBSide4EndX, endY: ADBBBSide4EndY}
-    ]
     ADBBBCalibrationVersion := ADB_COORDINATE_VERSION
     SaveConfig()
     CalibrationText.Value := "Builder Base Calibration complete and saved!"
@@ -1868,23 +1966,13 @@ UpdateCalibrationUI() {
 }
 FinishCalibration() {
     global IsCalibrating, CalibStep, TextCollectorCount, CollectorCoords, IsWaitingForReset
-    global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION, ADBSides
-    global ADBSide1StartX, ADBSide1StartY, ADBSide1EndX, ADBSide1EndY
-    global ADBSide2StartX, ADBSide2StartY, ADBSide2EndX, ADBSide2EndY
-    global ADBSide3StartX, ADBSide3StartY, ADBSide3EndX, ADBSide3EndY
-    global ADBSide4StartX, ADBSide4StartY, ADBSide4EndX, ADBSide4EndY
+    global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION, Sides
     IsCalibrating := false
     CalibStep := 0
     IsWaitingForReset := false
     SetTimer(RunCollectorReset, 0)
     SetTimer(RunSidesReset, 0)
     ToolTip()
-    ADBSides := [
-        {startX: ADBSide1StartX, startY: ADBSide1StartY, endX: ADBSide1EndX, endY: ADBSide1EndY},
-        {startX: ADBSide2StartX, startY: ADBSide2StartY, endX: ADBSide2EndX, endY: ADBSide2EndY},
-        {startX: ADBSide3StartX, startY: ADBSide3StartY, endX: ADBSide3EndX, endY: ADBSide3EndY},
-        {startX: ADBSide4StartX, startY: ADBSide4StartY, endX: ADBSide4EndX, endY: ADBSide4EndY}
-    ]
     ADBMainCalibrationVersion := ADB_COORDINATE_VERSION
     SaveConfig()
     if TextCollectorCount {
@@ -1941,38 +2029,21 @@ SafeInteger(str, defaultVal) {
     }
 }
 GetLootValueMultiScale(relX, relY, relW, relH, label) {
-    global TargetWindowTitle, ADBAttackBtnX
-    global ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY
-    isADB := (ADBAttackBtnX > 0)
-    if isADB {
-        if (label == "Gold") {
-            scrX := ADBGoldAreaX
-            scrY := ADBGoldAreaY
-        } else {
-            scrX := ADBElixirAreaX
-            scrY := ADBElixirAreaY
-        }
+    if (label == "Gold") {
+        scrX := GoldAreaX
+        scrY := GoldAreaY
     } else {
-        if !WinExist(TargetWindowTitle)
-            return 0
-        WinGetClientPos &cx, &cy,,, TargetWindowTitle
-        scrX := cx + relX
-        scrY := cy + relY
+        scrX := ElixirAreaX
+        scrY := ElixirAreaY
     }
     scales := [2.0, 2.5, 3.0, 1.5]
     rawValues := []
     roundedValues := []
-    imgName := A_ScriptDir "\scratch\ocr_loot_temp.png"
-    if isADB {
-        SaveRegionToPNG(scrX, scrY, relW, relH, imgName)
-    }
+    imgName := A_Temp "\coc_refactor_ocr_loot_temp.png"
+    SaveRegionToPNG(scrX, scrY, relW, relH, imgName)
     for scaleVal in scales {
         try {
-            if isADB {
-                result := OCR.FromFile(imgName, {scale: scaleVal})
-            } else {
-                result := OCR.FromRect(scrX, scrY, relW, relH, {scale: scaleVal})
-            }
+            result := OCR.FromFile(imgName, {scale: scaleVal, grayscale: true, monochrome: 160})
             cleaned := CleanNumber(result.Text)
             if (cleaned > 0) {
                 rounded := Round(cleaned / 10000) * 10000
@@ -1983,9 +2054,7 @@ GetLootValueMultiScale(relX, relY, relW, relH, label) {
             ; Ignore errors on individual scales
         }
     }
-    if isADB {
-        try FileDelete(imgName)
-    }
+    try FileDelete(imgName)
     if (rawValues.Length == 0) {
         LogMessage(label . " OCR: No valid scans detected.")
         return 0
@@ -2043,31 +2112,33 @@ GetLootValues(&gold, &elixir) {
     elixir := GetLootValueMultiScale(ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH, "Elixir")
 }
 GetTroopCountsBattle() {
-    global TargetWindowTitle, Troop1Count, Troop2Count, Troop3Count
-    if !WinExist(TargetWindowTitle) {
-        LogMessage("OCR Battle Troop Scan: Game window not found.")
+    global Troop1Count, Troop2Count, Troop3Count
+    try {
+        viewport := GetADBClientViewportRect()
+    } catch as err {
+        LogMessage("OCR Battle Troop Scan: " err.Message)
         return [Troop1Count, Troop2Count, Troop3Count]
     }
-    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
     ; Region for the troop selection bar (bottom 30% of the game client area, starts higher to capture top-right counts)
-    scrX := cx
-    scrY := cy + Integer(h * 0.70)
-    scrW := w
-    scrH := Integer(h * 0.25)
+    scrX := viewport.x
+    scrY := viewport.y + Integer(viewport.height * 0.70)
+    scrW := viewport.width
+    scrH := Integer(viewport.height * 0.25)
     counts := [0, 0, 0]
+    imgName := A_Temp "\coc_refactor_troop_counts.png"
     try {
-        ; Use scale: 2 for better OCR accuracy
-        result := OCR.FromRect(scrX, scrY, scrW, scrH, {scale: 2})
+        adbCrop := SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
+        result := OCR.FromFile(imgName, {scale: 2})
         for word in result.Words {
             text := word.Text
             if RegExMatch(text, "i)^[x\*]?(\d+)$", &match) {
                 val := Integer(match[1])
                 if (val > 0) {
                     ; Relative X midpoint and relative Y within scanned region
-                    relX := (word.x + word.w/2 - cx) / w
-                    relY := word.y - scrY
+                    relX := (word.x + word.w/2) / adbCrop.width
+                    relY := word.y
                     ; Check if this is the troop count (has x/X/* prefix OR is in the top half of the scanned bar)
-                    isCount := RegExMatch(text, "i)^[x\*]") || (relY < scrH * 0.5)
+                    isCount := RegExMatch(text, "i)^[x\*]") || (relY < adbCrop.height * 0.5)
                     if isCount {
                         ; Column mapping
                         if (relX >= 0.04 && relX < 0.11) {
@@ -2085,6 +2156,7 @@ GetTroopCountsBattle() {
     catch as AnyError {
         LogMessage("OCR Battle Troop Scan error: " AnyError.Message)
     }
+    try FileDelete(imgName)
     ; Apply fallback if count is 0
     activeCounts := [Troop1Count, Troop2Count, Troop3Count]
     summaryList := []
@@ -2099,20 +2171,23 @@ GetTroopCountsBattle() {
     LogMessage(Format("Troop counts for battle: {}, {}, {}", summaryList[1], summaryList[2], summaryList[3]))
     return activeCounts
 }
-GetStoragePixelColor(x, y) {
+GetStoragePixelColor(x, y, framePath := "") {
     try {
-        pt := ClientToADBPoint(x, y)
-        if (pt.x >= 0 && pt.y >= 0)
-            return GetADBPixelColor(pt.x, pt.y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        return GetADBFramePixelColor(framePath, x, y)
     } catch {
     }
     return 0x000000
 }
 
-IsGoldBarFilled(x, y) {
+IsGoldBarFilled(x, y, framePath := "") {
     try {
-        pt := ClientToADBPoint(x, y)
-        color := GetADBPixelColor(pt.x, pt.y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2123,10 +2198,13 @@ IsGoldBarFilled(x, y) {
         return false
     }
 }
-IsElixirBarFilled(x, y) {
+IsElixirBarFilled(x, y, framePath := "") {
     try {
-        pt := ClientToADBPoint(x, y)
-        color := GetADBPixelColor(pt.x, pt.y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2141,19 +2219,17 @@ IsElixirBarFilled(x, y) {
         return false
     }
 }
-IsDarkElixirBarFilled(x, y) {
-    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY
+IsDarkElixirBarFilled(x, y, framePath := "") {
     try {
-        targetX := (ADBDarkElixirBarThreshX > 0) ? ADBDarkElixirBarThreshX : 1701
-        targetY := 228 ; Center of Dark Elixir liquid bar in ADB 1080p space
-        if (x > 0 && y > 0 && ADBDarkElixirBarThreshX <= 0) {
-            pt := ClientToADBPoint(x, y)
-            if (pt.x > 0 && pt.y > 0) {
-                targetX := pt.x
-                targetY := pt.y
-            }
-        }
-        color := GetADBPixelColor(targetX, targetY)
+        targetX := (x > 0) ? x : DarkElixirBarThreshX
+        targetY := (y > 0) ? y : DarkElixirBarThreshY
+        if (targetX <= 0 || targetY <= 0)
+            return false
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, targetX, targetY)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2185,54 +2261,39 @@ IsGoblinFace(centerX, centerY) {
     framePath := CaptureADBFrame(true)
     if !FileExist(framePath)
         return false
-        
-    InitGDIPlus()
-    pBitmap := 0
-    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
-        return false
-        
     greenCount := 0
-    for pt in offsets {
-        px := Round(centerX + pt[1])
-        py := Round(centerY + pt[2])
-        argb := 0
-        DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", px, "int", py, "uint*", &argb)
-        c := argb & 0x00FFFFFF
-        r := (c >> 16) & 0xFF
-        g := (c >> 8) & 0xFF
-        b := c & 0xFF
-        if (g > r && g > b + 15 && g >= 80)
-            greenCount++
+    try {
+        for pt in offsets {
+            c := GetADBFramePixelColor(framePath, centerX + pt[1], centerY + pt[2])
+            r := (c >> 16) & 0xFF
+            g := (c >> 8) & 0xFF
+            b := c & 0xFF
+            if (g > r && g > b + 15 && g >= 80)
+                greenCount++
+        }
+    } catch {
+        return false
     }
-    DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
     return greenCount >= 4
 }
 
 GetBuilderCount(&free, &total) {
-    global ADBBuilderFaceX, ADBBuilderFaceY, BuilderFaceX, BuilderFaceY, TargetWindowTitle
     free := 0
     total := 0
-    if (ADBBuilderFaceX > 0) {
-        h := 1080
-        GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
-        scrX := ADBBuilderFaceX - offX
-        scrY := ADBBuilderFaceY - offY
-        centerX := ADBBuilderFaceX
-        centerY := ADBBuilderFaceY
-    } else {
-        if !WinExist(TargetWindowTitle)
-            return false
-        WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-        GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
-        scrX := cx + BuilderFaceX - offX
-        scrY := cy + BuilderFaceY - offY
-        centerX := cx + BuilderFaceX
-        centerY := cy + BuilderFaceY
-    }
+    if (BuilderFaceX <= 0 || BuilderFaceY <= 0)
+        return false
+    viewport := GetADBClientViewportRect()
+    h := viewport.height
+    GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY)
+    scrX := BuilderFaceX - offX
+    scrY := BuilderFaceY - offY
+    centerX := BuilderFaceX
+    centerY := BuilderFaceY
     
-    imgName := A_ScriptDir "\builder_area_bot.png"
+    imgName := A_Temp "\coc_refactor_builder_area.png"
     SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
-    clean_out := Trim(RunWaitPythonScript('builders "' imgName '" ' h))
+    adbDisplay := GetADBDisplaySize()
+    clean_out := Trim(RunWaitPythonScript('builders "' imgName '" ' adbDisplay.height))
     try FileDelete(imgName)
     
     if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
@@ -2269,33 +2330,27 @@ CanUpgradeWall() {
     return free >= 1
 }
 FindCenterGreenButton(&outX, &outY) {
-    global TargetWindowTitle, ADBAttackBtnX
-    hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
+    try {
+        viewport := GetADBClientViewportRect()
+    } catch {
         return false
-    WinGetClientPos &cx, &cy, &w, &h, hwnd
-    searchX := cx + (w * 0.3)
-    searchY := cy + (h * 0.4)
-    searchW := w * 0.4
-    searchH := h * 0.4
+    }
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
+    searchX := viewport.x + (viewport.width * 0.3)
+    searchY := viewport.y + (viewport.height * 0.4)
+    searchW := viewport.width * 0.4
+    searchH := viewport.height * 0.4
     ; Scan a grid in the center area for the signature green color
     loop 20 {
-        dy := searchY + (A_Index * (searchH / 20))
+        clientY := searchY + (A_Index * (searchH / 20))
         loop 20 {
-            dx := searchX + (A_Index * (searchW / 20))
-            clientX := dx - cx
-            clientY := dy - cy
-            if (ADBAttackBtnX > 0) {
-                try {
-                    adbPt := ClientToADBPoint(clientX, clientY)
-                    c := GetADBPixelColor(adbPt.x, adbPt.y)
-                } catch {
-                    continue
-                }
-            } else {
-                if !EnsureWindowActive()
-                    return false
-                c := PixelGetColor(dx, dy)
+            clientX := searchX + (A_Index * (searchW / 20))
+            try {
+                c := GetADBFramePixelColor(framePath, clientX, clientY)
+            } catch {
+                continue
             }
             actualHex := Integer(c)
             r := (actualHex >> 16) & 0xFF
@@ -2311,12 +2366,11 @@ FindCenterGreenButton(&outX, &outY) {
     return false
 }
 ProcessWallUpgrade(upgradeX, upgradeY, resourceType) {
-    global ADBAddWall1X, ADBAddWall1Y, ADBRemoveWallX, ADBRemoveWallY, ADBReturnHomeClickX, ADBReturnHomeClickY
     global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     wallCount := 4
     ; First, add 3 walls to reach the maximum 4
     Loop 3 {
-        ADBClickPoint(ADBAddWall1X, ADBAddWall1Y)
+        ADBClickPoint(AddWall1X, AddWall1Y)
         if !SafeSleep(200)
             return false
     }
@@ -2342,15 +2396,15 @@ ProcessWallUpgrade(upgradeX, upgradeY, resourceType) {
                 }
                 if !stillHasResources {
                     LogMessage(Format("Farming: {} threshold no longer met after upgrade attempt (resources spent). Stopping.", resourceType))
-                    ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY) ; Dismiss Gem popup
+                    ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss Gem popup
                     SafeSleep(500)
                     break
                 }
                 LogMessage("Farming: Upgrade too expensive (Gem popup detected). Removing one wall...")
-                ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY) ; Dismiss Gem popup
+                ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY) ; Dismiss Gem popup
                 if !SafeSleep(800)
                     return false
-                ADBClickPoint(ADBRemoveWallX, ADBRemoveWallY) ; Remove one wall
+                ADBClickPoint(RemoveWallX, RemoveWallY) ; Remove one wall
                 if !SafeSleep(500)
                     return false
                 wallCount--
@@ -2367,13 +2421,12 @@ ProcessWallUpgrade(upgradeX, upgradeY, resourceType) {
             break
         }
     }
-    ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
+    ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
     SafeSleep(500)
     return true
 }
 CollectResources() {
-    global ADBCollectorCoords, IsRunning
-    if (ADBCollectorCoords.Length == 0)
+    if (CollectorCoords.Length == 0)
         return
     ; If you ever want to make this run 100% of the time, change this to Random(1, 1)
     ; DO NOT completely remove this random block!
@@ -2382,8 +2435,8 @@ CollectResources() {
         LogMessage("Farming: Skipping resource collection this cycle (Rolled " roll "/40, needs 1).")
         return
     }
-    LogMessage("Farming: Collecting resources from " ADBCollectorCoords.Length " mines/collectors...")
-    for coord in ADBCollectorCoords {
+    LogMessage("Farming: Collecting resources from " CollectorCoords.Length " mines/collectors...")
+    for coord in CollectorCoords {
         if !IsRunning
             break
         ADBClickPoint(coord.x, coord.y)
@@ -2391,30 +2444,42 @@ CollectResources() {
     }
 }
 FindAnyWallInDropdown() {
-    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY, TargetWindowTitle
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBBuilderMenuBottomX, ADBBuilderMenuBottomY
-    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
+    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    viewport := GetADBClientViewportRect()
+    w := viewport.width
+    h := viewport.height
     menuLeft := BuilderFaceX - (w * 0.18)
     menuWidth := w * 0.36
-    menuTop := h * 0.12
+    menuTop := viewport.y + h * 0.12
     menuHeight := h * 0.75
-    scrLeft := cx + menuLeft
-    scrTop := cy + menuTop
-    ; Scroll down in chunks until we see ANY Wall text
+    imgName := A_Temp "\coc_refactor_wall_menu.png"
+    ; Scroll until the first row below Suggested Upgrades is a Wall.
     Loop 4 {
+        framePath := CaptureADBFrame(true)
+        adbCrop := SaveADBFrameRegionToPNG(
+            framePath,
+            menuLeft,
+            menuTop,
+            menuWidth,
+            menuHeight,
+            imgName
+        )
         for sc in [2.5, 2.0, 3.0] {
             try {
-                result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
-                for line in result.Lines {
-                    ; Matches Wall, wall, Wa11, WaIl, Wail, Vall, val1, wal, val, etc.
-                    if RegExMatch(line.Text, "i)\b[vw][aAeEoOuU01iI][lLiI1t]{1,2}\b") {
-                        LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", line.Text, sc))
-                        relX := (line.x + (line.w / 2)) - cx
-                        relY := (line.y + (line.h / 2)) - cy
-                        ClientClickPoint(relX, relY, 2) ; OCR result is a dynamic client point.
-                        return true
-                    }
-                }
+                result := OCR.FromFile(imgName, {scale: sc})
+                selected := SelectFirstSuggestedUpgradeOCRWord(result.Lines)
+                if !IsObject(selected) || !IsWallSuggestedUpgrade(selected)
+                    continue
+                selected := NormalizeBuilderOCRMatch(selected, sc)
+                LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", selected.lineText, sc))
+                clientPoint := ADBFramePointToClient(
+                    adbCrop,
+                    selected.centerX,
+                    selected.centerY
+                )
+                ClientClickPoint(clientPoint.x, clientPoint.y, 2)
+                try FileDelete(imgName)
+                return true
             }
             catch as err {
                 LogMessage("Farming: OCR error in suggestions dropdown: " err.Message)
@@ -2422,108 +2487,91 @@ FindAnyWallInDropdown() {
         }
         ; Three ADB swipes produce four OCR passes without requiring window focus.
         if (A_Index < 4) {
-            RunADBSwipeAt(ADBBuilderMenuBottomX, ADBBuilderMenuBottomY, ADBBuilderFaceX, ADBBuilderFaceY, RandomADBDuration())
+            RunADBSwipeAt(BuilderMenuBottomX, BuilderMenuBottomY, BuilderFaceX, BuilderFaceY, 200)
             Sleep 800
         }
     }
+    try FileDelete(imgName)
     return false
 }
-UpgradeWalls() {
+UpgradeWalls(wallState := "") {
     global EnableWallUpgrade, IsRunning, TargetWindowTitle
     global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY, ReturnHomeClickX, ReturnHomeClickY
     CoordMode "Mouse", "Client"
     global UpgradeMoreBtnX, UpgradeMoreBtnY
     global GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY
-    global ADBGoldUpgradeX, ADBGoldUpgradeY, ADBElixirUpgradeX, ADBElixirUpgradeY, ADBReturnHomeClickX, ADBReturnHomeClickY
     global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     if !EnableWallUpgrade
         return
-    ; 1. Check if resource thresholds are reached by reading bar colors
-    runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
-    runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+    ; 1. Use the section's fresh frame decision when one was supplied.
+    if IsObject(wallState) {
+        runGoldUpgrade := wallState.gold
+        runElixirUpgrade := wallState.elixir
+    } else {
+        thresholdFrame := CaptureADBFrame(true)
+        if !FileExist(thresholdFrame)
+            return
+        runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY, thresholdFrame)
+        runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
+    }
     if !runGoldUpgrade && !runElixirUpgrade {
         LogMessage("Farming: Storage bars have not reached calibrated threshold points. Skipping wall upgrades.")
         return
     }
     LogMessage("Farming: Checking builder status for wall upgrades...")
-    if !CanUpgradeWall() {
+    canUpgrade := IsObject(wallState) ? wallState.canUpgrade : CanUpgradeWall()
+    if !canUpgrade {
         LogMessage("Farming: All builders are busy. Skipping wall upgrade.")
         return
     }
     ; --- 2. Elixir Wall Upgrade (Prioritized) ---
     if runElixirUpgrade {
         LogMessage("Farming: Elixir threshold met! Selecting a wall for Elixir upgrade...")
-        ADBClickPoint(ADBBuilderFaceX, ADBBuilderFaceY)
+        ADBClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
-        if EnsureWindowActive() {
-            if FindAnyWallInDropdown() {
-                if !SafeSleep(5000)
-                    return
-                ADBClickPoint(ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY)
-                if !SafeSleep(800)
-                    return
-                ProcessWallUpgrade(ADBElixirUpgradeX, ADBElixirUpgradeY, "elixir")
-            } else {
-                LogMessage("Farming: No Wall upgrades found in builder suggestions.")
-                ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-                SafeSleep(500)
-            }
+        if FindAnyWallInDropdown() {
+            if !SafeSleep(5000)
+                return
+            ADBClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
+            if !SafeSleep(800)
+                return
+            ProcessWallUpgrade(ElixirUpgradeX, ElixirUpgradeY, "elixir")
+        } else {
+            LogMessage("Farming: No Wall upgrades found in builder suggestions.")
+            ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+            SafeSleep(500)
         }
     }
     ; --- 3. Gold Wall Upgrade ---
     if runGoldUpgrade {
         LogMessage("Farming: Gold bar threshold met! Selecting a wall for Gold upgrade...")
-        ADBClickPoint(ADBBuilderFaceX, ADBBuilderFaceY)
+        ADBClickPoint(BuilderFaceX, BuilderFaceY)
         if !SafeSleep(800)
             return
-        if EnsureWindowActive() {
-            if FindAnyWallInDropdown() {
-                if !SafeSleep(5000)
-                    return
-                ADBClickPoint(ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY)
-                if !SafeSleep(800)
-                    return
-                ProcessWallUpgrade(ADBGoldUpgradeX, ADBGoldUpgradeY, "gold")
-            } else {
-                LogMessage("Farming: No Wall upgrades found in builder suggestions.")
-                ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-                SafeSleep(500)
-            }
+        if FindAnyWallInDropdown() {
+            if !SafeSleep(5000)
+                return
+            ADBClickPoint(UpgradeMoreBtnX, UpgradeMoreBtnY)
+            if !SafeSleep(800)
+                return
+            ProcessWallUpgrade(GoldUpgradeX, GoldUpgradeY, "gold")
+        } else {
+            LogMessage("Farming: No Wall upgrades found in builder suggestions.")
+            ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
+            SafeSleep(500)
         }
     }
 }
 IsReturnHomePresent() {
-    global ADBReturnHomeClickX, ADBReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
     global ReturnHomeClickX, ReturnHomeClickY
-    if (ADBReturnHomeClickX > 0) {
-        return IsReturnHomePresentADB()
-    }
-    if !EnsureWindowActive()
-        return false
-    ; 1. Check calibrated color
-    if ColorMatches(ReturnHomeClickX, ReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance)
-        return true
-    ; 2. Fallback: Scan a vertical line of pixels to find the specific bright green button background (avoiding white text)
-    offsets := [-25, -15, -5, 5, 15, 25]
-    for dy in offsets {
-        try {
-            c := PixelGetColor(ReturnHomeClickX, ReturnHomeClickY + dy)
-            actualHex := Integer(c)
-            r := (actualHex >> 16) & 0xFF
-            g := (actualHex >> 8) & 0xFF
-            b := actualHex & 0xFF
-            ; Bright green button check (guaranteed not to match day/night battlefield grass)
-            if (g > 140) && (g > r + 35) && (g > b + 70)
-                return true
-        }
-    }
-    return false
+    return ReturnHomeClickX > 0 && ReturnHomeClickY > 0 && IsReturnHomePresentADB()
 }
 IsReturnHomePresentADB() {
-    global ADBReturnHomeClickX, ADBReturnHomeClickY, ReturnHomeColor, ReturnHomeTolerance
-    if (ADBReturnHomeClickX <= 0)
+    if (ReturnHomeClickX <= 0)
+        return false
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
         return false
     matchCount := 0
     points := [
@@ -2535,7 +2583,7 @@ IsReturnHomePresentADB() {
     ]
     for pt in points {
         try {
-            c := GetADBPixelColor(ADBReturnHomeClickX + pt.x, ADBReturnHomeClickY + pt.y)
+            c := GetADBFramePixelColor(framePath, ReturnHomeClickX + pt.x, ReturnHomeClickY + pt.y)
             actualHex := Integer(c)
             r := (actualHex >> 16) & 0xFF
             g := (actualHex >> 8) & 0xFF
@@ -2550,18 +2598,22 @@ IsReturnHomePresentADB() {
 ; MAIN AUTOMATION LOOP
 ; ==============================================================================
 CheckGameTimeout(force := false) {
-    global TargetWindowTitle, IsRunning
+    global IsRunning
     if !force && !IsRunning
         return
-    if !EnsureWindowActive()
-        return
-    WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-    searchX := cx + (w * 0.25)
-    searchY := cy + (h * 0.4)
-    searchW := w * 0.5
-    searchH := h * 0.4
     try {
-        result := OCR.FromRect(searchX, searchY, searchW, searchH, {scale: 1.5})
+        viewport := GetADBClientViewportRect()
+    } catch {
+        return
+    }
+    searchX := viewport.x + (viewport.width * 0.25)
+    searchY := viewport.y + (viewport.height * 0.4)
+    searchW := viewport.width * 0.5
+    searchH := viewport.height * 0.4
+    imgName := A_Temp "\coc_refactor_timeout.png"
+    try {
+        adbCrop := SaveRegionToPNG(searchX, searchY, searchW, searchH, imgName)
+        result := OCR.FromFile(imgName, {scale: 1.5})
         timeoutDetected := false
         buttonLine := ""
         for line in result.Lines {
@@ -2579,58 +2631,120 @@ CheckGameTimeout(force := false) {
             LogMessage("Farming: Game Timeout/Reload screen detected!")
             if (buttonLine != "") {
                 LogMessage("Farming: Clicking detected reload/action button...")
-                relX := (buttonLine.x + (buttonLine.w / 2)) - cx
-                relY := (buttonLine.y + (buttonLine.h / 2)) - cy
-                ClientClickPoint(relX, relY)
+                clientPoint := ADBFramePointToClient(
+                    adbCrop,
+                    buttonLine.x + (buttonLine.w / 2),
+                    buttonLine.y + (buttonLine.h / 2)
+                )
+                ClientClickPoint(clientPoint.x, clientPoint.y)
             } else {
                 LogMessage("Farming: No specific button text detected, clicking screen center fallback...")
                 ADBClickFraction(0.5, 0.55)
             }
             Sleep 10000 ; Wait 10 seconds for game to reload
         }
+        try FileDelete(imgName)
+    } catch as err {
+        try FileDelete(imgName)
+        LogMessage("Timeout OCR failed: " err.Message)
     }
 }
 SaveRegionToPNG(x, y, w, h, filepath) {
+    adbRect := ClientRectToADBRect(x, y, w, h)
     framePath := CaptureADBFrame()
-    if FileExist(framePath) {
-        InitGDIPlus()
-        pSourceBitmap := 0
-        if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pSourceBitmap) == 0 {
-            pCroppedBitmap := 0
-            DllCall("gdiplus\GdipCloneBitmapArea", "float", Float(x), "float", Float(y), "float", Float(w), "float", Float(h), "int", 0x26200A, "ptr", pSourceBitmap, "ptr*", &pCroppedBitmap)
-            clsid := Buffer(16, 0)
-            DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)
-            DllCall("gdiplus\GdipSaveImageToFile", "ptr", pCroppedBitmap, "wstr", filepath, "ptr", clsid, "ptr", 0)
-            DllCall("gdiplus\GdipDisposeImage", "ptr", pCroppedBitmap)
-            DllCall("gdiplus\GdipDisposeImage", "ptr", pSourceBitmap)
-            return
-        }
+    if !FileExist(framePath)
+        throw Error("ADB frame capture did not produce an image.")
+    InitGDIPlus()
+    pSourceBitmap := 0
+    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pSourceBitmap) != 0
+        throw Error("ADB frame could not be opened.")
+    pCroppedBitmap := 0
+    status := DllCall(
+        "gdiplus\GdipCloneBitmapArea",
+        "float", Float(adbRect.x),
+        "float", Float(adbRect.y),
+        "float", Float(adbRect.width),
+        "float", Float(adbRect.height),
+        "int", 0x26200A,
+        "ptr", pSourceBitmap,
+        "ptr*", &pCroppedBitmap
+    )
+    if (status != 0) {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pSourceBitmap)
+        throw Error("ADB frame crop failed with GDI+ status " status ".")
     }
-    pi := Buffer(24, 0)
-    NumPut("uint", 1, pi, 0)
-    token := 0
-    DllCall("gdiplus\GdiplusStartup", "ptr*", &token, "ptr", pi, "ptr", 0)
-    hdcScreen := DllCall("GetDC", "ptr", 0, "ptr")
-    hdcMem := DllCall("CreateCompatibleDC", "ptr", hdcScreen, "ptr")
-    hbm := DllCall("CreateCompatibleBitmap", "ptr", hdcScreen, "int", w, "int", h, "ptr")
-    obm := DllCall("SelectObject", "ptr", hdcMem, "ptr", hbm, "ptr")
-    DllCall("BitBlt", "ptr", hdcMem, "int", 0, "int", 0, "int", w, "int", h, "ptr", hdcScreen, "int", x, "int", y, "uint", 0x00CC0020 | 0x40000000)
-    pBitmap := 0
-    DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", hbm, "ptr", 0, "ptr*", &pBitmap)
     clsid := Buffer(16, 0)
     DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)
-    DllCall("gdiplus\GdipSaveImageToFile", "ptr", pBitmap, "wstr", filepath, "ptr", clsid, "ptr", 0)
-    DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
-    DllCall("SelectObject", "ptr", hdcMem, "ptr", obm)
-    DllCall("DeleteObject", "ptr", hbm)
-    DllCall("DeleteDC", "ptr", hdcMem)
-    DllCall("ReleaseDC", "ptr", 0, "ptr", hdcScreen)
+    saveStatus := DllCall("gdiplus\GdipSaveImageToFile", "ptr", pCroppedBitmap, "wstr", filepath, "ptr", clsid, "ptr", 0)
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pCroppedBitmap)
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pSourceBitmap)
+    if (saveStatus != 0)
+        throw Error("ADB crop could not be saved; GDI+ status " saveStatus ".")
+    return adbRect
 }
+ResolveVisionUVExecutable() {
+    localAppData := EnvGet("LOCALAPPDATA")
+    if (localAppData != "") {
+        wingetLink := localAppData "\\Microsoft\\WinGet\\Links\\uv.exe"
+        if FileExist(wingetLink)
+            return '"' wingetLink '"'
+
+        wingetPackages := localAppData "\\Microsoft\\WinGet\\Packages"
+        if DirExist(wingetPackages) {
+            Loop Files, wingetPackages "\\astral-sh.uv_*", "D" {
+                uvPath := A_LoopFileFullPath "\\uv.exe"
+                if FileExist(uvPath)
+                    return '"' uvPath '"'
+            }
+        }
+    }
+    return "uv"
+}
+
+EnsureVisionPythonEnvironment() {
+    global A_ScriptDir
+    static pythonPath := ""
+
+    if (pythonPath != "")
+        return pythonPath
+
+    projectPath := A_ScriptDir "\\pyproject.toml"
+    if !FileExist(projectPath)
+        throw Error("Vision runtime manifest is missing: " projectPath)
+
+    setupOutputPath := A_Temp "\\coc_refactor_uv_sync_output.txt"
+    try FileDelete(setupOutputPath)
+    uvExecutable := ResolveVisionUVExecutable()
+    setupCommand := (
+        A_ComSpec ' /D /S /C "' uvExecutable ' sync --project "'
+            A_ScriptDir '" --locked > "' setupOutputPath '" 2>&1"'
+    )
+    shell := ComObject("WScript.Shell")
+    exitCode := shell.Run(setupCommand, 0, true)
+    setupOutput := ""
+    if FileExist(setupOutputPath) {
+        setupOutput := Trim(FileRead(setupOutputPath))
+        try FileDelete(setupOutputPath)
+    }
+    if (exitCode != 0) {
+        throw Error(
+            "Vision runtime setup failed (uv sync exit " exitCode "): "
+                setupOutput
+        )
+    }
+
+    pythonPath := A_ScriptDir "\\.venv\\Scripts\\python.exe"
+    if !FileExist(pythonPath)
+        throw Error("uv sync completed without creating the vision Python runtime.")
+    return pythonPath
+}
+
 RunWaitPythonScript(args) {
     global A_ScriptDir
-    outFile := A_ScriptDir "\scratch\exec_out.txt"
+    outFile := A_Temp "\coc_refactor_exec_out.txt"
     try FileDelete(outFile)
-    cmd := 'cmd.exe /c python "' A_ScriptDir '\vision_hook.py" ' args ' > "' outFile '" 2>&1'
+    pythonPath := EnsureVisionPythonEnvironment()
+    cmd := 'cmd.exe /c ""' pythonPath '" "' A_ScriptDir '\vision_hook.py" ' args ' > "' outFile '" 2>&1"'
     shell := ComObject("WScript.Shell")
     shell.Run(cmd, 0, true)
     output := ""
@@ -2640,32 +2754,366 @@ RunWaitPythonScript(args) {
     }
     return output
 }
-FindTemplateUpgradeButton(hwnd, &outX, &outY) {
-    global ADBProvider
-    if (ADBProvider != "") {
-        display := GetADBDisplaySize()
-        w := display.width
-        h := display.height
-        scrLeft := 0
-        scrTop := Integer(h * 0.65)
-    } else {
-        WinGetClientPos &cx, &cy, &w, &h, hwnd
-        scrLeft := cx
-        scrTop := cy + Integer(h * 0.65)
+
+SaveADBFrameRegionToPNG(framePath, x, y, w, h, filepath) {
+    if (framePath == "" || !FileExist(framePath))
+        throw Error("ADB frame is unavailable.")
+    adbRect := ClientRectToADBRect(x, y, w, h)
+    InitGDIPlus()
+    pSourceBitmap := 0
+    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pSourceBitmap) != 0
+        throw Error("ADB frame could not be opened.")
+    pCroppedBitmap := 0
+    status := DllCall(
+        "gdiplus\GdipCloneBitmapArea",
+        "float", Float(adbRect.x),
+        "float", Float(adbRect.y),
+        "float", Float(adbRect.width),
+        "float", Float(adbRect.height),
+        "int", 0x26200A,
+        "ptr", pSourceBitmap,
+        "ptr*", &pCroppedBitmap
+    )
+    if (status != 0) {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pSourceBitmap)
+        throw Error("ADB frame crop failed with GDI+ status " status ".")
     }
-    
-    imgName := "upgrade_area.png"
-    image_path := A_ScriptDir "\" imgName
-    SaveRegionToPNG(scrLeft, scrTop, w, Integer(h * 0.35), image_path)
-    output := Trim(RunWaitPythonScript('hammer "' image_path '" ' h))
+    clsid := Buffer(16, 0)
+    DllCall(
+        "ole32\CLSIDFromString",
+        "wstr",
+        "{557CF406-1A04-11D3-9A73-0000F81EF32E}",
+        "ptr",
+        clsid
+    )
+    saveStatus := DllCall(
+        "gdiplus\GdipSaveImageToFile",
+        "ptr",
+        pCroppedBitmap,
+        "wstr",
+        filepath,
+        "ptr",
+        clsid,
+        "ptr",
+        0
+    )
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pCroppedBitmap)
+    DllCall("gdiplus\GdipDisposeImage", "ptr", pSourceBitmap)
+    if (saveStatus != 0)
+        throw Error("ADB crop could not be saved; GDI+ status " saveStatus ".")
+    return adbRect
+}
+
+ReadBuilderAvailabilityFromADBFrame(framePath) {
+    global BuilderFaceX, BuilderFaceY
+    viewport := GetADBClientViewportRect()
+    GetBuilderCropRegion(viewport.height, &cropW, &cropH, &offsetX, &offsetY)
+    imagePath := A_Temp "\coc_refactor_flow_builder.png"
+    SaveADBFrameRegionToPNG(
+        framePath,
+        BuilderFaceX - offsetX,
+        BuilderFaceY - offsetY,
+        cropW,
+        cropH,
+        imagePath
+    )
+    adbDisplay := GetADBDisplaySize()
+    output := Trim(RunWaitPythonScript('builders "' imagePath '" ' adbDisplay.height))
+    try FileDelete(imagePath)
+    if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
+        return {valid: false, free: 0, total: 0, goblin: false, error: output}
+    free := Integer(match[1])
+    total := Integer(match[2])
+    if (total <= 0 || free > total)
+        return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
+    return {
+        valid: true,
+        free: free,
+        total: total,
+        goblin: free > 0
+            && IsGoblinFaceInADBFrame(framePath, BuilderFaceX, BuilderFaceY)
+    }
+}
+
+ReadLabAvailabilityFromADBFrame(framePath) {
+    global LabFaceX, LabFaceY
+    viewport := GetADBClientViewportRect()
+    GetLabCropRegion(viewport.height, &cropW, &cropH, &offsetX, &offsetY)
+    imagePath := A_Temp "\coc_refactor_flow_lab.png"
+    SaveADBFrameRegionToPNG(
+        framePath,
+        LabFaceX - offsetX,
+        LabFaceY - offsetY,
+        cropW,
+        cropH,
+        imagePath
+    )
+    adbDisplay := GetADBDisplaySize()
+    output := Trim(RunWaitPythonScript('lab "' imagePath '" ' adbDisplay.height))
+    try FileDelete(imagePath)
+    if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
+        return {valid: false, free: 0, total: 0, goblin: false, error: output}
+    free := Integer(match[1])
+    total := Integer(match[2])
+    if (total <= 0 || free > total)
+        return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
+    return {
+        valid: true,
+        free: free,
+        total: total,
+        goblin: free > 0
+            && IsGoblinFaceInADBFrame(framePath, LabFaceX, LabFaceY)
+    }
+}
+
+FindFlowSuggestedUpgrade(menuKind) {
+    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, LabFaceX
+    viewport := GetADBClientViewportRect()
+    if (menuKind == "builder") {
+        menuX := BuilderFaceX - viewport.width * 0.20
+        menuY := Max(viewport.y, BuilderFaceY)
+        menuW := viewport.width * 0.42
+        menuH := Max(1, BuilderMenuBottomY - menuY)
+        scales := [2.0, 2.5, 1.5, 3.0]
+    } else {
+        menuX := LabFaceX - viewport.width * 0.18
+        menuY := viewport.y + viewport.height * 0.12
+        menuW := viewport.width * 0.36
+        menuH := viewport.height * 0.75
+        scales := [2.5, 2.0, 3.0]
+    }
+    imagePath := A_Temp "\coc_refactor_flow_" menuKind "_menu.png"
+    framePath := CaptureADBFrame(true)
+    adbCrop := SaveADBFrameRegionToPNG(
+        framePath,
+        menuX,
+        menuY,
+        menuW,
+        menuH,
+        imagePath
+    )
+    for scaleValue in scales {
+        try {
+            result := OCR.FromFile(imagePath, {scale: scaleValue})
+            rawText := StrReplace(
+                StrReplace(result.Text, "`r", "\r"),
+                "`n",
+                "\n"
+            )
+            LogMessage(
+                "Suggested upgrades OCR " menuKind " scale "
+                    scaleValue "x: raw='" rawText "'."
+            )
+            selected := SelectFirstSuggestedUpgradeOCRWord(result.Lines)
+            if !IsObject(selected)
+                continue
+            selected := NormalizeBuilderOCRMatch(selected, scaleValue)
+            clientPoint := ADBFramePointToClient(
+                adbCrop,
+                selected.tapX,
+                selected.tapY
+            )
+            LogMessage(
+                "Suggested upgrades " menuKind ": OCR selected '"
+                    selected.lineText "' at normalized crop point ("
+                    Round(selected.tapX) ", " Round(selected.tapY)
+                    "), client (" clientPoint.x ", " clientPoint.y ")."
+            )
+            try FileDelete(imagePath)
+            return {
+                name: selected.lineText,
+                x: clientPoint.x,
+                y: clientPoint.y
+            }
+        } catch as err {
+            LogMessage(
+                "Suggested upgrades OCR " menuKind " scale "
+                    scaleValue "x error: " err.Message
+            )
+        }
+    }
+    LogMessage(
+        "Suggested upgrades OCR " menuKind
+            " failed; retained a diagnostic capture temporarily."
+    )
+    return ""
+}
+
+FindBuilderInfoFromADBFrame(framePath) {
+    viewport := GetADBClientViewportRect()
+    clientCropX := viewport.x + Round(viewport.width * 0.15)
+    clientCropY := viewport.y + Round(viewport.height * 0.65)
+    clientCropW := Round(viewport.width * 0.70)
+    clientCropH := Round(viewport.height * 0.30)
+    imagePath := A_Temp "\coc_refactor_builder_info.png"
+    adbRect := SaveADBFrameRegionToPNG(
+        framePath,
+        clientCropX,
+        clientCropY,
+        clientCropW,
+        clientCropH,
+        imagePath
+    )
+    adbDisplay := GetADBDisplaySize()
+    output := Trim(
+        RunWaitPythonScript(
+            'info "' imagePath '" ' adbDisplay.height
+        )
+    )
+    try FileDelete(imagePath)
+    LogMessage("Builder Info template detector output: '" output "'.")
+    if !RegExMatch(
+        output,
+        "SUCCESS:\s*(\d+)/(\d+)/([\d.]+)/(\d+)/(\d+)/(\d+)/(\d+)",
+        &match
+    ) {
+        return ""
+    }
+
+    localX := Integer(match[1])
+    localY := Integer(match[2])
+    confidence := Number(match[3])
+    clientPoint := ADBFramePointToClient(adbRect, localX, localY)
+    LogMessage(
+        "Builder Info template match: confidence "
+            Format("{:.4f}", confidence) ", local center ("
+            localX ", " localY "), client center ("
+            clientPoint.x ", " clientPoint.y ")."
+    )
+    return {
+        name: "Info icon",
+        x: clientPoint.x,
+        y: clientPoint.y,
+        confidence: confidence
+    }
+}
+
+ReadLootValueFromADBFrame(framePath, x, y, width, height, label) {
+    imagePath := A_Temp "\coc_refactor_flow_loot_" label ".png"
+    adbRect := SaveADBFrameRegionToPNG(
+        framePath,
+        x,
+        y,
+        width,
+        height,
+        imagePath
+    )
+    LogMessage(
+        Format(
+            "Loot OCR {} crop: client ({}, {}, {}, {}) "
+                "-> ADB ({}, {}, {}, {}).",
+            label,
+            x,
+            y,
+            width,
+            height,
+            adbRect.x,
+            adbRect.y,
+            adbRect.width,
+            adbRect.height
+        )
+    )
+    readings := []
+    ; The expanded crop preserves enough context for the reliable 1.5x pass.
+    ; Larger scales merge the outlined Elixir digits and can invent extra digits.
+    for scaleValue in [1.5] {
+        try {
+            result := OCR.FromFile(imagePath, {scale: scaleValue, grayscale: true, monochrome: 160})
+            cleaned := CleanNumber(result.Text)
+            rawText := StrReplace(
+                StrReplace(result.Text, "`r", "\r"),
+                "`n",
+                "\n"
+            )
+            LogMessage(
+                Format(
+                    "Loot OCR {} scale {:.1f}x: raw='{}', cleaned={}.",
+                    label,
+                    scaleValue,
+                    rawText,
+                    cleaned
+                )
+            )
+            if (cleaned > 0)
+                readings.Push(cleaned)
+        } catch as err {
+            LogMessage(
+                Format(
+                    "Loot OCR {} scale {:.1f}x error: {}",
+                    label,
+                    scaleValue,
+                    err.Message
+                )
+            )
+        }
+    }
+    try FileDelete(imagePath)
+    result := SelectLootConsensus(readings)
+    LogMessage(
+        Format(
+            "Loot OCR {} mode: valid={}, value={}, reason={}, "
+                "agreement={}/{}.",
+            label,
+            result.valid ? "YES" : "NO",
+            result.value,
+            result.reason,
+            result.agreement,
+            result.readingCount
+        )
+    )
+    return result
+}
+
+ReadLootFromADBFrame(framePath) {
+    global GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
+    global LootCropOffsetX, LootCropOffsetY, LootCropW, LootCropH
+    goldX := GoldIconX + LootCropOffsetX
+    goldY := GoldIconY + LootCropOffsetY
+    elixirX := ElixirIconX + LootCropOffsetX
+    elixirY := ElixirIconY + LootCropOffsetY
+    return {
+        gold: ReadLootValueFromADBFrame(
+            framePath,
+            goldX,
+            goldY,
+            LootCropW,
+            LootCropH,
+            "gold"
+        ),
+        elixir: ReadLootValueFromADBFrame(
+            framePath,
+            elixirX,
+            elixirY,
+            LootCropW,
+            LootCropH,
+            "elixir"
+        )
+    }
+}
+
+FindTemplateUpgradeButton(&outX, &outY) {
+    viewport := GetADBClientViewportRect()
+    w := viewport.width
+    h := viewport.height
+    scrLeft := viewport.x
+    scrTop := viewport.y + Integer(h * 0.65)
+    image_path := A_Temp "\coc_refactor_upgrade_area.png"
+    adbCrop := SaveRegionToPNG(scrLeft, scrTop, w, Integer(h * 0.35), image_path)
+    adbDisplay := GetADBDisplaySize()
+    output := Trim(RunWaitPythonScript('hammer "' image_path '" ' adbDisplay.height))
     try FileDelete(image_path)
     if RegExMatch(output, "SUCCESS:\s*(\d+)/(\d+)", &match) {
         match_x := Integer(match[1])
         match_y := Integer(match[2])
         ; Offset downwards by ~18px at 1080p to click the bottom half of the detected upgrade button
-        buttonHeightOffset := Max(10, Round(h * 0.016))
-        outX := scrLeft + match_x
-        outY := scrTop + match_y + buttonHeightOffset
+        buttonHeightOffset := Max(10, Round(adbDisplay.height * 0.016))
+        clientPoint := ADBFramePointToClient(
+            adbCrop,
+            match_x,
+            match_y + buttonHeightOffset
+        )
+        outX := clientPoint.x
+        outY := clientPoint.y
         return true
     }
     return false
@@ -2678,28 +3126,20 @@ GetLabCropRegion(h, &scrW, &scrH, &offX, &offY) {
 }
 
 IsLabBusy() {
-    global ADBLabFaceX, ADBLabFaceY, LabFaceX, LabFaceY, TargetWindowTitle
-    if (ADBLabFaceX > 0) {
-        h := 1080
-        GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
-        scrX := ADBLabFaceX - offX
-        scrY := ADBLabFaceY - offY
-        centerX := ADBLabFaceX
-        centerY := ADBLabFaceY
-    } else {
-        if !WinExist(TargetWindowTitle)
-            return true
-        WinGetClientPos &cx, &cy, &w, &h, TargetWindowTitle
-        GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
-        scrX := cx + LabFaceX - offX
-        scrY := cy + LabFaceY - offY
-        centerX := cx + LabFaceX
-        centerY := cy + LabFaceY
-    }
+    if (LabFaceX <= 0 || LabFaceY <= 0)
+        return true
+    viewport := GetADBClientViewportRect()
+    h := viewport.height
+    GetLabCropRegion(h, &scrW, &scrH, &offX, &offY)
+    scrX := LabFaceX - offX
+    scrY := LabFaceY - offY
+    centerX := LabFaceX
+    centerY := LabFaceY
 
-    imgName := A_ScriptDir "\lab_area_bot.png"
+    imgName := A_Temp "\coc_refactor_lab_area.png"
     SaveRegionToPNG(scrX, scrY, scrW, scrH, imgName)
-    clean_out := Trim(RunWaitPythonScript('lab "' imgName '" ' h))
+    adbDisplay := GetADBDisplaySize()
+    clean_out := Trim(RunWaitPythonScript('lab "' imgName '" ' adbDisplay.height))
     try FileDelete(imgName)
     
     if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
@@ -2719,29 +3159,27 @@ IsLabBusy() {
 }
 
 UpgradeLab() {
-    global TargetWindowTitle, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
-    global ADBLabFaceX, ADBLabFaceY, ADBUpgradeConfirmX, ADBUpgradeConfirmY
-    hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
-        return
+    global LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
+    viewport := GetADBClientViewportRect()
     LogMessage("Lab available! Clicking Lab Face...")
-    ADBClickPoint(ADBLabFaceX, ADBLabFaceY)
+    ADBClickPoint(LabFaceX, LabFaceY)
     Sleep 1200
     
-    WinGetClientPos &cx, &cy, &w, &h, hwnd
+    w := viewport.width
+    h := viewport.height
     menuLeft := LabFaceX - (w * 0.18)
     menuWidth := w * 0.36
-    menuTop := h * 0.12
+    menuTop := viewport.y + h * 0.12
     menuHeight := h * 0.75
-    scrLeft := cx + menuLeft
-    scrTop := cy + menuTop
+    imgName := A_Temp "\coc_refactor_lab_menu.png"
     
     clickX := 0, clickY := 0
     found_suggestion := false
     
     for sc in [2.5, 2.0, 3.0] {
         try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
+            adbCrop := SaveRegionToPNG(menuLeft, menuTop, menuWidth, menuHeight, imgName)
+            result := OCR.FromFile(imgName, {scale: sc})
             lines := result.Lines
             suggested_idx := -1
             loop lines.Length {
@@ -2752,13 +3190,19 @@ UpgradeLab() {
             }
             if (suggested_idx != -1 && suggested_idx < lines.Length) {
                 target_line := lines[suggested_idx + 1]
-                clickX := (target_line.x + 50) - cx
-                clickY := (target_line.y + (target_line.h / 2)) - cy
+                clientPoint := ADBFramePointToClient(
+                    adbCrop,
+                    target_line.x + 50,
+                    target_line.y + (target_line.h / 2)
+                )
+                clickX := clientPoint.x
+                clickY := clientPoint.y
                 found_suggestion := true
                 break
             }
         }
     }
+    try FileDelete(imgName)
     
     if !found_suggestion {
         LogMessage("Failed to find 'Suggested upgrades' section.")
@@ -2770,35 +3214,36 @@ UpgradeLab() {
     Sleep 2000
     
     LogMessage("Confirming Lab Upgrade...")
-    ADBClickPoint(ADBUpgradeConfirmX, ADBUpgradeConfirmY)
+    ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
     Sleep 1500
     ClearingClick()
 }
 UpgradeBuilding() {
     global TargetWindowTitle, BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, UpgradeConfirmX, UpgradeConfirmY
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBUpgradeConfirmX, ADBUpgradeConfirmY
     hwnd := WinExist(TargetWindowTitle)
     if !hwnd
         return false
+    viewport := GetADBClientViewportRect()
     LogMessage("Farming: Opening Builder suggestions menu...")
-    ADBClickPoint(ADBBuilderFaceX, ADBBuilderFaceY)
+    ADBClickPoint(BuilderFaceX, BuilderFaceY)
     Sleep 1200
-    WinGetClientPos &cx, &cy, &w, &h, hwnd
-    topY := Max(0, BuilderFaceY)
-    bottomY := (BuilderMenuBottomY > topY + 100) ? BuilderMenuBottomY : Integer(h * 0.85)
+    w := viewport.width
+    h := viewport.height
+    topY := Max(viewport.y, BuilderFaceY)
+    bottomY := (BuilderMenuBottomY > topY + 100) ? BuilderMenuBottomY : viewport.y + Integer(h * 0.85)
     menuLeft := BuilderFaceX - (w * 0.20)
     menuWidth := w * 0.42
     menuTop := topY
     menuHeight := bottomY - topY
-    scrLeft := cx + menuLeft
-    scrTop := cy + menuTop
+    imgName := A_Temp "\coc_refactor_builder_menu.png"
     ; Scan dropdown using OCR
     suggestion_text := ""
     clickX := 0, clickY := 0
     found_suggestion := false
     for sc in [2.0, 2.5, 1.5, 3.0] {
         try {
-            result := OCR.FromRect(scrLeft, scrTop, menuWidth, menuHeight, {scale: sc})
+            adbCrop := SaveRegionToPNG(menuLeft, menuTop, menuWidth, menuHeight, imgName)
+            result := OCR.FromFile(imgName, {scale: sc})
             lines := result.Lines
             ; Find the "Suggested upgrades" header
             suggested_idx := -1
@@ -2813,8 +3258,13 @@ UpgradeBuilding() {
             if (suggested_idx != -1 && suggested_idx < lines.Length) {
                 target_line := lines[suggested_idx + 1]
                 suggestion_text := target_line.Text
-                clickX := (target_line.x + 50) - cx
-                clickY := (target_line.y + (target_line.h / 2)) - cy
+                clientPoint := ADBFramePointToClient(
+                    adbCrop,
+                    target_line.x + 50,
+                    target_line.y + (target_line.h / 2)
+                )
+                clickX := clientPoint.x
+                clickY := clientPoint.y
                 found_suggestion := true
                 break
             }
@@ -2823,6 +3273,7 @@ UpgradeBuilding() {
             LogMessage("Farming: OCR error in dropdown: " err.Message)
         }
     }
+    try FileDelete(imgName)
     if !found_suggestion {
         LogMessage("Farming: Failed to find 'Suggested upgrades' section.")
         return false
@@ -2836,7 +3287,7 @@ UpgradeBuilding() {
     if is_hero {
         ; Hero upgrade flow: skip Upgrade button, go straight to confirm
         LogMessage("Farming: Hero detected. Clicking calibrated confirmation button...")
-        ADBClickPoint(ADBUpgradeConfirmX, ADBUpgradeConfirmY)
+        ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
         Sleep 1500
         ClearingClick()
         return true
@@ -2844,15 +3295,13 @@ UpgradeBuilding() {
         ; Building upgrade flow: find "Upgrade" button using Template Matching
         LogMessage("Farming: Building detected. Finding Upgrade hammer button...")
         btnX := 0, btnY := 0
-        if FindTemplateUpgradeButton(hwnd, &btnX, &btnY) {
-            clickBtnX := btnX - cx
-            clickBtnY := btnY - cy
-            LogMessage(Format("Farming: Clicking Upgrade hammer button at client {}, {}", clickBtnX, clickBtnY))
-            ClientClickPoint(clickBtnX, clickBtnY)
+        if FindTemplateUpgradeButton(&btnX, &btnY) {
+            LogMessage(Format("Farming: Clicking Upgrade hammer button at client {}, {}", btnX, btnY))
+            ClientClickPoint(btnX, btnY)
             Sleep 1200
             ; Click calibrated confirmation button directly
             LogMessage(Format("Farming: Clicking calibrated confirmation button at client {}, {}", UpgradeConfirmX, UpgradeConfirmY))
-            ADBClickPoint(ADBUpgradeConfirmX, ADBUpgradeConfirmY)
+            ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
             Sleep 1500
             ClearingClick()
             return true
@@ -2863,14 +3312,603 @@ UpgradeBuilding() {
     }
     return false
 }
+
+class LiveADBFlowPrimitives {
+    __New() {
+        this.TroopCounts := ""
+    }
+
+    Do(name, args*) {
+        switch name {
+            case "log":
+                LogMessage(args[1])
+                return true
+            case "verify_emulator":
+                return this.VerifyEmulator()
+            case "verify_calibration":
+                return this.VerifyCalibration()
+            case "start_timer":
+                return this.StartTimer(args[1])
+            case "clear_tap":
+                return FlowClearTap()
+            case "capture_fresh_frame":
+                return this.CaptureFreshFrame(args[1])
+            case "detect_village_from_frame":
+                return DetectVillageFromADBFrame(this.RequireFramePath(args[1]))
+            case "start_main_loop":
+                return this.StartMainLoop()
+            case "start_builder_loop":
+                return this.StartBuilderLoop()
+            case "reset_main_viewport":
+                return ResetViewport()
+            case "collection_roll":
+                return Random(1, 40)
+            case "tap_collector":
+                return this.TapCollector(args[1])
+            case "read_resource_thresholds_from_frame":
+                return ReadResourceThresholdsFromADBFrame(
+                    this.RequireFramePath(args[1], "thresholds")
+                )
+            case "read_builders_from_frame":
+                return ReadBuilderAvailabilityFromADBFrame(
+                    this.RequireFramePath(args[1], "builder")
+                )
+            case "open_builder_menu":
+                return this.OpenUpgradeMenu("builder")
+            case "ocr_builder_suggestion":
+                return FindFlowSuggestedUpgrade("builder")
+            case "tap_builder_suggestion", "tap_lab_suggestion":
+                return this.TapSuggestion(args[1])
+            case "find_builder_info_from_frame":
+                return FindBuilderInfoFromADBFrame(
+                    this.RequireFramePath(args[1], "builder_info")
+                )
+            case "tap_builder_info":
+                return this.TapBuilderInfo(args[1])
+            case "tap_upgrade_confirm":
+                return this.TapUpgradeConfirm()
+            case "read_wall_state_from_frame":
+                return this.ReadWallState(args[1])
+            case "perform_wall_upgrades":
+                UpgradeWalls(args[1])
+                return true
+            case "read_lab_from_frame":
+                return ReadLabAvailabilityFromADBFrame(
+                    this.RequireFramePath(args[1], "lab")
+                )
+            case "open_lab_menu":
+                return this.OpenUpgradeMenu("lab")
+            case "ocr_lab_suggestion":
+                return FindFlowSuggestedUpgrade("lab")
+            case "tap_main_attack":
+                return this.TapMainAttack()
+            case "tap_find_match":
+                return this.TapFindMatch()
+            case "tap_attack_start":
+                return this.TapAttackStart()
+            case "wait":
+                return this.Wait(args[1])
+            case "check_clouds_from_frame":
+                return AreCloudsPresentInADBFrame(
+                    this.RequireFramePath(args[1], "clouds")
+                )
+            case "read_loot_from_frame":
+                return ReadLootFromADBFrame(
+                    this.RequireFramePath(args[1], "base")
+                )
+            case "tap_next_match":
+                return this.TapNextMatch()
+            case "random_side":
+                return Random(1, 4)
+            case "deploy_main":
+                return this.DeployMain(args[1], args[2])
+            case "deploy_spell":
+                return this.DeploySpell(args[1], args[2], args[3])
+            case "hero_ability":
+                return SendKey(args[1])
+            case "tap_return_home":
+                return this.TapReturnHome()
+            case "detect_main_home_from_frame":
+                return DetectVillageFromADBFrame(
+                    this.RequireFramePath(args[1], "home")
+                ) == "main"
+            case "complete_global_cycle":
+                return CompleteLiveGlobalCycle(args[1])
+            case "record_completed_attack":
+                return this.RecordCompletedAttack(args[1])
+            case "timer_triggered":
+                return IsTimerUp()
+            case "exit_game_after_timer":
+                return this.ExitGameAfterTimer()
+            case "find_reload_action_from_frame":
+                return FindReloadActionFromADBFrame(args[1])
+            case "tap_reload_action":
+                return TapLiveReloadAction(args[1])
+            case "route_village":
+                return RouteLiveVillage(args[1])
+            case "stop_bot":
+                return this.StopBot()
+        }
+        throw Error("Unknown live flow operation: " name)
+    }
+
+    CaptureFreshFrame(section) {
+        global ADBFramePath
+        if (section == "")
+            throw Error("A fresh frame requires a decision section.")
+        if (ADBFramePath == "")
+            ADBFramePath := A_ScriptDir "\scratch\adb_frame.png"
+        if FileExist(ADBFramePath)
+            FileDelete(ADBFramePath)
+        framePath := CaptureADBFrame(true)
+        if !this.IsValidPNG(framePath)
+            throw Error("ADB did not return a fresh PNG frame for " section ".")
+        return {
+            section: section,
+            path: framePath,
+            capturedAt: A_TickCount
+        }
+    }
+
+    RequireFramePath(frame, expectedSection := "") {
+        if !IsObject(frame)
+            throw Error("A captured ADB frame object is required.")
+        if !frame.HasOwnProp("section") || !frame.HasOwnProp("path")
+            throw Error("ADB frame metadata is incomplete.")
+        if (expectedSection != "" && frame.section != expectedSection)
+            throw Error("ADB frame belongs to " frame.section ", not " expectedSection ".")
+        if !this.IsValidPNG(frame.path)
+            throw Error("ADB frame is missing or invalid.")
+        return frame.path
+    }
+
+    IsValidPNG(framePath) {
+        if (framePath == "" || !FileExist(framePath) || FileGetSize(framePath) < 8)
+            return false
+        file := FileOpen(framePath, "r")
+        if !IsObject(file)
+            return false
+        signature := []
+        Loop 8
+            signature.Push(file.ReadUChar())
+        file.Close()
+        expected := [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        Loop 8 {
+            if (signature[A_Index] != expected[A_Index])
+                return false
+        }
+        return true
+    }
+
+    ReadWallState(frame) {
+        framePath := this.RequireFramePath(frame, "walls")
+        thresholds := ReadResourceThresholdsFromADBFrame(framePath)
+        builders := ReadBuilderAvailabilityFromADBFrame(framePath)
+        return {
+            canUpgrade: (thresholds.gold || thresholds.elixir)
+                && builders.free > 0
+                && !builders.goblin,
+            gold: thresholds.gold,
+            elixir: thresholds.elixir,
+            free: builders.free,
+            goblin: builders.goblin
+        }
+    }
+
+    VerifyEmulator() {
+        global TargetWindowTitle
+        if !WinExist(TargetWindowTitle)
+            throw Error("The configured emulator window is not open.")
+        ready := EnsureADBConnection()
+        if !ready.Ok
+            throw Error(ready.Message)
+        if !IsClashForeground(ready.Serial)
+            throw Error("Clash of Clans is not the foreground Android app.")
+        return true
+    }
+
+    VerifyCalibration() {
+        viewportState := ValidateADBViewportRuntime()
+        if !viewportState.Ok
+            throw Error(viewportState.Message)
+        return true
+    }
+
+    StartTimer(durationMs) {
+        global TimerDurationMs, TimerStartTick
+        TimerDurationMs := durationMs
+        TimerStartTick := A_TickCount
+        LogMessage("Auto-Stop Timer started for " durationMs " ms.")
+        return true
+    }
+
+    StartMainLoop() {
+        global IsRunning, IsBBRunning
+        global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION
+        global StatusText, StartBtn, PauseBtn
+        if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION)
+            throw Error("Main Village calibration is missing or stale.")
+        IsBBRunning := false
+        IsRunning := true
+        StatusText.Value := "Status: Running Main"
+        StartBtn.Enabled := false
+        PauseBtn.Enabled := true
+        LogMessage("Main Village flow started.")
+        SetTimer(StartBotLoop, -10)
+        return true
+    }
+
+    StartBuilderLoop() {
+        global IsRunning, IsBBRunning
+        global ADBBBCalibrationVersion, ADB_COORDINATE_VERSION
+        global StatusText, StartBtn, PauseBtn
+        if (ADBBBCalibrationVersion != ADB_COORDINATE_VERSION)
+            throw Error("Builder Base calibration is missing or stale.")
+        IsRunning := false
+        IsBBRunning := true
+        StatusText.Value := "Status: Running BB"
+        StartBtn.Enabled := false
+        PauseBtn.Enabled := true
+        LogMessage("Builder Base flow started.")
+        SetTimer(RunBuilderBaseLoop, -100)
+        return true
+    }
+
+    TapCollector(index) {
+        global CollectorCoords
+        if (index < 1 || index > CollectorCoords.Length)
+            throw Error("Collector index is outside calibrated coordinates.")
+        point := CollectorCoords[index]
+        return RunADBTapAt(point.x, point.y, 250)
+    }
+
+    OpenUpgradeMenu(menuKind) {
+        global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY
+        if (menuKind == "builder")
+            tapped := RunADBTapAt(BuilderFaceX, BuilderFaceY, 200)
+        else
+            tapped := RunADBTapAt(LabFaceX, LabFaceY, 200)
+        if !tapped || !SafeFlowWait(1200)
+            throw Error("Could not open the " menuKind " upgrade menu.")
+        return true
+    }
+
+    TapSuggestion(suggestion) {
+        if !IsObject(suggestion)
+            throw Error("Suggested upgrade did not include a client point.")
+        if !RunADBTapAt(suggestion.x, suggestion.y, 200)
+            throw Error("Could not tap the suggested upgrade.")
+        if !SafeFlowWait(2000)
+            throw Error("Bot stopped while the suggested upgrade opened.")
+        return true
+    }
+
+    TapBuilderInfo(info) {
+        if !IsObject(info)
+            throw Error("Info template match did not include a client point.")
+        if !RunADBTapAt(info.x, info.y, 200)
+            throw Error("Could not tap the matched Info button.")
+        if !SafeFlowWait(1200)
+            throw Error("Bot stopped while the Info panel opened.")
+        return true
+    }
+
+    TapUpgradeConfirm() {
+        global UpgradeConfirmX, UpgradeConfirmY
+        nominalPoint := ClientToADBPoint(
+            UpgradeConfirmX,
+            UpgradeConfirmY
+        )
+        LogMessage(
+            "Upgrade confirmation: calibrated client ("
+                UpgradeConfirmX ", " UpgradeConfirmY
+                ") translates to nominal ADB ("
+                nominalPoint.x ", " nominalPoint.y ")."
+        )
+        actualPoint := RunADBTapAt(
+            UpgradeConfirmX,
+            UpgradeConfirmY,
+            200
+        )
+        if !IsObject(actualPoint) {
+            LogMessage("Upgrade confirmation tap failed.")
+            return false
+        }
+        LogMessage(
+            "Upgrade confirmation tap: client ("
+                UpgradeConfirmX ", " UpgradeConfirmY
+                "), nominal ADB (" nominalPoint.x ", "
+                nominalPoint.y "), randomized ADB actually sent ("
+                actualPoint.x ", " actualPoint.y
+                "). ADB command accepted."
+        )
+        return actualPoint
+    }
+
+    TapMainAttack() {
+        global AttackBtnX, AttackBtnY
+        return RunADBTapAt(AttackBtnX, AttackBtnY, 200)
+    }
+
+    TapFindMatch() {
+        global FindMatchBtnX, FindMatchBtnY
+        return RunADBTapAt(FindMatchBtnX, FindMatchBtnY, 800)
+    }
+
+    TapAttackStart() {
+        global AttackStartBtnX, AttackStartBtnY
+        return RunADBTapAt(AttackStartBtnX, AttackStartBtnY, 1000)
+    }
+
+    TapNextMatch() {
+        global NextMatchBtnX, NextMatchBtnY
+        return RunADBTapAt(NextMatchBtnX, NextMatchBtnY, 200)
+    }
+
+    TapReturnHome() {
+        global ReturnHomeClickX, ReturnHomeClickY
+        return RunADBTapAt(ReturnHomeClickX, ReturnHomeClickY, 200)
+    }
+
+    Wait(milliseconds) {
+        if !SafeFlowWait(milliseconds)
+            throw Error("Bot stopped during a flow wait.")
+        return true
+    }
+
+    DeployMain(key, sideName) {
+        global Sides
+        sideIndex := Integer(SubStr(sideName, 5))
+        side := Sides[sideIndex]
+        if (key == "1" || key == "2" || key == "3") {
+            if !IsObject(this.TroopCounts)
+                this.TroopCounts := GetTroopCountsBattle()
+            slot := Integer(key)
+            count := this.TroopCounts[slot]
+            if (count <= 0)
+                return true
+            clickCount := Max(1, Round(count * 1.1))
+            delayMs := Max(20, 2000 // clickCount)
+            DeployTroopLine(
+                key,
+                clickCount,
+                delayMs,
+                side.startX,
+                side.startY,
+                side.endX,
+                side.endY
+            )
+            return true
+        }
+        DeploySinglePoint(key, side.startX, side.startY)
+        return true
+    }
+
+    DeploySpell(key, sideName, adbShiftPixels) {
+        global Sides
+        sideIndex := Integer(SubStr(sideName, 5))
+        clickCount := key == "a" ? 7 : 2
+        DeployShiftedSpellLine(
+            key,
+            clickCount,
+            Sides[sideIndex],
+            adbShiftPixels,
+            750
+        )
+        return true
+    }
+
+    RecordCompletedAttack(village) {
+        global SessionCompletedAttacks
+        if (village != "main" && village != "builder")
+            throw Error("Completed attack village must be main or builder.")
+        SessionCompletedAttacks += 1
+        LogMessage(
+            "Session completed attacks: " SessionCompletedAttacks
+                " (latest: " village ")."
+        )
+        return SessionCompletedAttacks
+    }
+
+    ExitGameAfterTimer() {
+        global ADBViewportLeft, ADBViewportTop
+        global ADBViewportRight, ADBViewportBottom
+
+        okayPoint := ResolveTimerExitOkayClientPoint(
+            ADBViewportLeft,
+            ADBViewportTop,
+            ADBViewportRight,
+            ADBViewportBottom
+        )
+        nominalPoint := ClientToADBPoint(okayPoint.x, okayPoint.y)
+        LogMessage(
+            "Timer exit: Okay target uses viewport-relative client ("
+                okayPoint.x ", " okayPoint.y
+                "), nominal ADB (" nominalPoint.x ", "
+                nominalPoint.y ")."
+        )
+        LogMessage("Timer exit: sending Escape through ADB.")
+        if !SendKey("ESCAPE")
+            throw Error("Timer exit could not send Escape.")
+        LogMessage(
+            "Timer exit: tapping the green Okay button through ADB."
+        )
+        actualPoint := RunADBTapAt(
+            okayPoint.x,
+            okayPoint.y,
+            650
+        )
+        if !IsObject(actualPoint)
+            throw Error("Timer exit could not tap the Okay button.")
+        LogMessage(
+            "Timer exit Okay tap: client (" okayPoint.x ", "
+                okayPoint.y "), nominal ADB (" nominalPoint.x ", "
+                nominalPoint.y "), randomized ADB actually sent ("
+                actualPoint.x ", " actualPoint.y ")."
+        )
+        return actualPoint
+    }
+
+    StopBot() {
+        global IsRunning, IsBBRunning
+        IsRunning := false
+        IsBBRunning := false
+        return true
+    }
+}
+
+CompleteLiveGlobalCycle(village) {
+    return ADBRefactorFlowAPI.RunCycleCompletion(
+        LiveADBFlowPrimitives(),
+        {currentVillage: village}
+    )
+}
+
+FindReloadActionFromADBFrame(frame) {
+    global ReconnectCropLeftRatio, ReconnectCropRightRatio
+    global ReconnectCropTopRatio, ReconnectCropBottomRatio
+    framePath := LiveADBFlowPrimitives().RequireFramePath(frame, "reload")
+    viewport := GetADBClientViewportRect()
+
+    cardCheck := IsErrorCardColorMatch(framePath, viewport.x, viewport.y, viewport.width, viewport.height)
+    if !cardCheck.isMatch {
+        LogMessage("Reconnect card check: center color #191C1E matched " cardCheck.count "/" cardCheck.total " points; no error popup card (safe skip).")
+        return false
+    }
+    LogMessage("Reconnect card check: center color #191C1E matched " cardCheck.count "/" cardCheck.total " points; error popup card DETECTED. Running OCR...")
+
+    searchX := Round(viewport.x + viewport.width * ReconnectCropLeftRatio)
+    searchY := Round(viewport.y + viewport.height * ReconnectCropTopRatio)
+    searchW := Max(1, Round(viewport.width * (ReconnectCropRightRatio - ReconnectCropLeftRatio)))
+    searchH := Max(1, Round(viewport.height * (ReconnectCropBottomRatio - ReconnectCropTopRatio)))
+    processId := DllCall("GetCurrentProcessId", "uint")
+    imagePath := (
+        A_Temp "\coc_reload_recovery_" processId "_"
+            A_TickCount ".png"
+    )
+    try {
+        adbCrop := SaveADBFrameRegionToPNG(
+            framePath,
+            searchX,
+            searchY,
+            searchW,
+            searchH,
+            imagePath
+        )
+        result := OCR.FromFile(imagePath, {scale: 1.5})
+        for line in result.Lines {
+            if !IsExplicitReloadActionText(line.Text)
+                continue
+            clientPoint := ADBFramePointToClient(
+                adbCrop,
+                line.x + line.w / 2,
+                line.y + line.h / 2
+            )
+            actionName := Trim(line.Text, " `t`r`n")
+            LogMessage(
+                "Reconnect OCR: explicit action '" actionName
+                    "' at client (" clientPoint.x ", "
+                    clientPoint.y ")."
+            )
+            return {
+                name: actionName,
+                x: clientPoint.x,
+                y: clientPoint.y
+            }
+        }
+        LogMessage("Reconnect OCR: no explicit Reload/Retry action found.")
+        return false
+    } finally {
+        try FileDelete(imagePath)
+    }
+}
+
+TapLiveReloadAction(action) {
+    if (!IsObject(action)
+        || !action.HasOwnProp("x")
+        || !action.HasOwnProp("y")) {
+        throw Error("Reload action is missing its client point.")
+    }
+    tapped := RunADBTapAt(action.x, action.y, 300)
+    if !IsObject(tapped)
+        throw Error("Could not tap the explicit Reload/Retry action.")
+    return tapped
+}
+
+RouteLiveVillage(village) {
+    global IsRunning, IsBBRunning
+    global StatusText, StartBtn, PauseBtn
+    global ADBMainCalibrationVersion, ADBBBCalibrationVersion
+    global ADB_COORDINATE_VERSION
+    if (village == "main") {
+        if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION) {
+            throw Error(
+                "Reconnect cannot route Main Village: calibration is "
+                    "missing or stale."
+            )
+        }
+        IsBBRunning := false
+        IsRunning := true
+        StatusText.Value := "Status: Running Main"
+        LogMessage("Reconnect route: scheduling Main Village flow.")
+        SetTimer(StartBotLoop, -10)
+    } else if (village == "builder") {
+        if (ADBBBCalibrationVersion != ADB_COORDINATE_VERSION) {
+            throw Error(
+                "Reconnect cannot route Builder Base: calibration is "
+                    "missing or stale."
+            )
+        }
+        IsRunning := false
+        IsBBRunning := true
+        StatusText.Value := "Status: Running BB"
+        LogMessage("Reconnect route: scheduling Builder Base flow.")
+        SetTimer(RunBuilderBaseLoop, -100)
+    } else {
+        throw Error("Reconnect route must be main or builder.")
+    }
+    StartBtn.Enabled := false
+    PauseBtn.Enabled := true
+    return true
+}
+
 StartBotLoop() {
+    global IsRunning, IsBBRunning, SessionCompletedAttacks
+    global CollectorCoords, EnableWallUpgrade, MinGold, MinElixir
+    global TimerDurationMs, StatusText, StartBtn, PauseBtn
+    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
+    while IsRunning {
+        state := {
+            completedAttacks: SessionCompletedAttacks,
+            collectorCount: CollectorCoords.Length,
+            wallUpgradesEnabled: EnableWallUpgrade,
+            minGold: MinGold,
+            minElixir: MinElixir,
+            timerEnabled: TimerDurationMs > 0
+        }
+        try {
+            ADBRefactorFlowAPI.RunMainLoop(operations, state)
+        } catch as err {
+            if IsRunning
+                LogMessage("Main Village flow stopped: " err.Message)
+            IsRunning := false
+        }
+    }
+    if !IsBBRunning {
+        StatusText.Value := "Status: Idle"
+        StartBtn.Enabled := true
+        PauseBtn.Enabled := false
+        LogMessage("Main Village flow ended.")
+    } else {
+        LogMessage("Main Village flow handed control to Builder Base.")
+    }
+}
+
+LegacyStartBotLoop() {
     global IsRunning, StatusText, StartBtn, PauseBtn
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
     global ReturnHomeClickX, ReturnHomeClickY, BattleLoadDelay, ReturnHomeColor, ReturnHomeTolerance
     global EnableLootSearch, MinGold, MinElixir, NextMatchBtnX, NextMatchBtnY
-    global ADBSides, Troop1Count, Troop2Count, Troop3Count
-    global ADBAttackBtnX, ADBAttackBtnY, ADBFindMatchBtnX, ADBFindMatchBtnY, ADBAttackStartBtnX, ADBAttackStartBtnY
-    global ADBReturnHomeClickX, ADBReturnHomeClickY, ADBNextMatchBtnX, ADBNextMatchBtnY
     ; Check for game timeout immediately before doing anything else
     LastTimeoutCheck := A_TickCount
     CheckGameTimeout(true)
@@ -2908,8 +3946,9 @@ StartBotLoop() {
             break
         ; Lab upgrade farming
         if !IsLabBusy() {
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            thresholdFrame := CaptureADBFrame(true)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY, thresholdFrame)
             LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
             if (elixirFilled && darkFilled) {
                 UpgradeLab()
@@ -2920,9 +3959,10 @@ StartBotLoop() {
             
         ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
         if CanUpgradeBuilding() {
-            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            thresholdFrame := CaptureADBFrame(true)
+            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY, thresholdFrame)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY, thresholdFrame)
             LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
             if (goldFilled && elixirFilled && darkFilled) {
                 UpgradeBuilding()
@@ -2936,17 +3976,17 @@ StartBotLoop() {
             break
         ; Step 1: Click the bottom-left "Attack" button (from Home Village)
         LogMessage("Step 1: Clicking Attack...")
-        ADBClickPoint(ADBAttackBtnX, ADBAttackBtnY)
+        ADBClickPoint(AttackBtnX, AttackBtnY)
         if !SafeSleep(800)
             break
         ; Step 2: Click the gold "Find a Match" button (from Multiplayer dialog)
         LogMessage("Step 2: Clicking Find a Match...")
-        ADBClickPoint(ADBFindMatchBtnX, ADBFindMatchBtnY)
+        ADBClickPoint(FindMatchBtnX, FindMatchBtnY)
         if !SafeSleep(1000) ; Wait for My Army dialog to open fully
             break
         ; Step 3: Click the green "Attack!" button (from My Army dialog)
         LogMessage("Step 3: Clicking Green Attack...")
-        ADBClickPoint(ADBAttackStartBtnX, ADBAttackStartBtnY)
+        ADBClickPoint(AttackStartBtnX, AttackStartBtnY)
         LogMessage("Waiting 7s for matchmaking transition...")
         if !SafeSleep(7000)
             break
@@ -2976,7 +4016,7 @@ StartBotLoop() {
         ; (Loot check moved to after ResetViewport so OCR runs on a calibrated view)
         ; Step 5: Choose a random side for the attack sequence
         sideIndex := Random(1, 4)
-        side := ADBSides[sideIndex]
+        side := Sides[sideIndex]
         lineStartX := side.startX
         lineStartY := side.startY
         lineEndX := side.endX
@@ -3008,7 +4048,7 @@ StartBotLoop() {
                     continue
                 }
                 LogMessage(Format("Farming: Loot too low (G:{}/E:{}). Skipping base...", gold, elixir))
-                ADBClickPoint(ADBNextMatchBtnX, ADBNextMatchBtnY)
+                ADBClickPoint(NextMatchBtnX, NextMatchBtnY)
                 if !SafeSleep(1500) ; Wait for cloud transition to start
                     break
                 goto WaitForClouds
@@ -3086,7 +4126,7 @@ StartBotLoop() {
         while !IsAtHomeVillage() {
             if !IsRunning
                 goto LoopExit
-            ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
+            ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
             if !SafeSleep(2000)
                 goto LoopExit
             ; Unconditionally click where the Star Bonus "Okay" button would be
@@ -3130,12 +4170,14 @@ IsTimerUp() {
 ; HELPER FUNCTIONS
 ; ==============================================================================
 ClearingClick() {
-    global TargetWindowTitle
-    Loop 3 {
-        RunADBTapAt(1700, 400)
-        Sleep 200
-    }
+    return FlowClearTap()
 }
+
+FlowClearTap() {
+    global ClearTapX, ClearTapY
+    return RunADBClearTapAt(ClearTapX, ClearTapY, 200)
+}
+
 SafeSleep(ms) {
     global IsRunning, IsBBRunning
     loopCount := ms // 100
@@ -3152,40 +4194,55 @@ SafeSleep(ms) {
     }
     return (IsRunning || IsBBRunning)
 }
+
+SafeFlowWait(intendedDelayMs) {
+    timing := GetADBActionTiming(intendedDelayMs)
+    if !SafeSleep(timing.PreDelay)
+        return false
+    jitter := Random(timing.JitterMin, timing.JitterMax)
+    return jitter == 0 ? true : SafeSleep(jitter)
+}
+
+RandomizedDelay(intendedDelayMs) {
+    timing := GetADBActionTiming(intendedDelayMs)
+    if (timing.PreDelay > 0)
+        Sleep(timing.PreDelay)
+    jitter := Random(timing.JitterMin, timing.JitterMax)
+    if (jitter > 0)
+        Sleep(jitter)
+}
+
 RandomADBClick(x, y, delta) {
-    return RunADBTapAt(Round(x) + RandomADBOffset(), Round(y) + RandomADBOffset())
+    return RunADBTapAt(Round(x), Round(y), 100)
 }
 ADBClickPoint(x, y, delta := "") {
-    RandomADBClick(x, y, delta)
-    Sleep 100
+    return RandomADBClick(x, y, delta)
 }
 ADBClickFraction(xRatio, yRatio, delta := "") {
-    display := GetADBDisplaySize()
-    ADBClickPoint(Round((display.width - 1) * xRatio), Round((display.height - 1) * yRatio), delta)
+    point := ClientViewportPointFromFraction(xRatio, yRatio)
+    return ADBClickPoint(point.x, point.y, delta)
 }
 ClientClickPoint(x, y, delta := "") {
-    point := ClientToADBPoint(x, y)
-    ADBClickPoint(point.x, point.y, delta)
+    return ADBClickPoint(x, y, delta)
 }
 SendKey(keyName) {
-    ready := EnsureADBActionReady()
-    if !ready.Ok
-        return false
-    keyCode := RegExMatch(keyName, "^\d$") ? "KEYCODE_" keyName : "KEYCODE_" StrUpper(keyName)
-    result := RunADB('-s ' QuoteADBArgument(ready.Serial) ' shell input keyevent ' keyCode)
-    if !result.Ok {
-        LogMessage("ADB key failed: " FormatADBResult(result))
+    try {
+        interaction := CreateLiveADBClientInteraction()
+        keyCode := RegExMatch(keyName, "^\d$") ? "KEYCODE_" keyName : "KEYCODE_" StrUpper(keyName)
+        WaitForADBActionPreDelay(100)
+        interaction.KeyEvent(keyCode, 100)
+        return true
+    } catch as err {
+        LogMessage("ADB key failed: " err.Message)
         return false
     }
-    Sleep 100
-    return true
 }
 DeployTroopLine(hotkeyName, clickCount, delayMs, startX, startY, endX, endY) {
-    global IsRunning, DeployDelta
+    global IsRunning
     if !IsRunning
         return
     SendKey(hotkeyName)
-    if !SafeSleep(150) ; Wait for selection state
+    if !SafeFlowWait(150)
         return
     Loop clickCount {
         if !IsRunning
@@ -3193,21 +4250,19 @@ DeployTroopLine(hotkeyName, clickCount, delayMs, startX, startY, endX, endY) {
         t := (clickCount > 1) ? (A_Index - 1) / (clickCount - 1) : 0
         rx := startX + t * (endX - startX)
         ry := startY + t * (endY - startY)
-        RandomADBClick(rx, ry, DeployDelta)
-        if !SafeSleep(delayMs)
+        if !RunADBTapAt(rx, ry, delayMs)
             break
     }
-    SafeSleep(300)
+    SafeFlowWait(300)
 }
 DeploySinglePoint(hotkeyName, x, y) {
-    global IsRunning, DeployDelta
+    global IsRunning
     if !IsRunning
         return
     SendKey(hotkeyName)
-    if !SafeSleep(350)
+    if !RunADBTapAt(x, y, 350)
         return
-    RandomADBClick(x, y, DeployDelta)
-    SafeSleep(150)
+    SafeFlowWait(150)
 }
 DeploySingleLine(hotkeyName, clickCount, startX, startY, endX, endY, clickDelay := 150) {
     global IsRunning, DeployDelta
@@ -3227,52 +4282,40 @@ DeploySingleLine(hotkeyName, clickCount, startX, startY, endX, endY, clickDelay 
             break
     }
 }
-ColorMatches(x, y, targetColorRGB, tolerance := 20) {
-    CoordMode "Pixel", "Client"
-    try {
-        color := PixelGetColor(x, y)
-        actualHex := Integer(color)
-        tr := (targetColorRGB >> 16) & 0xFF
-        tg := (targetColorRGB >> 8) & 0xFF
-        tb := targetColorRGB & 0xFF
-        ar := (actualHex >> 16) & 0xFF
-        ag := (actualHex >> 8) & 0xFF
-        ab := actualHex & 0xFF
-        diffR := Abs(tr - ar)
-        diffG := Abs(tg - ag)
-        diffB := Abs(tb - ab)
-        return (diffR <= tolerance) && (diffG <= tolerance) && (diffB <= tolerance)
-    }
-    catch {
-        return false
+
+DeployShiftedSpellLine(hotkeyName, clickCount, side, adbShiftPixels, clickDelay := 750) {
+    global IsRunning
+    if !IsRunning
+        return
+    SendKey(hotkeyName)
+    if !SafeFlowWait(750)
+        return
+    Loop clickCount {
+        if !IsRunning
+            return
+        t := clickCount > 1 ? (A_Index - 1) / (clickCount - 1) : 0.5
+        clientX := side.startX + t * (side.endX - side.startX)
+        clientY := side.startY + t * (side.endY - side.startY)
+        if !RunADBShiftedPlacementAt(
+            clientX,
+            clientY,
+            adbShiftPixels,
+            clickDelay
+        )
+            return
     }
 }
+
 IsGolden(x, y) {
-    global ADBBBStar3X, ADBBBStar3Y, BBStar3X
-    if (ADBBBStar3X > 0) {
-        if (x == BBStar3X)
-            return IsGoldenADB(ADBBBStar3X, ADBBBStar3Y)
-        adbPoint := ClientToADBPoint(x, y)
-        return IsGoldenADB(adbPoint.x, adbPoint.y)
-    }
     try {
-        c := PixelGetColor(x, y)
-        hx := Integer(c)
-        r := (hx >> 16) & 0xFF
-        g := (hx >> 8) & 0xFF
-        b := hx & 0xFF
-        return (r > 120) && (r > b + 40) && (g > b + 20)
-    } catch {
-        return false
-    }
-}
-IsGoldenADB(adbX, adbY) {
-    try {
+        framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
         offsetsX := [-7, -3, 0, 3, 7]
         offsetsY := [-7, -3, 0, 3, 7]
         for dx in offsetsX {
             for dy in offsetsY {
-                c := GetADBPixelColor(adbX + dx, adbY + dy)
+                c := GetADBFramePixelColor(framePath, x + dx, y + dy)
                 hx := Integer(c)
                 r := (hx >> 16) & 0xFF
                 g := (hx >> 8) & 0xFF
@@ -3287,49 +4330,10 @@ IsGoldenADB(adbX, adbY) {
     }
 }
 AreCloudsPresent() {
-    global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y, CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y, CloudGreyTolerance
-    greyCount := 0
-    pt1 := ClientToADBPoint(CloudPt1X, CloudPt1Y)
-    pt2 := ClientToADBPoint(CloudPt2X, CloudPt2Y)
-    pt3 := ClientToADBPoint(CloudPt3X, CloudPt3Y)
-    pt4 := ClientToADBPoint(CloudPt4X, CloudPt4Y)
-    if IsGreyADB(pt1.x, pt1.y, CloudGreyTolerance)
-        greyCount++
-    if IsGreyADB(pt2.x, pt2.y, CloudGreyTolerance)
-        greyCount++
-    if IsGreyADB(pt3.x, pt3.y, CloudGreyTolerance)
-        greyCount++
-    if IsGreyADB(pt4.x, pt4.y, CloudGreyTolerance)
-        greyCount++
-    return greyCount >= 3
-}
-IsGrey(x, y, tolerance := 15) {
-    CoordMode "Pixel", "Client"
-    try {
-        color := PixelGetColor(x, y)
-        actualHex := Integer(color)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return (r >= 120) && (Abs(r - g) <= tolerance) && (Abs(g - b) <= tolerance) && (Abs(r - b) <= tolerance)
-    }
-    catch {
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
         return false
-    }
-}
-IsBrown(x, y) {
-    CoordMode "Pixel", "Client"
-    try {
-        color := PixelGetColor(x, y)
-        actualHex := Integer(color)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return (r > g) && (g > b) && (r - b >= 30) && (g - b >= 10) && (r >= 70 && r <= 250)
-    }
-    catch {
-        return false
-    }
+    return AreCloudsPresentInADBFrame(framePath)
 }
 IsAttackBtnColor(r, g, b) {
     ; 1. Brown Wood Shield Background (e.g. RGB 140, 75, 30)
@@ -3339,57 +4343,33 @@ IsAttackBtnColor(r, g, b) {
     return isBrownWood || isTanMap
 }
 
-IsAttackBtnPresentADB(x, y) {
+IsAttackBtnPresentADB(x, y, framePath := "") {
     try {
-        c := GetADBPixelColor(x, y)
-        actualHex := Integer(c)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return IsAttackBtnColor(r, g, b)
-    } catch {
-        return false
-    }
-}
-
-IsAttackBtnPresentClient(x, y) {
-    CoordMode "Pixel", "Client"
-    try {
-        color := PixelGetColor(x, y)
-        actualHex := Integer(color)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return IsAttackBtnColor(r, g, b)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        return IsAttackButtonInADBFrame(framePath, x, y)
     } catch {
         return false
     }
 }
 
 IsAtHomeVillage() {
-    global ADBAttackBtnX, ADBAttackBtnY, AttackBtnX, AttackBtnY
-    if (ADBAttackBtnX > 0) {
-        isHome := IsAttackBtnPresentADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsAttackBtnPresentADB(ADBAttackBtnX + 45, ADBAttackBtnY)
-        if !isHome
-            return false
-        Sleep 300
-        isHome := IsAttackBtnPresentADB(ADBAttackBtnX - 45, ADBAttackBtnY) || IsAttackBtnPresentADB(ADBAttackBtnX + 45, ADBAttackBtnY)
-        if !isHome
-            return false
-        if !IsWarLogoPresent()
-            return false
-        return true
-    }
-    if !EnsureWindowActive()
+    firstFrame := CaptureADBFrame(true)
+    if !FileExist(firstFrame)
         return false
-    isHome := IsAttackBtnPresentClient(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentClient(AttackBtnX + 45, AttackBtnY)
+    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY, firstFrame) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY, firstFrame)
     if !isHome
         return false
     Sleep 300
-    isHome := IsAttackBtnPresentClient(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentClient(AttackBtnX + 45, AttackBtnY)
+    secondFrame := CaptureADBFrame(true)
+    if !FileExist(secondFrame)
+        return false
+    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY, secondFrame) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY, secondFrame)
     if !isHome
         return false
-    if !IsWarLogoPresent()
+    if !IsWarLogoPresent(secondFrame)
         return false
     return true
 }
@@ -3403,12 +4383,16 @@ IsWarLogoColor(r, g, b) {
     return isSilverSword || isBrownWood || isGoldFrame
 }
 
-IsWarLogoPresentADB(x, y) {
+IsWarLogoPresentADB(x, y, framePath := "") {
     ; Check center and 4 diagonal offset points (+/- 20px)
+    if (framePath = "")
+        framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
     offsets := [{x:0, y:0}, {x:-20, y:-20}, {x:20, y:-20}, {x:-20, y:20}, {x:20, y:20}]
     for pt in offsets {
         try {
-            c := GetADBPixelColor(x + pt.x, y + pt.y)
+            c := GetADBFramePixelColor(framePath, x + pt.x, y + pt.y)
             actualHex := Integer(c)
             r := (actualHex >> 16) & 0xFF
             g := (actualHex >> 8) & 0xFF
@@ -3420,42 +4404,17 @@ IsWarLogoPresentADB(x, y) {
     return false
 }
 
-IsWarLogoPresentClient(x, y) {
-    CoordMode "Pixel", "Client"
-    offsets := [{x:0, y:0}, {x:-20, y:-20}, {x:20, y:-20}, {x:-20, y:20}, {x:20, y:20}]
-    for pt in offsets {
-        try {
-            color := PixelGetColor(x + pt.x, y + pt.y)
-            actualHex := Integer(color)
-            r := (actualHex >> 16) & 0xFF
-            g := (actualHex >> 8) & 0xFF
-            b := actualHex & 0xFF
-            if IsWarLogoColor(r, g, b)
-                return true
-        }
-    }
-    return false
-}
-
-IsWarLogoPresent() {
-    global ADBWarLogoX, ADBWarLogoY, WarLogoX, WarLogoY, MVLogoX, MVLogoY
-    targetX := (ADBWarLogoX > 0) ? ADBWarLogoX : ((MVLogoX > 0) ? MVLogoX : WarLogoX)
-    targetY := (ADBWarLogoY > 0) ? ADBWarLogoY : ((MVLogoY > 0) ? MVLogoY : WarLogoY)
-    if (ADBWarLogoX > 0) {
-        return IsWarLogoPresentADB(targetX, targetY)
-    }
-    return IsWarLogoPresentClient(targetX, targetY)
+IsWarLogoPresent(framePath := "") {
+    targetX := (WarLogoX > 0) ? WarLogoX : ((MVLogoX > 0) ? MVLogoX : WarLogoX)
+    targetY := (WarLogoY > 0) ? WarLogoY : ((MVLogoY > 0) ? MVLogoY : WarLogoY)
+    return IsWarLogoPresentADB(targetX, targetY, framePath)
 }
 IsAtBuilderBase() {
-    global ADBBBAttackBtnX, ADBBBAttackBtnY, BBAttackBtnX, BBAttackBtnY
-    if (ADBBBAttackBtnX > 0) {
-        hasAttackBtn := IsAttackBtnPresentADB(ADBBBAttackBtnX - 45, ADBBBAttackBtnY) || IsAttackBtnPresentADB(ADBBBAttackBtnX + 45, ADBBBAttackBtnY)
-        return hasAttackBtn && !IsWarLogoPresent()
-    }
-    if !EnsureWindowActive()
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
         return false
-    hasAttackBtn := IsAttackBtnPresentClient(BBAttackBtnX - 45, BBAttackBtnY) || IsAttackBtnPresentClient(BBAttackBtnX + 45, BBAttackBtnY)
-    return hasAttackBtn && !IsWarLogoPresent()
+    hasAttackBtn := IsAttackBtnPresentADB(BBAttackBtnX - 45, BBAttackBtnY, framePath) || IsAttackBtnPresentADB(BBAttackBtnX + 45, BBAttackBtnY, framePath)
+    return hasAttackBtn && !IsWarLogoPresent(framePath)
 }
 DeployBBTroops(side, phase) {
     global DeployDelta, BBClickCount
@@ -3485,201 +4444,266 @@ DeployBBTroops(side, phase) {
     }
     LogMessage(Format("Phase {} troop deployment complete.", phase))
 }
-RunBuilderBaseLoop() {
-    global IsBBRunning, TransitionDelay, BattleLoadDelay, ReturnHomeClickX, ReturnHomeClickY, StartBtn, PauseBtn
-    global ADBBBAttackBtnX, ADBBBAttackBtnY, ADBBBFindMatchBtnX, ADBBBFindMatchBtnY, ADBBBSides
-    global ADBReturnHomeClickX, ADBReturnHomeClickY
-    LogMessage("--- Starting Builder Base Loop ---")
-    while IsBBRunning {
-        LogMessage("Step 1: Clicking BB Attack Button")
-        ADBClickPoint(ADBBBAttackBtnX, ADBBBAttackBtnY)
-        if !SafeSleep(TransitionDelay)
-            break
-        LogMessage("Step 2: Clicking BB Find Match")
-        ADBClickPoint(ADBBBFindMatchBtnX, ADBBBFindMatchBtnY)
-        if !SafeSleep(TransitionDelay)
-            break
-        LogMessage("Waiting 7s for matchmaking transition...")
-        if !SafeSleep(7000)
-            goto BBLoopExit
-        if AreCloudsPresent() {
-            LogMessage("Step 4: Waiting for battle to load...")
-            while AreCloudsPresent() {
-                if !SafeSleep(5000)
-                    goto BBLoopExit
-                CheckGameTimeout()
-            }
-        }
-        ; Deduct 10s from BattleLoadDelay to start faster, minimum 100ms
-        actualLoadDelay := (BattleLoadDelay > 10000) ? (BattleLoadDelay - 10000) : 100
-        if !SafeSleep(actualLoadDelay)
-            break
-        sideIdx := Random(1, 4)
-        chosenSide := ADBBBSides[sideIdx]
-        p1TimerEnd := A_TickCount + 130000 ; 2 minutes 10 seconds timer
-        LogMessage("Step 5: Picked Side " sideIdx " for BB deployment.")
-        ZoomOutBB()
-        DeployBBTroops(chosenSide, 1)
-        LogMessage("Step 6: Phase 1 battle running. Clicking Return Home every 15s, checking stars/village every 5s...")
-        threeStars := false
-        early3Stars := false
-        lastReturnHomeClick := A_TickCount - 15000 ; Force click on first pass
-        lastCheckTick := 0
-        while (A_TickCount < p1TimerEnd) {
-            if !IsBBRunning
-                goto BBLoopExit
-            
-            ; 1. Click Return Home location every 15 seconds
-            if (A_TickCount - lastReturnHomeClick >= 15000) {
-                LogMessage("Clicking Return Home location...")
-                ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-                lastReturnHomeClick := A_TickCount
-            }
-            
-            ; 2. Check status every 5 seconds
-            if (A_TickCount - lastCheckTick >= 5000) {
-                lastCheckTick := A_TickCount
-                CaptureADBFrame(true)
-                
-                if IsAtBuilderBase() {
-                    LogMessage("Returned to Builder Base during Phase 1.")
-                    break
-                }
-                if IsGolden(BBStar3X, BBStar3Y) {
-                    threeStars := true
-                    early3Stars := true
-                    LogMessage("Phase 1 cleared! 3 stars detected early!")
-                    break
-                }
-            }
-            
-            if !SafeSleep(200)
-                goto BBLoopExit
-        }
-        
-        ; Fallback: If 2m 10s timer expired while still in battle and not back at village, Phase 2 is ready
-        if (!threeStars && !IsAtBuilderBase() && A_TickCount >= p1TimerEnd) {
-            threeStars := true
-            LogMessage("Phase 1 2m 10s timer expired! Troops walked to Stage 2, starting Phase 2.")
-        }
-
-        if threeStars {
-            if early3Stars {
-                LogMessage("Step 7: Early 3 stars detected! Waiting 6s for stage transition...")
-                if !SafeSleep(6000)
-                    goto BBLoopExit
-            } else {
-                LogMessage("Step 7: 2m 10s timer reached! Stage 2 ready, deploying Phase 2 immediately...")
-            }
-            
-            LogMessage("Step 7.5: Phase 2 deployment starting on Side " sideIdx)
-            ZoomOutBB()
-            DeployBBTroops(chosenSide, 2)
-            
-            LogMessage("Step 8: Phase 2 battle running. Clicking Return Home every 15s until village...")
-            p2StartTime := A_TickCount
-            p2LastReturnHomeClick := A_TickCount - 15000 ; Force click on first pass
-            p2LastCheckTick := 0
-            while ((A_TickCount - p2StartTime) < 180000) { ; 3 minutes max for Phase 2
-                if !IsBBRunning
-                    goto BBLoopExit
-                
-                ; 1. Click Return Home location every 15 seconds
-                if (A_TickCount - p2LastReturnHomeClick >= 15000) {
-                    LogMessage("Clicking Return Home location...")
-                    ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-                    p2LastReturnHomeClick := A_TickCount
-                }
-                
-                ; 2. Check village status every 5 seconds
-                if (A_TickCount - p2LastCheckTick >= 5000) {
-                    p2LastCheckTick := A_TickCount
-                    CaptureADBFrame(true)
-                    
-                    if IsAtBuilderBase() {
-                        LogMessage("Returned to Builder Base during Phase 2.")
-                        break
-                    }
-                }
-                
-                if !SafeSleep(200)
-                    goto BBLoopExit
-            }
-        }
-        LogMessage("Step 9: Battle Over. Clicking Return Home.")
-        ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-        if !SafeSleep(5000)
-            goto BBLoopExit
-        LogMessage("Step 10: Waiting to return to Builder Base...")
-        if !SafeSleep(2000)
-            break
-        while !IsAtBuilderBase() {
-            if !IsBBRunning
-                goto BBLoopExit
-            ADBClickPoint(ADBReturnHomeClickX, ADBReturnHomeClickY)
-            if !SafeSleep(2000)
-                goto BBLoopExit
-            ; Unconditionally click where the Star Bonus "Okay" button would be
-            WinGetClientPos ,, &cw, &ch, TargetWindowTitle
-            if (cw && ch) {
-                ADBClickFraction(0.5, 0.77)
-                SafeSleep(400)
-            }
-            ; Dismiss Star Bonus or other post-battle popup screens
-            ClearingClick()
-            if IsAtBuilderBase()
-                break
-            CheckGameTimeout()
-            if !SafeSleep(Random(12000, 14000))
-                goto BBLoopExit
-        }
-        LogMessage("Returned to Builder Base. Reloading loop...")
-        if !SafeSleep(2000)
-            break
+class LiveBuilderBasePrimitives {
+    __New() {
+        this.DeploymentPhase := 0
     }
-BBLoopExit:
-    LogMessage("--- Builder Base Loop Stopped ---")
-    IsBBRunning := false
-    StatusText.Value := "Status: Stopped"
-    StartBtn.Enabled := true
-    PauseBtn.Enabled := false
+
+    Do(name, args*) {
+        switch name {
+            case "log":
+                LogMessage(args[1])
+                return true
+            case "is_builder_running":
+                global IsBBRunning
+                return IsBBRunning
+            case "tap_builder_attack":
+                global BBAttackBtnX, BBAttackBtnY
+                this.DeploymentPhase := 0
+                return RunADBTapAt(BBAttackBtnX, BBAttackBtnY, 300)
+            case "tap_builder_find_match":
+                global BBFindMatchBtnX, BBFindMatchBtnY
+                return RunADBTapAt(BBFindMatchBtnX, BBFindMatchBtnY, 500)
+            case "wait":
+                return SafeSleep(args[1])
+            case "prepare_builder_viewport":
+                ZoomOutBB()
+                return true
+            case "random_builder_side":
+                global BBSides
+                if (BBSides.Length == 0)
+                    throw Error("No calibrated Builder Base deployment sides exist.")
+                return Random(1, BBSides.Length)
+            case "deploy_builder_troops":
+                global BBSides
+                sideIndex := args[1]
+                if (sideIndex < 1 || sideIndex > BBSides.Length)
+                    throw Error("Builder Base deployment side is invalid.")
+                this.DeploymentPhase := this.DeploymentPhase == 1 ? 2 : 1
+                DeployBBTroops(
+                    BBSides[sideIndex],
+                    this.DeploymentPhase
+                )
+                return true
+            case "capture_builder_frame":
+                return CaptureLiveBuilderBaseFrame(args[1])
+            case "analyze_builder_three_stars":
+                return AnalyzeLiveBuilderBaseThreeStars(args[1])
+            case "tap_return_home":
+                global ReturnHomeClickX, ReturnHomeClickY
+                return RunADBTapAt(
+                    ReturnHomeClickX,
+                    ReturnHomeClickY,
+                    300
+                )
+            case "detect_builder_home_from_frame":
+                return DetectLiveBuilderBaseHome(args[1])
+            case "complete_global_cycle":
+                return CompleteLiveGlobalCycle(args[1])
+        }
+        throw Error("Unknown live Builder Base operation: " name)
+    }
+}
+
+CaptureLiveBuilderBaseFrame(section) {
+    if (section == "")
+        throw Error("A Builder Base capture section is required.")
+    framePath := CaptureADBFrame(true)
+    if !IsLiveBuilderBasePNG(framePath) {
+        LogMessage(
+            "Fresh Builder Base " section
+                " frame was invalid; retrying synchronously."
+        )
+        return false
+    }
+    return {
+        valid: true,
+        path: framePath,
+        section: section,
+        capturedAt: A_TickCount
+    }
+}
+
+IsLiveBuilderBasePNG(framePath) {
+    if (framePath == "" || !FileExist(framePath) || FileGetSize(framePath) < 8)
+        return false
+    file := FileOpen(framePath, "r")
+    if !IsObject(file)
+        return false
+    expected := [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    try {
+        Loop 8 {
+            if (file.ReadUChar() != expected[A_Index])
+                return false
+        }
+        return true
+    } finally {
+        file.Close()
+    }
+}
+
+AnalyzeLiveBuilderBaseThreeStars(frame) {
+    global BBStar1X, BBStar1Y, BBStar2X, BBStar2Y, BBStar3X, BBStar3Y
+    if !IsObject(frame) || !frame.HasOwnProp("path")
+        return false
+    if !IsLiveBuilderBasePNG(frame.path)
+        return false
+
+    stars := [
+        {x: BBStar1X, y: BBStar1Y},
+        {x: BBStar2X, y: BBStar2Y},
+        {x: BBStar3X, y: BBStar3Y}
+    ]
+    InitGDIPlus()
+    bitmap := 0
+    if DllCall(
+        "gdiplus\GdipCreateBitmapFromFile",
+        "wstr",
+        frame.path,
+        "ptr*",
+        &bitmap
+    ) != 0
+        return false
+
+    goldenCount := 0
+    try {
+        for index, star in stars {
+            adbPoint := ClientToADBPoint(star.x, star.y)
+            isGolden := IsLiveBuilderBaseGoldenStar(
+                bitmap,
+                adbPoint.x,
+                adbPoint.y
+            )
+            if isGolden
+                goldenCount += 1
+            centerColor := ReadLiveBuilderBasePixel(
+                bitmap,
+                adbPoint.x,
+                adbPoint.y
+            )
+            LogMessage(
+                "Builder Base star " index ": #"
+                    Format("{:06X}", centerColor) " at ADB("
+                    adbPoint.x "," adbPoint.y ") "
+                    (isGolden ? "GOLD" : "BRONZE") "."
+            )
+        }
+    } finally {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", bitmap)
+    }
+    LogMessage("Builder Base star analysis: " goldenCount "/3 gold.")
+    return goldenCount == 3
+}
+
+IsLiveBuilderBaseGoldenStar(bitmap, centerX, centerY) {
+    for dx in [-7, -3, 0, 3, 7] {
+        for dy in [-7, -3, 0, 3, 7] {
+            color := ReadLiveBuilderBasePixel(
+                bitmap,
+                centerX + dx,
+                centerY + dy
+            )
+            if IsLiveBuilderBaseGoldenColor(color)
+                return true
+        }
+    }
+    return false
+}
+
+IsLiveBuilderBaseGoldenColor(color) {
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+    return (r > 130) && (g > 100)
+        && (r > b + 15) && (g > b - 30)
+}
+
+ReadLiveBuilderBasePixel(bitmap, x, y) {
+    color := 0
+    status := DllCall(
+        "gdiplus\GdipBitmapGetPixel",
+        "ptr",
+        bitmap,
+        "int",
+        Round(x),
+        "int",
+        Round(y),
+        "uint*",
+        &color
+    )
+    if (status != 0)
+        return 0
+    return color & 0xFFFFFF
+}
+
+DetectLiveBuilderBaseHome(frame) {
+    if !IsObject(frame) || !frame.HasOwnProp("path")
+        return false
+    if !IsLiveBuilderBasePNG(frame.path)
+        return false
+    return DetectVillageFromADBFrame(frame.path) == "builder"
+}
+
+RunBuilderBaseLoop() {
+    global IsRunning, IsBBRunning, StatusText, StartBtn, PauseBtn
+    LogMessage("--- Starting Builder Base Loop ---")
+    try {
+        flow := BuilderBaseFlow(LiveBuilderBasePrimitives())
+        flow.RunLoop()
+    } catch as err {
+        LogMessage(
+            "Builder Base loop failed: " err.Message
+                " | " err.File ":" err.Line
+        )
+    } finally {
+        LogMessage("--- Builder Base Loop Stopped ---")
+        IsBBRunning := false
+        if !IsRunning {
+            StatusText.Value := "Status: Stopped"
+            StartBtn.Enabled := true
+            PauseBtn.Enabled := false
+        } else {
+            LogMessage("Builder Base flow handed control to Main Village.")
+        }
+    }
 }
 ResetViewport() {
     global IsRunning, IsCalibrating
-    display := GetADBDisplaySize()
+    viewport := GetADBClientViewportRect()
     LogMessage("Viewport: Sending ADB focus tap inside the Android display...")
     ADBClickFraction(0.8, 0.3)
-    Sleep 300
+    RandomizedDelay(300)
     LogMessage("Viewport: Zooming all the way out...")
-    RunADBPinchAt(display.width // 2, display.height // 2)
-    Sleep 300
+    RunADBPinchAt(viewport.x + viewport.width // 2, viewport.y + viewport.height // 2, 300)
+    RandomizedDelay(300)
     LogMessage("Viewport: Scrolling to top-left corner...")
     Loop 6 {
         if !IsRunning && !IsCalibrating
             break
         RunADBSwipeAt(
-            Round(display.width * 0.25), Round(display.height * 0.25),
-            Round(display.width * 0.75), Round(display.height * 0.75),
-            RandomADBDuration()
+            Round(viewport.x + viewport.width * 0.25), Round(viewport.y + viewport.height * 0.25),
+            Round(viewport.x + viewport.width * 0.75), Round(viewport.y + viewport.height * 0.75),
+            200,
+            100
         )
-        Sleep 100
+        RandomizedDelay(100)
     }
-    Sleep 300
+    RandomizedDelay(300)
 }
 ZoomOutBB() {
-    display := GetADBDisplaySize()
+    viewport := GetADBClientViewportRect()
     LogMessage("Viewport: Zooming all the way out for Builder Base...")
-    RunADBPinchAt(display.width // 2, display.height // 2)
-    Sleep 300
+    RunADBPinchAt(viewport.x + viewport.width // 2, viewport.y + viewport.height // 2, 300)
+    RandomizedDelay(300)
 }
 ShowToolTip(message) {
     ToolTip message
     SetTimer () => ToolTip(), -3000
 }
 ShiftPointTowardsCenter(x, y, shiftDist := 250) {
-    display := GetADBDisplaySize()
-    cx := display.width // 2
-    cy := display.height // 2
+    viewport := GetADBClientViewportRect()
+    cx := viewport.x + viewport.width // 2
+    cy := viewport.y + viewport.height // 2
     dx := cx - x
     dy := cy - y
     dist := Sqrt(dx*dx + dy*dy)
@@ -3695,7 +4719,7 @@ ShiftPointTowardsCenter(x, y, shiftDist := 250) {
 ; ==============================================================================
 #HotIf IsCalibrating
 Space:: {
-    global CalibStep, IsCalibrating, CollectorCoords, ADBCollectorCoords, IsWaitingForReset
+    global CalibStep, IsCalibrating, CollectorCoords, IsWaitingForReset
     global PendingViewportLeft, PendingViewportTop
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
     global ADBViewportClientWidth, ADBViewportClientHeight, ADBViewportProvider, ADBViewportSerial
@@ -3708,6 +4732,7 @@ Space:: {
     global DarkElixirBarThreshX, DarkElixirBarThreshY, GoldBarThreshX, GoldBarThreshY, ElixirBarThreshX, ElixirBarThreshY
     global GoldAreaX, GoldAreaY, GoldAreaW, GoldAreaH
     global ElixirAreaX, ElixirAreaY, ElixirAreaW, ElixirAreaH
+    global GoldIconX, GoldIconY, ElixirIconX, ElixirIconY
     global NextMatchBtnX, NextMatchBtnY
     global UpgradeMoreBtnX, UpgradeMoreBtnY, AddWall1X, AddWall1Y, RemoveWallX, RemoveWallY, GoldUpgradeX, GoldUpgradeY, ElixirUpgradeX, ElixirUpgradeY
     global Side1StartX, Side1StartY, Side1EndX, Side1EndY
@@ -3715,14 +4740,6 @@ Space:: {
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
     global Sides
-    global ADBDarkElixirBarThreshX, ADBDarkElixirBarThreshY, ADBElixirBarThreshX, ADBElixirBarThreshY, ADBGoldBarThreshX, ADBGoldBarThreshY
-    global ADBBuilderFaceX, ADBBuilderFaceY, ADBBuilderMenuBottomX, ADBBuilderMenuBottomY, ADBLabFaceX, ADBLabFaceY, ADBUpgradeMoreBtnX, ADBUpgradeMoreBtnY
-    global ADBAddWall1X, ADBAddWall1Y, ADBRemoveWallX, ADBRemoveWallY, ADBGoldUpgradeX, ADBGoldUpgradeY, ADBElixirUpgradeX, ADBElixirUpgradeY
-    global ADBUpgradeConfirmX, ADBUpgradeConfirmY, ADBWarLogoX, ADBWarLogoY, ADBAttackBtnX, ADBAttackBtnY
-    global ADBFindMatchBtnX, ADBFindMatchBtnY, ADBAttackStartBtnX, ADBAttackStartBtnY, ADBGoldAreaX, ADBGoldAreaY, ADBElixirAreaX, ADBElixirAreaY
-    global ADBNextMatchBtnX, ADBNextMatchBtnY, ADBReturnHomeClickX, ADBReturnHomeClickY
-    global ADBSide1StartX, ADBSide1StartY, ADBSide1EndX, ADBSide1EndY, ADBSide2StartX, ADBSide2StartY, ADBSide2EndX, ADBSide2EndY
-    global ADBSide3StartX, ADBSide3StartY, ADBSide3EndX, ADBSide3EndY, ADBSide4StartX, ADBSide4StartY, ADBSide4EndX, ADBSide4EndY
     if IsWaitingForReset
         return
     CoordMode "Mouse", "Client"
@@ -3730,7 +4747,6 @@ Space:: {
         LogMessage("Calibration Error: Target window not found.")
         return
     }
-    WinActivate(TargetWindowTitle)
     WinGetClientPos ,, &clientWidth, &clientHeight, TargetWindowTitle
     MouseGetPos &mx, &my
     if (CalibStep == 1) {
@@ -3761,143 +4777,130 @@ Space:: {
         ADBViewportProvider := ADBProvider
         ADBViewportSerial := GetSelectedADBSerial()
         ADBViewportVersion := ADB_VIEWPORT_VERSION
+        try {
+            display := GetADBDisplaySize()
+            ConfigureADBClientMapping(
+                ADBViewportLeft,
+                ADBViewportTop,
+                ADBViewportRight,
+                ADBViewportBottom,
+                display.width,
+                display.height,
+                clientWidth,
+                clientHeight,
+                ADBViewportProvider,
+                ADBViewportSerial
+            )
+        } catch as err {
+            InvalidateADBViewport()
+            LogMessage("Calibration Error: could not cache client-to-ADB scale: " err.Message)
+            ShowToolTip("ADB scale could not be cached. Repeat viewport calibration.")
+            CalibStep := 1
+            UpdateCalibrationUI()
+            return
+        }
         LogMessage(Format("Calibrated Android viewport: ({}, {})-({}, {}) within client {}x{}.",
             ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom, clientWidth, clientHeight))
         CalibStep := 3
         UpdateCalibrationUI()
         return
     }
-    ; Store true Android-display coordinates, never desktop screen coordinates.
-    adbPoint := ClientToADBPoint(mx, my)
-    msx := adbPoint.x
-    msy := adbPoint.y
+    ; Store client-relative coordinates only; ADB translation occurs at each read/input boundary.
     switch CalibStep {
         case 3:
             DarkElixirBarThreshX := mx
             DarkElixirBarThreshY := my
-            ADBDarkElixirBarThreshX := msx
-            ADBDarkElixirBarThreshY := msy
             LogMessage(Format("Calibrated Dark Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 4
             UpdateCalibrationUI()
         case 4:
             ElixirBarThreshX := mx
             ElixirBarThreshY := my
-            ADBElixirBarThreshX := msx
-            ADBElixirBarThreshY := msy
             LogMessage(Format("Calibrated Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 5
             UpdateCalibrationUI()
         case 5:
             GoldBarThreshX := mx
             GoldBarThreshY := my
-            ADBGoldBarThreshX := msx
-            ADBGoldBarThreshY := msy
             LogMessage(Format("Calibrated Gold Bar Thresh: {}, {}", mx, my))
             CalibStep := 6
             UpdateCalibrationUI()
         case 6:
             BuilderFaceX := mx
             BuilderFaceY := my
-            ADBBuilderFaceX := msx
-            ADBBuilderFaceY := msy
             LogMessage(Format("Calibrated Builder Face: {}, {}", mx, my))
             CalibStep := 7
             UpdateCalibrationUI()
         case 7:
             BuilderMenuBottomX := mx
             BuilderMenuBottomY := my
-            ADBBuilderMenuBottomX := msx
-            ADBBuilderMenuBottomY := msy
             LogMessage(Format("Calibrated Builder Menu Bottom: {}, {}", mx, my))
             CalibStep := 8
             UpdateCalibrationUI()
         case 8:
             LabFaceX := mx
             LabFaceY := my
-            ADBLabFaceX := msx
-            ADBLabFaceY := msy
             LogMessage(Format("Calibrated Lab Face: {}, {}", mx, my))
             CalibStep := 9
             UpdateCalibrationUI()
         case 9:
             UpgradeMoreBtnX := mx
             UpgradeMoreBtnY := my
-            ADBUpgradeMoreBtnX := msx
-            ADBUpgradeMoreBtnY := msy
             LogMessage(Format("Calibrated Upgrade More Btn: {}, {}", mx, my))
             CalibStep := 10
             UpdateCalibrationUI()
         case 10:
             AddWall1X := mx
             AddWall1Y := my
-            ADBAddWall1X := msx
-            ADBAddWall1Y := msy
             LogMessage(Format("Calibrated Add Wall1: {}, {}", mx, my))
             CalibStep := 11
             UpdateCalibrationUI()
         case 11:
             RemoveWallX := mx
             RemoveWallY := my
-            ADBRemoveWallX := msx
-            ADBRemoveWallY := msy
             LogMessage(Format("Calibrated Remove Wall1: {}, {}", mx, my))
             CalibStep := 12
             UpdateCalibrationUI()
         case 12:
             GoldUpgradeX := mx
             GoldUpgradeY := my
-            ADBGoldUpgradeX := msx
-            ADBGoldUpgradeY := msy
             LogMessage(Format("Calibrated Gold Upgrade: {}, {}", mx, my))
             CalibStep := 13
             UpdateCalibrationUI()
         case 13:
             ElixirUpgradeX := mx
             ElixirUpgradeY := my
-            ADBElixirUpgradeX := msx
-            ADBElixirUpgradeY := msy
             LogMessage(Format("Calibrated Elixir Upgrade: {}, {}", mx, my))
             CalibStep := 14
             UpdateCalibrationUI()
         case 14:
             UpgradeConfirmX := mx
             UpgradeConfirmY := my
-            ADBUpgradeConfirmX := msx
-            ADBUpgradeConfirmY := msy
             LogMessage(Format("Calibrated Upgrade Confirm: {}, {}", mx, my))
             CalibStep := 15
             UpdateCalibrationUI()
         case 15:
             WarLogoX := mx
             WarLogoY := my
-            ADBWarLogoX := msx
-            ADBWarLogoY := msy
-            WarLogoColor := PixelGetColor(mx, my)
+            WarLogoColor := GetADBPixelColor(mx, my, true)
             LogMessage(Format("Calibrated War Logo: {}, {} (Color: {})", mx, my, WarLogoColor))
             CalibStep := 16
             UpdateCalibrationUI()
         case 16:
             AttackBtnX := mx
             AttackBtnY := my
-            ADBAttackBtnX := msx
-            ADBAttackBtnY := msy
             LogMessage(Format("Calibrated Attack Btn: {}, {}", mx, my))
             CalibStep := 17
             UpdateCalibrationUI()
         case 17:
             FindMatchBtnX := mx
             FindMatchBtnY := my
-            ADBFindMatchBtnX := msx
-            ADBFindMatchBtnY := msy
             LogMessage(Format("Calibrated Find Match Btn: {}, {}", mx, my))
             CalibStep := 18
             UpdateCalibrationUI()
         case 18:
             AttackStartBtnX := mx
             AttackStartBtnY := my
-            ADBAttackStartBtnX := msx
-            ADBAttackStartBtnY := msy
             LogMessage(Format("Calibrated Attack Start Btn: {}, {}", mx, my))
             CalibStep := 19
             UpdateCalibrationUI()
@@ -3906,9 +4909,6 @@ Space:: {
             GoldIconY := my
             GoldAreaX := mx + LootCropOffsetX
             GoldAreaY := my + LootCropOffsetY
-            adbArea := ClientToADBPoint(GoldAreaX, GoldAreaY)
-            ADBGoldAreaX := adbArea.x
-            ADBGoldAreaY := adbArea.y
             GoldAreaW := LootCropW
             GoldAreaH := LootCropH
             LogMessage(Format("Calibrated Gold Coin Symbol: {}, {}", mx, my))
@@ -3919,9 +4919,6 @@ Space:: {
             ElixirIconY := my
             ElixirAreaX := mx + LootCropOffsetX
             ElixirAreaY := my + LootCropOffsetY
-            adbArea := ClientToADBPoint(ElixirAreaX, ElixirAreaY)
-            ADBElixirAreaX := adbArea.x
-            ADBElixirAreaY := adbArea.y
             ElixirAreaW := LootCropW
             ElixirAreaH := LootCropH
             LogMessage(Format("Calibrated Elixir Drop Symbol: {}, {}", mx, my))
@@ -3930,72 +4927,54 @@ Space:: {
         case 21:
             NextMatchBtnX := mx
             NextMatchBtnY := my
-            ADBNextMatchBtnX := msx
-            ADBNextMatchBtnY := msy
             LogMessage(Format("Calibrated Next Match Btn: {}, {}", mx, my))
             CalibStep := 22
             UpdateCalibrationUI()
         case 22:
             Side1StartX := mx
             Side1StartY := my
-            ADBSide1StartX := msx
-            ADBSide1StartY := msy
             LogMessage(Format("Calibrated Side1 Start: {}, {}", mx, my))
             CalibStep := 23
             UpdateCalibrationUI()
         case 23:
             Side1EndX := mx
             Side1EndY := my
-            ADBSide1EndX := msx
-            ADBSide1EndY := msy
             LogMessage(Format("Calibrated Side1 End: {}, {}", mx, my))
             CalibStep := 24
             UpdateCalibrationUI()
         case 24:
             Side2StartX := mx
             Side2StartY := my
-            ADBSide2StartX := msx
-            ADBSide2StartY := msy
             LogMessage(Format("Calibrated Side2 Start: {}, {}", mx, my))
             CalibStep := 25
             UpdateCalibrationUI()
         case 25:
             Side2EndX := mx
             Side2EndY := my
-            ADBSide2EndX := msx
-            ADBSide2EndY := msy
             LogMessage(Format("Calibrated Side2 End: {}, {}", mx, my))
             CalibStep := 26
             UpdateCalibrationUI()
         case 26:
             Side3StartX := mx
             Side3StartY := my
-            ADBSide3StartX := msx
-            ADBSide3StartY := msy
             LogMessage(Format("Calibrated Side3 Start: {}, {}", mx, my))
             CalibStep := 27
             UpdateCalibrationUI()
         case 27:
             Side3EndX := mx
             Side3EndY := my
-            ADBSide3EndX := msx
-            ADBSide3EndY := msy
             LogMessage(Format("Calibrated Side3 End: {}, {}", mx, my))
             CalibStep := 28
             UpdateCalibrationUI()
         case 28:
             Side4StartX := mx
             Side4StartY := my
-            ADBSide4StartX := msx
-            ADBSide4StartY := msy
             LogMessage(Format("Calibrated Side4 Start: {}, {}", mx, my))
             CalibStep := 29
             UpdateCalibrationUI()
         case 29:
             Side4EndX := mx
             Side4EndY := my
-            ADBSide4EndX := msx
-            ADBSide4EndY := msy
             LogMessage(Format("Calibrated Side4 End: {}, {}", mx, my))
             ; Reconstruct the Sides array
             Sides := [
@@ -4010,9 +4989,7 @@ Space:: {
         case 30:
             ReturnHomeClickX := mx
             ReturnHomeClickY := my
-            ADBReturnHomeClickX := msx
-            ADBReturnHomeClickY := msy
-            ReturnHomeClickColor := PixelGetColor(mx, my)
+            ReturnHomeClickColor := GetADBPixelColor(mx, my, true)
             LogMessage(Format("Calibrated Return Home Click: {}, {} (Color: {})", mx, my, ReturnHomeClickColor))
             ; Auto-calculate cloud points inside the Android viewport, excluding emulator chrome.
             if (ADBViewportRight > ADBViewportLeft && ADBViewportBottom > ADBViewportTop) {
@@ -4031,12 +5008,10 @@ Space:: {
             }
             ; Reset dynamic arrays before the final collector step.
             CollectorCoords := []
-            ADBCollectorCoords := []
             CalibStep := 31
             UpdateCalibrationUI()
         case 31:
             CollectorCoords.Push({x: mx, y: my})
-            ADBCollectorCoords.Push({x: msx, y: msy})
             LogMessage(Format("Added Resource Collector #{}: {}, {}", CollectorCoords.Length, mx, my))
             UpdateCalibrationUI()
     }
@@ -4061,62 +5036,42 @@ Space:: {
     global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
     global BBSides
     global TargetWindowTitle
-    global ADBBBAttackBtnX, ADBBBAttackBtnY, ADBBBFindMatchBtnX, ADBBBFindMatchBtnY
-    global ADBBBStar1X, ADBBBStar1Y, ADBBBStar2X, ADBBBStar2Y, ADBBBStar3X, ADBBBStar3Y
-    global ADBBBSide1StartX, ADBBBSide1StartY, ADBBBSide1EndX, ADBBBSide1EndY
-    global ADBBBSide2StartX, ADBBBSide2StartY, ADBBBSide2EndX, ADBBBSide2EndY
-    global ADBBBSide3StartX, ADBBBSide3StartY, ADBBBSide3EndX, ADBBBSide3EndY
-    global ADBBBSide4StartX, ADBBBSide4StartY, ADBBBSide4EndX, ADBBBSide4EndY
     CoordMode "Mouse", "Client"
     if !WinExist(TargetWindowTitle) {
         LogMessage("Calibration Error: Target window not found.")
         return
     }
-    WinActivate(TargetWindowTitle)
     MouseGetPos &mx, &my
-    ; Store true Android-display coordinates, never desktop screen coordinates.
-    adbPoint := ClientToADBPoint(mx, my)
-    msx := adbPoint.x
-    msy := adbPoint.y
+    ; Store client-relative coordinates only; ADB translation occurs at each read/input boundary.
     switch BBCalibStep {
         case 1:
             BBAttackBtnX := mx
             BBAttackBtnY := my
-            ADBBBAttackBtnX := msx
-            ADBBBAttackBtnY := msy
             LogMessage(Format("Calibrated BB Attack Button: {}, {}", mx, my))
             BBCalibStep := 2
             UpdateBBCalibrationUI()
         case 2:
             BBFindMatchBtnX := mx
             BBFindMatchBtnY := my
-            ADBBBFindMatchBtnX := msx
-            ADBBBFindMatchBtnY := msy
             LogMessage(Format("Calibrated BB Find Match Button: {}, {}", mx, my))
             BBCalibStep := 3
             UpdateBBCalibrationUI()
         case 3:
             BBStar1X := mx
             BBStar1Y := my
-            ADBBBStar1X := msx
-            ADBBBStar1Y := msy
-            BBStarColor := PixelGetColor(mx, my)
+            BBStarColor := GetADBPixelColor(mx, my, true)
             LogMessage(Format("Calibrated Star 1: {}, {} (Color: {})", mx, my, BBStarColor))
             BBCalibStep := 4
             UpdateBBCalibrationUI()
         case 4:
             BBStar2X := mx
             BBStar2Y := my
-            ADBBBStar2X := msx
-            ADBBBStar2Y := msy
             LogMessage(Format("Calibrated Star 2: {}, {}", mx, my))
             BBCalibStep := 5
             UpdateBBCalibrationUI()
         case 5:
             BBStar3X := mx
             BBStar3Y := my
-            ADBBBStar3X := msx
-            ADBBBStar3Y := msy
             LogMessage(Format("Calibrated Star 3: {}, {}", mx, my))
             ; Automatically zoom out for Builder Base sides calibration
             ZoomOutBB()
@@ -4125,64 +5080,48 @@ Space:: {
         case 6:
             BBSide1StartX := mx
             BBSide1StartY := my
-            ADBBBSide1StartX := msx
-            ADBBBSide1StartY := msy
             LogMessage(Format("Calibrated BB Side 1 Start: {}, {}", mx, my))
             BBCalibStep := 7
             UpdateBBCalibrationUI()
         case 7:
             BBSide1EndX := mx
             BBSide1EndY := my
-            ADBBBSide1EndX := msx
-            ADBBBSide1EndY := msy
             LogMessage(Format("Calibrated BB Side 1 End: {}, {}", mx, my))
             BBCalibStep := 8
             UpdateBBCalibrationUI()
         case 8:
             BBSide2StartX := mx
             BBSide2StartY := my
-            ADBBBSide2StartX := msx
-            ADBBBSide2StartY := msy
             LogMessage(Format("Calibrated BB Side 2 Start: {}, {}", mx, my))
             BBCalibStep := 9
             UpdateBBCalibrationUI()
         case 9:
             BBSide2EndX := mx
             BBSide2EndY := my
-            ADBBBSide2EndX := msx
-            ADBBBSide2EndY := msy
             LogMessage(Format("Calibrated BB Side 2 End: {}, {}", mx, my))
             BBCalibStep := 10
             UpdateBBCalibrationUI()
         case 10:
             BBSide3StartX := mx
             BBSide3StartY := my
-            ADBBBSide3StartX := msx
-            ADBBBSide3StartY := msy
             LogMessage(Format("Calibrated BB Side 3 Start: {}, {}", mx, my))
             BBCalibStep := 11
             UpdateBBCalibrationUI()
         case 11:
             BBSide3EndX := mx
             BBSide3EndY := my
-            ADBBBSide3EndX := msx
-            ADBBBSide3EndY := msy
             LogMessage(Format("Calibrated BB Side 3 End: {}, {}", mx, my))
             BBCalibStep := 12
             UpdateBBCalibrationUI()
         case 12:
             BBSide4StartX := mx
             BBSide4StartY := my
-            ADBBBSide4StartX := msx
-            ADBBBSide4StartY := msy
             LogMessage(Format("Calibrated BB Side 4 Start: {}, {}", mx, my))
             BBCalibStep := 13
             UpdateBBCalibrationUI()
         case 13:
             BBSide4EndX := mx
             BBSide4EndY := my
-            ADBBBSide4EndX := msx
-            ADBBBSide4EndY := msy
             LogMessage(Format("Calibrated BB Side 4 End: {}, {}", mx, my))
             ; Reconstruct the BBSides array
             BBSides := [
@@ -4206,6 +5145,36 @@ Esc:: {
 #HotIf
 #HotIf !IsCalibrating && !IsBBCalibrating
 UnifiedStart() {
+    global IsRunning, IsBBRunning, TimerDurationMs, TimerStartTick
+    global SessionCompletedAttacks
+    global DDHours, DDMinutes, StatusText
+    if (IsRunning || IsBBRunning) {
+        LogMessage("Start ignored: bot is already running. Use Pause (F2) to stop it.")
+        return
+    }
+
+    try {
+        hours := Integer(DDHours.Text)
+        minutes := Integer(DDMinutes.Text)
+        TimerDurationMs := (hours * 3600 + minutes * 60) * 1000
+        TimerStartTick := 0
+        SessionCompletedAttacks := 0
+        state := {
+            timerMs: TimerDurationMs,
+            mainCalibrated: true,
+            builderCalibrated: true
+        }
+        operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
+        ADBRefactorFlowAPI.RunStartup(operations, state)
+    } catch as err {
+        IsRunning := false
+        IsBBRunning := false
+        StatusText.Value := "Status: Start Failed"
+        LogMessage("Startup flow stopped: " err.Message)
+    }
+}
+
+LegacyUnifiedStart() {
     global IsRunning, IsBBRunning, StatusText, StartBtn, PauseBtn
     global ADBMainCalibrationVersion, ADBBBCalibrationVersion, ADB_COORDINATE_VERSION
     if IsRunning || IsBBRunning {

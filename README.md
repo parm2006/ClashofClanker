@@ -1,14 +1,10 @@
 # Clash of Clans Automation Bot
 
-An automated AutoHotkey (AHK) v2.0 suite for Clash of Clans, supporting both traditional client mouse clicks and **100% background-safe Android Debug Bridge (ADB)** execution.
+An AutoHotkey (AHK) v2.0 bot for Clash of Clans using **100% background-safe Android Debug Bridge (ADB)** execution.
 
 ## Available Scripts
 
-1. **`coc_bot.ahk` (Standard Client Mode)**:
-   - Uses client-relative mouse clicks to control the emulator window.
-   - Requires the emulator window to remain visible.
-
-2. **`ADBcoc_bot.ahk` (Background ADB Mode)**:
+1. **`ADBcoc_bot.ahk` (Background ADB Mode)**:
    - **100% Background Safe**: Sends taps, drags, zooms, and keyevents directly to Android via ADB without taking mouse focus or interrupting host Windows keyboard input.
    - **Background OCR & Pixel Checks**: Captures frame buffers directly via ADB for loot OCR and status detection.
    - **Smart Battle Timing**: Un-nested 15s Return Home timers and 5s status polling, with a 2-minute 10-second stage fallback.
@@ -37,7 +33,7 @@ An automated AutoHotkey (AHK) v2.0 suite for Clash of Clans, supporting both tra
 Because screen sizes and window placements differ, **you must calibrate the bot before running it**. The local `config.ini` settings are ignored by Git so that each installation has its own customized settings.
 
 ### Main Village Calibration Steps (`Ctrl + F1`)
-1. Double-click `coc_bot.ahk` to launch the bot GUI.
+1. Double-click `ADBcoc_bot.ahk` to launch the bot GUI.
 2. Click **Start Calibration** in the GUI or press **`Ctrl + F1`**.
 3. Switch to the game window. Follow the onscreen tooltips to calibrate the 26 targets:
    - **Steps 1–3 (Home Village - Storage & Focus)**: Gold Storage Bar Threshold, Elixir Storage Bar Threshold, Builder Face.

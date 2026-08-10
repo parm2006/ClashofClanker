@@ -180,7 +180,10 @@ def run_fraction_ocr(img_path, client_height, mode):
 
         slash_x, slash_y = best_slash_loc
         left_region = thresh_img[0:th_h, max(0, slash_x - 32):min(th_w, slash_x + 3)]
-        right_region = thresh_img[0:th_h, max(0, slash_x + sh_w - 3):min(th_w, slash_x + sh_w + 32)]
+        # The slash template includes transparent padding on its right edge.
+        # Start seven pixels before its nominal edge so the denominator's
+        # leading strokes remain available to the digit matcher.
+        right_region = thresh_img[0:th_h, max(0, slash_x + sh_w - 7):min(th_w, slash_x + sh_w + 32)]
 
         def find_digit_iou(region, allowed_digits):
             scores = {}

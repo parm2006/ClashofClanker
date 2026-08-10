@@ -12,6 +12,7 @@ handoffs/
 # Python cache & compiled files
 __pycache__/
 *.pyc
+.venv/
 
 # Local documentation & design specs
 docs/
