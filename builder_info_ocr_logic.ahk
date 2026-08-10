@@ -103,6 +103,13 @@ SelectFirstSuggestedUpgradeOCRWord(lines) {
     return ""
 }
 
+IsWallSuggestedUpgrade(match) {
+    if !IsObject(match) || !match.HasProp("text")
+        return false
+    text := RegExReplace(match.text, "[^A-Za-z0-9]", "")
+    return RegExMatch(text, "i)^[vw][aAeEoOuU01iI][lLiI1t]{1,2}$")
+}
+
 NormalizeBuilderOCRMatch(match, scale) {
     if !IsObject(match)
         return ""

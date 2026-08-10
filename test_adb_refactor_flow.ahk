@@ -45,6 +45,36 @@ class FakeFlowOperations {
     }
 }
 
+class ReturnHomeLimitOperations {
+    __New(reloadAction) {
+        this.Log := []
+        this.Messages := []
+        this.ReloadAction := reloadAction
+        this.HomeDetectionCount := 0
+    }
+
+    Do(name, args*) {
+        if (name == "log") {
+            this.Messages.Push(args[1])
+            return true
+        }
+        entry := name
+        for arg in args
+            entry .= ":" FlowValueText(arg)
+        this.Log.Push(entry)
+        switch name {
+            case "capture_fresh_frame":
+                return {section: args[1], id: this.Log.Length}
+            case "detect_main_home_from_frame":
+                this.HomeDetectionCount += 1
+                return this.HomeDetectionCount > 25
+            case "find_reload_action_from_frame":
+                return this.ReloadAction
+        }
+        return true
+    }
+}
+
 AssertMessagesContain(messages, requiredFragments, description) {
     for fragment in requiredFragments {
         found := false
@@ -207,6 +237,7 @@ TestStartupRoutesAfterThreeClears() {
             "verify_calibration",
             "start_timer:3600000",
             "clear_tap",
+            "reset_main_viewport",
             "capture_fresh_frame:village",
             "detect_village_from_frame:<object>",
             "start_main_loop"
@@ -237,6 +268,7 @@ TestStartupRoutesBuilderWithoutZeroTimer() {
             "verify_emulator",
             "verify_calibration",
             "clear_tap",
+            "reset_main_viewport",
             "capture_fresh_frame:village",
             "detect_village_from_frame:<object>",
             "start_builder_loop"
@@ -640,6 +672,40 @@ TestReturnHomeOwnsFreshRetryLoop() {
     )
 }
 
+TestReturnHomeLimitRecoversThenCompletesTheCycle() {
+    primitives := ReturnHomeLimitOperations({name: "Reload", x: 900, y: 600})
+    sections := GetFlowAPI().CreateMainSections(primitives)
+
+    sections.Do("return_main_home")
+
+    AssertEqual(26, primitives.HomeDetectionCount, "25 failed Return Home checks are followed by one recovery confirmation")
+    AssertLogContainsInOrder(
+        primitives.Log,
+        [
+            "capture_fresh_frame:reload",
+            "find_reload_action_from_frame:<object>",
+            "wait:1000",
+            "tap_reload_action:Reload",
+            "wait:10000",
+            "capture_fresh_frame:home",
+            "detect_main_home_from_frame:<object>",
+            "reset_main_viewport"
+        ],
+        "Return Home limit uses reload recovery before confirming home"
+    )
+}
+
+TestReturnHomeLimitStopsWhenReloadIsUnavailable() {
+    primitives := ReturnHomeLimitOperations(false)
+    sections := GetFlowAPI().CreateMainSections(primitives)
+
+    AssertThrows(
+        () => sections.Do("return_main_home"),
+        "Return Home limit stops when no reload action is present"
+    )
+    AssertEqual(25, primitives.HomeDetectionCount, "failed recovery does not enter a 26th Return Home attempt")
+}
+
 TestFinishMainCycleUsesCommonLifecycle() {
     primitives := FakeFlowOperations()
     sections := GetFlowAPI().CreateMainSections(primitives)
@@ -977,8 +1043,9 @@ TestEveryFifthBuilderAttackReloadRecovery() {
             "timer_triggered",
             "capture_fresh_frame:reload",
             "find_reload_action_from_frame:<object>",
+            "wait:1000",
             "tap_reload_action:Reload",
-            "wait:15000",
+            "wait:10000",
             "capture_fresh_frame:reconnect",
             "detect_village_from_frame:<object>",
             "route_village:main"
@@ -986,6 +1053,12 @@ TestEveryFifthBuilderAttackReloadRecovery() {
         operations.Log,
         "fifth Builder Base attack reload recovery and routing"
     )
+    for message in operations.Messages {
+        AssertTrue(
+            InStr(message, "OOOO") == 0,
+            "reload recovery keeps console logging concise"
+        )
+    }
 }
 
 TestReconnectRetriesUnknownFreshFrames() {
@@ -1016,8 +1089,9 @@ TestReconnectRetriesUnknownFreshFrames() {
             "timer_triggered",
             "capture_fresh_frame:reload",
             "find_reload_action_from_frame:<object>",
+            "wait:1000",
             "tap_reload_action:Retry",
-            "wait:15000",
+            "wait:10000",
             "capture_fresh_frame:reconnect",
             "detect_village_from_frame:<object>",
             "wait:2000",
@@ -1120,6 +1194,14 @@ flowTests := [
     {
         name: "Return Home owns fresh capture retries",
         callback: TestReturnHomeOwnsFreshRetryLoop
+    },
+    {
+        name: "Return Home retry limit recovers and confirms home",
+        callback: TestReturnHomeLimitRecoversThenCompletesTheCycle
+    },
+    {
+        name: "Return Home retry limit stops without a reload action",
+        callback: TestReturnHomeLimitStopsWhenReloadIsUnavailable
     },
     {
         name: "Main finish cycle uses the common lifecycle",

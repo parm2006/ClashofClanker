@@ -520,7 +520,7 @@ ScanLootRegion(imagePath, label) {
     readings := []
     for sc in scales {
         try {
-            result := OCR.FromFile(imagePath, {scale: sc})
+            result := OCR.FromFile(imagePath, {scale: sc, grayscale: true, monochrome: 160})
             cleaned := CleanNumberStr(result.Text)
             rawText := StrReplace(StrReplace(result.Text, "`r", "\r"), "`n", "\n")
             LogToConsole(

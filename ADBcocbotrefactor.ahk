@@ -98,10 +98,10 @@ global GoldIconX := 45
 global GoldIconY := 145
 global ElixirIconX := 45
 global ElixirIconY := 195
-global LootCropOffsetX := 20
-global LootCropOffsetY := -4
-global LootCropW := 240
-global LootCropH := 45
+global LootCropOffsetX := 10
+global LootCropOffsetY := -27
+global LootCropW := 161
+global LootCropH := 59
 global NextMatchBtnX := 1630
 global NextMatchBtnY := 850
 ; --- Storage Bar Check Coordinates ---
@@ -147,6 +147,8 @@ global ADBViewportProvider := ""
 global ADBViewportSerial := ""
 global ADBViewportVersion := 0
 global ADB_VIEWPORT_VERSION := 1
+global ReconnectCropLeftRatio := 0.28, ReconnectCropRightRatio := 0.72
+global ReconnectCropTopRatio := 0.51, ReconnectCropBottomRatio := 0.64
 global PendingViewportLeft := 0
 global PendingViewportTop := 0
 global BuilderMenuBottomX := 960, BuilderMenuBottomY := 800
@@ -516,6 +518,7 @@ CaptureADBFrame(force := false) {
         ADBFramePath := A_ScriptDir "\scratch\adb_frame.png"
     
     DirCreate(A_ScriptDir "\scratch")
+    PruneRefactorDiagnosticImages()
     if (!force && FileExist(ADBFramePath) && (A_TickCount - LastADBFrameTick < 150))
         return ADBFramePath
 
@@ -1197,10 +1200,10 @@ LoadConfig() {
     GoldIconY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconY", ""), 145)
     ElixirIconX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconX", ""), 45)
     ElixirIconY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconY", ""), 195)
-    LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 20)
-    LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -4)
-    LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 240)
-    LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 45)
+    LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 10)
+    LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -27)
+    LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 161)
+    LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 59)
     NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1630))
     NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 850))
     UpgradeMoreBtnX := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnX", 960))
@@ -1561,10 +1564,31 @@ CreateGUI() {
     MyGui.OnEvent("Close", (*) => ExitApp())
     MyGui.Show("w380 h470")
 }
+PruneRefactorDiagnosticImages() {
+    static lastPruneTick := 0
+
+    if (lastPruneTick != 0 && A_TickCount - lastPruneTick < 900000)
+        return
+    lastPruneTick := A_TickCount
+    cutoff := DateAdd(A_Now, -30, "Minutes")
+    Loop Files, A_Temp "\coc_refactor_*.png", "F" {
+        if (A_LoopFileTimeModified < cutoff)
+            try FileDelete(A_LoopFileFullPath)
+    }
+}
+
+SanitizeLogMessage(message) {
+    safeMessage := String(message)
+    safeMessage := StrReplace(safeMessage, A_ScriptDir, "<workspace>")
+    safeMessage := StrReplace(safeMessage, A_Temp, "<temp>")
+    return RegExReplace(safeMessage, "i)[A-Z]:\\Users\\[^`r`n]+", "<user-path>")
+}
+
 LogMessage(message) {
     global LogEdit
     if !LogEdit
         return
+    message := SanitizeLogMessage(message)
     timeStr := FormatTime(, "HH:mm:ss")
     newLine := "[" timeStr "] " message "`r`n"
 
@@ -2021,7 +2045,7 @@ GetLootValueMultiScale(relX, relY, relW, relH, label) {
     SaveRegionToPNG(scrX, scrY, relW, relH, imgName)
     for scaleVal in scales {
         try {
-            result := OCR.FromFile(imgName, {scale: scaleVal})
+            result := OCR.FromFile(imgName, {scale: scaleVal, grayscale: true, monochrome: 160})
             cleaned := CleanNumber(result.Text)
             if (cleaned > 0) {
                 rounded := Round(cleaned / 10000) * 10000
@@ -2149,17 +2173,23 @@ GetTroopCountsBattle() {
     LogMessage(Format("Troop counts for battle: {}, {}, {}", summaryList[1], summaryList[2], summaryList[3]))
     return activeCounts
 }
-GetStoragePixelColor(x, y) {
+GetStoragePixelColor(x, y, framePath := "") {
     try {
-        return GetADBPixelColor(x, y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        return GetADBFramePixelColor(framePath, x, y)
     } catch {
     }
     return 0x000000
 }
 
-IsGoldBarFilled(x, y) {
+IsGoldBarFilled(x, y, framePath := "") {
     try {
-        color := GetADBPixelColor(x, y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2170,9 +2200,13 @@ IsGoldBarFilled(x, y) {
         return false
     }
 }
-IsElixirBarFilled(x, y) {
+IsElixirBarFilled(x, y, framePath := "") {
     try {
-        color := GetADBPixelColor(x, y)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, x, y)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2187,13 +2221,17 @@ IsElixirBarFilled(x, y) {
         return false
     }
 }
-IsDarkElixirBarFilled(x, y) {
+IsDarkElixirBarFilled(x, y, framePath := "") {
     try {
         targetX := (x > 0) ? x : DarkElixirBarThreshX
         targetY := (y > 0) ? y : DarkElixirBarThreshY
         if (targetX <= 0 || targetY <= 0)
             return false
-        color := GetADBPixelColor(targetX, targetY)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        color := GetADBFramePixelColor(framePath, targetX, targetY)
         actualHex := Integer(color)
         r := (actualHex >> 16) & 0xFF
         g := (actualHex >> 8) & 0xFF
@@ -2222,10 +2260,13 @@ IsGoblinFace(centerX, centerY) {
         [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
     ]
     
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
     greenCount := 0
     try {
-        for index, pt in offsets {
-            c := GetADBPixelColor(centerX + pt[1], centerY + pt[2], index == 1)
+        for pt in offsets {
+            c := GetADBFramePixelColor(framePath, centerX + pt[1], centerY + pt[2])
             r := (c >> 16) & 0xFF
             g := (c >> 8) & 0xFF
             b := c & 0xFF
@@ -2296,6 +2337,9 @@ FindCenterGreenButton(&outX, &outY) {
     } catch {
         return false
     }
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
     searchX := viewport.x + (viewport.width * 0.3)
     searchY := viewport.y + (viewport.height * 0.4)
     searchW := viewport.width * 0.4
@@ -2306,7 +2350,7 @@ FindCenterGreenButton(&outX, &outY) {
         loop 20 {
             clientX := searchX + (A_Index * (searchW / 20))
             try {
-                c := GetADBPixelColor(clientX, clientY)
+                c := GetADBFramePixelColor(framePath, clientX, clientY)
             } catch {
                 continue
             }
@@ -2411,26 +2455,33 @@ FindAnyWallInDropdown() {
     menuTop := viewport.y + h * 0.12
     menuHeight := h * 0.75
     imgName := A_Temp "\coc_refactor_wall_menu.png"
-    ; Scroll down in chunks until we see ANY Wall text
+    ; Scroll until the first row below Suggested Upgrades is a Wall.
     Loop 4 {
+        framePath := CaptureADBFrame(true)
+        adbCrop := SaveADBFrameRegionToPNG(
+            framePath,
+            menuLeft,
+            menuTop,
+            menuWidth,
+            menuHeight,
+            imgName
+        )
         for sc in [2.5, 2.0, 3.0] {
             try {
-                adbCrop := SaveRegionToPNG(menuLeft, menuTop, menuWidth, menuHeight, imgName)
                 result := OCR.FromFile(imgName, {scale: sc})
-                for line in result.Lines {
-                    ; Matches Wall, wall, Wa11, WaIl, Wail, Vall, val1, wal, val, etc.
-                    if RegExMatch(line.Text, "i)\b[vw][aAeEoOuU01iI][lLiI1t]{1,2}\b") {
-                        LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", line.Text, sc))
-                        clientPoint := ADBFramePointToClient(
-                            adbCrop,
-                            line.x + (line.w / 2),
-                            line.y + (line.h / 2)
-                        )
-                        ClientClickPoint(clientPoint.x, clientPoint.y, 2)
-                        try FileDelete(imgName)
-                        return true
-                    }
-                }
+                selected := SelectFirstSuggestedUpgradeOCRWord(result.Lines)
+                if !IsObject(selected) || !IsWallSuggestedUpgrade(selected)
+                    continue
+                selected := NormalizeBuilderOCRMatch(selected, sc)
+                LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", selected.lineText, sc))
+                clientPoint := ADBFramePointToClient(
+                    adbCrop,
+                    selected.centerX,
+                    selected.centerY
+                )
+                ClientClickPoint(clientPoint.x, clientPoint.y, 2)
+                try FileDelete(imgName)
+                return true
             }
             catch as err {
                 LogMessage("Farming: OCR error in suggestions dropdown: " err.Message)
@@ -2459,8 +2510,11 @@ UpgradeWalls(wallState := "") {
         runGoldUpgrade := wallState.gold
         runElixirUpgrade := wallState.elixir
     } else {
-        runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
-        runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
+        thresholdFrame := CaptureADBFrame(true)
+        if !FileExist(thresholdFrame)
+            return
+        runGoldUpgrade := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY, thresholdFrame)
+        runElixirUpgrade := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
     }
     if !runGoldUpgrade && !runElixirUpgrade {
         LogMessage("Farming: Storage bars have not reached calibrated threshold points. Skipping wall upgrades.")
@@ -2518,6 +2572,9 @@ IsReturnHomePresent() {
 IsReturnHomePresentADB() {
     if (ReturnHomeClickX <= 0)
         return false
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
     matchCount := 0
     points := [
         {x: 0, y: 0},
@@ -2528,7 +2585,7 @@ IsReturnHomePresentADB() {
     ]
     for pt in points {
         try {
-            c := GetADBPixelColor(ReturnHomeClickX + pt.x, ReturnHomeClickY + pt.y)
+            c := GetADBFramePixelColor(framePath, ReturnHomeClickX + pt.x, ReturnHomeClickY + pt.y)
             actualHex := Integer(c)
             r := (actualHex >> 16) & 0xFF
             g := (actualHex >> 8) & 0xFF
@@ -2627,11 +2684,69 @@ SaveRegionToPNG(x, y, w, h, filepath) {
         throw Error("ADB crop could not be saved; GDI+ status " saveStatus ".")
     return adbRect
 }
+ResolveVisionUVExecutable() {
+    localAppData := EnvGet("LOCALAPPDATA")
+    if (localAppData != "") {
+        wingetLink := localAppData "\\Microsoft\\WinGet\\Links\\uv.exe"
+        if FileExist(wingetLink)
+            return '"' wingetLink '"'
+
+        wingetPackages := localAppData "\\Microsoft\\WinGet\\Packages"
+        if DirExist(wingetPackages) {
+            Loop Files, wingetPackages "\\astral-sh.uv_*", "D" {
+                uvPath := A_LoopFileFullPath "\\uv.exe"
+                if FileExist(uvPath)
+                    return '"' uvPath '"'
+            }
+        }
+    }
+    return "uv"
+}
+
+EnsureVisionPythonEnvironment() {
+    global A_ScriptDir
+    static pythonPath := ""
+
+    if (pythonPath != "")
+        return pythonPath
+
+    projectPath := A_ScriptDir "\\pyproject.toml"
+    if !FileExist(projectPath)
+        throw Error("Vision runtime manifest is missing: " projectPath)
+
+    setupOutputPath := A_Temp "\\coc_refactor_uv_sync_output.txt"
+    try FileDelete(setupOutputPath)
+    uvExecutable := ResolveVisionUVExecutable()
+    setupCommand := (
+        A_ComSpec ' /D /S /C "' uvExecutable ' sync --project "'
+            A_ScriptDir '" --locked > "' setupOutputPath '" 2>&1"'
+    )
+    shell := ComObject("WScript.Shell")
+    exitCode := shell.Run(setupCommand, 0, true)
+    setupOutput := ""
+    if FileExist(setupOutputPath) {
+        setupOutput := Trim(FileRead(setupOutputPath))
+        try FileDelete(setupOutputPath)
+    }
+    if (exitCode != 0) {
+        throw Error(
+            "Vision runtime setup failed (uv sync exit " exitCode "): "
+                setupOutput
+        )
+    }
+
+    pythonPath := A_ScriptDir "\\.venv\\Scripts\\python.exe"
+    if !FileExist(pythonPath)
+        throw Error("uv sync completed without creating the vision Python runtime.")
+    return pythonPath
+}
+
 RunWaitPythonScript(args) {
     global A_ScriptDir
     outFile := A_Temp "\coc_refactor_exec_out.txt"
     try FileDelete(outFile)
-    cmd := 'cmd.exe /c python "' A_ScriptDir '\vision_hook.py" ' args ' > "' outFile '" 2>&1'
+    pythonPath := EnsureVisionPythonEnvironment()
+    cmd := 'cmd.exe /c ""' pythonPath '" "' A_ScriptDir '\vision_hook.py" ' args ' > "' outFile '" 2>&1"'
     shell := ComObject("WScript.Shell")
     shell.Run(cmd, 0, true)
     output := ""
@@ -2708,10 +2823,13 @@ ReadBuilderAvailabilityFromADBFrame(framePath) {
     output := Trim(RunWaitPythonScript('builders "' imagePath '" ' adbDisplay.height))
     try FileDelete(imagePath)
     if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
-        return {free: 0, total: 0, goblin: true}
+        return {valid: false, free: 0, total: 0, goblin: false, error: output}
     free := Integer(match[1])
     total := Integer(match[2])
+    if (total <= 0 || free > total)
+        return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
     return {
+        valid: true,
         free: free,
         total: total,
         goblin: free > 0
@@ -2736,10 +2854,13 @@ ReadLabAvailabilityFromADBFrame(framePath) {
     output := Trim(RunWaitPythonScript('lab "' imagePath '" ' adbDisplay.height))
     try FileDelete(imagePath)
     if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
-        return {free: 0, total: 0, goblin: true}
+        return {valid: false, free: 0, total: 0, goblin: false, error: output}
     free := Integer(match[1])
     total := Integer(match[2])
+    if (total <= 0 || free > total)
+        return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
     return {
+        valid: true,
         free: free,
         total: total,
         goblin: free > 0
@@ -2815,7 +2936,7 @@ FindFlowSuggestedUpgrade(menuKind) {
     }
     LogMessage(
         "Suggested upgrades OCR " menuKind
-            " failed; preserved capture at " imagePath "."
+            " failed; retained a diagnostic capture temporarily."
     )
     return ""
 }
@@ -2895,9 +3016,11 @@ ReadLootValueFromADBFrame(framePath, x, y, width, height, label) {
         )
     )
     readings := []
-    for scaleValue in [2.0, 2.5, 3.0, 1.5] {
+    ; The expanded crop preserves enough context for the reliable 1.5x pass.
+    ; Larger scales merge the outlined Elixir digits and can invent extra digits.
+    for scaleValue in [1.5] {
         try {
-            result := OCR.FromFile(imagePath, {scale: scaleValue})
+            result := OCR.FromFile(imagePath, {scale: scaleValue, grayscale: true, monochrome: 160})
             cleaned := CleanNumber(result.Text)
             rawText := StrReplace(
                 StrReplace(result.Text, "`r", "\r"),
@@ -3644,12 +3767,22 @@ CompleteLiveGlobalCycle(village) {
 }
 
 FindReloadActionFromADBFrame(frame) {
+    global ReconnectCropLeftRatio, ReconnectCropRightRatio
+    global ReconnectCropTopRatio, ReconnectCropBottomRatio
     framePath := LiveADBFlowPrimitives().RequireFramePath(frame, "reload")
     viewport := GetADBClientViewportRect()
-    searchX := Round(viewport.x + viewport.width * 0.25)
-    searchY := Round(viewport.y + viewport.height * 0.40)
-    searchW := Max(1, Round(viewport.width * 0.50))
-    searchH := Max(1, Round(viewport.height * 0.40))
+
+    cardCheck := IsErrorCardColorMatch(framePath, viewport.x, viewport.y, viewport.width, viewport.height)
+    if !cardCheck.isMatch {
+        LogMessage("Reconnect card check: center color #191C1E matched " cardCheck.count "/" cardCheck.total " points; no error popup card (safe skip).")
+        return false
+    }
+    LogMessage("Reconnect card check: center color #191C1E matched " cardCheck.count "/" cardCheck.total " points; error popup card DETECTED. Running OCR...")
+
+    searchX := Round(viewport.x + viewport.width * ReconnectCropLeftRatio)
+    searchY := Round(viewport.y + viewport.height * ReconnectCropTopRatio)
+    searchW := Max(1, Round(viewport.width * (ReconnectCropRightRatio - ReconnectCropLeftRatio)))
+    searchH := Max(1, Round(viewport.height * (ReconnectCropBottomRatio - ReconnectCropTopRatio)))
     processId := DllCall("GetCurrentProcessId", "uint")
     imagePath := (
         A_Temp "\coc_reload_recovery_" processId "_"
@@ -3815,8 +3948,9 @@ LegacyStartBotLoop() {
             break
         ; Lab upgrade farming
         if !IsLabBusy() {
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            thresholdFrame := CaptureADBFrame(true)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY, thresholdFrame)
             LogMessage(Format("Lab Upgrade Threshold Check: Elixir={}, DarkElixir={}", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
             if (elixirFilled && darkFilled) {
                 UpgradeLab()
@@ -3827,9 +3961,10 @@ LegacyStartBotLoop() {
             
         ; Building upgrades farming (triggered if there is a free builder and all three resources are filled)
         if CanUpgradeBuilding() {
-            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY)
-            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY)
-            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY)
+            thresholdFrame := CaptureADBFrame(true)
+            goldFilled := IsGoldBarFilled(GoldBarThreshX, GoldBarThreshY, thresholdFrame)
+            elixirFilled := IsElixirBarFilled(ElixirBarThreshX, ElixirBarThreshY, thresholdFrame)
+            darkFilled := IsDarkElixirBarFilled(DarkElixirBarThreshX, DarkElixirBarThreshY, thresholdFrame)
             LogMessage(Format("Building Upgrade Threshold Check: Gold={}, Elixir={}, DarkElixir={}", goldFilled ? "YES" : "NO", elixirFilled ? "YES" : "NO", darkFilled ? "YES" : "NO"))
             if (goldFilled && elixirFilled && darkFilled) {
                 UpgradeBuilding()
@@ -4175,11 +4310,14 @@ DeployShiftedSpellLine(hotkeyName, clickCount, side, adbShiftPixels, clickDelay 
 
 IsGolden(x, y) {
     try {
+        framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
         offsetsX := [-7, -3, 0, 3, 7]
         offsetsY := [-7, -3, 0, 3, 7]
         for dx in offsetsX {
             for dy in offsetsY {
-                c := GetADBPixelColor(x + dx, y + dy)
+                c := GetADBFramePixelColor(framePath, x + dx, y + dy)
                 hx := Integer(c)
                 r := (hx >> 16) & 0xFF
                 g := (hx >> 8) & 0xFF
@@ -4194,17 +4332,10 @@ IsGolden(x, y) {
     }
 }
 AreCloudsPresent() {
-    global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y, CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y, CloudGreyTolerance
-    greyCount := 0
-    if IsGrey(CloudPt1X, CloudPt1Y, CloudGreyTolerance)
-        greyCount++
-    if IsGrey(CloudPt2X, CloudPt2Y, CloudGreyTolerance)
-        greyCount++
-    if IsGrey(CloudPt3X, CloudPt3Y, CloudGreyTolerance)
-        greyCount++
-    if IsGrey(CloudPt4X, CloudPt4Y, CloudGreyTolerance)
-        greyCount++
-    return greyCount >= 3
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
+    return AreCloudsPresentInADBFrame(framePath)
 }
 IsAttackBtnColor(r, g, b) {
     ; 1. Brown Wood Shield Background (e.g. RGB 140, 75, 30)
@@ -4214,28 +4345,33 @@ IsAttackBtnColor(r, g, b) {
     return isBrownWood || isTanMap
 }
 
-IsAttackBtnPresentADB(x, y) {
+IsAttackBtnPresentADB(x, y, framePath := "") {
     try {
-        c := GetADBPixelColor(x, y)
-        actualHex := Integer(c)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-        return IsAttackBtnColor(r, g, b)
+        if (framePath = "")
+            framePath := CaptureADBFrame(true)
+        if !FileExist(framePath)
+            return false
+        return IsAttackButtonInADBFrame(framePath, x, y)
     } catch {
         return false
     }
 }
 
 IsAtHomeVillage() {
-    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY)
+    firstFrame := CaptureADBFrame(true)
+    if !FileExist(firstFrame)
+        return false
+    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY, firstFrame) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY, firstFrame)
     if !isHome
         return false
     Sleep 300
-    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY)
+    secondFrame := CaptureADBFrame(true)
+    if !FileExist(secondFrame)
+        return false
+    isHome := IsAttackBtnPresentADB(AttackBtnX - 45, AttackBtnY, secondFrame) || IsAttackBtnPresentADB(AttackBtnX + 45, AttackBtnY, secondFrame)
     if !isHome
         return false
-    if !IsWarLogoPresent()
+    if !IsWarLogoPresent(secondFrame)
         return false
     return true
 }
@@ -4249,12 +4385,16 @@ IsWarLogoColor(r, g, b) {
     return isSilverSword || isBrownWood || isGoldFrame
 }
 
-IsWarLogoPresentADB(x, y) {
+IsWarLogoPresentADB(x, y, framePath := "") {
     ; Check center and 4 diagonal offset points (+/- 20px)
+    if (framePath = "")
+        framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
     offsets := [{x:0, y:0}, {x:-20, y:-20}, {x:20, y:-20}, {x:-20, y:20}, {x:20, y:20}]
     for pt in offsets {
         try {
-            c := GetADBPixelColor(x + pt.x, y + pt.y)
+            c := GetADBFramePixelColor(framePath, x + pt.x, y + pt.y)
             actualHex := Integer(c)
             r := (actualHex >> 16) & 0xFF
             g := (actualHex >> 8) & 0xFF
@@ -4266,14 +4406,17 @@ IsWarLogoPresentADB(x, y) {
     return false
 }
 
-IsWarLogoPresent() {
+IsWarLogoPresent(framePath := "") {
     targetX := (WarLogoX > 0) ? WarLogoX : ((MVLogoX > 0) ? MVLogoX : WarLogoX)
     targetY := (WarLogoY > 0) ? WarLogoY : ((MVLogoY > 0) ? MVLogoY : WarLogoY)
-    return IsWarLogoPresentADB(targetX, targetY)
+    return IsWarLogoPresentADB(targetX, targetY, framePath)
 }
 IsAtBuilderBase() {
-    hasAttackBtn := IsAttackBtnPresentADB(BBAttackBtnX - 45, BBAttackBtnY) || IsAttackBtnPresentADB(BBAttackBtnX + 45, BBAttackBtnY)
-    return hasAttackBtn && !IsWarLogoPresent()
+    framePath := CaptureADBFrame(true)
+    if !FileExist(framePath)
+        return false
+    hasAttackBtn := IsAttackBtnPresentADB(BBAttackBtnX - 45, BBAttackBtnY, framePath) || IsAttackBtnPresentADB(BBAttackBtnX + 45, BBAttackBtnY, framePath)
+    return hasAttackBtn && !IsWarLogoPresent(framePath)
 }
 DeployBBTroops(side, phase) {
     global DeployDelta, BBClickCount
@@ -5008,7 +5151,7 @@ UnifiedStart() {
     global SessionCompletedAttacks
     global DDHours, DDMinutes, StatusText
     if (IsRunning || IsBBRunning) {
-        PauseBot()
+        LogMessage("Start ignored: bot is already running. Use Pause (F2) to stop it.")
         return
     }
 

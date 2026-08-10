@@ -1158,6 +1158,129 @@ TestExplicitReloadActionLabels() {
     }
 }
 
+TestVisionRuntimeUsesProjectManagedEnvironment() {
+    projectPath := A_ScriptDir "\\pyproject.toml"
+    versionPath := A_ScriptDir "\\.python-version"
+    source := FileRead(A_ScriptDir "\\ADBcocbotrefactor.ahk")
+
+    AssertTrue(FileExist(projectPath) != "", "vision runtime project manifest exists")
+    AssertTrue(FileExist(versionPath) != "", "vision runtime pins its Python version")
+
+    project := FileRead(projectPath)
+    AssertTrue(
+        InStr(project, "opencv-python") > 0,
+        "vision runtime declares its OpenCV dependency"
+    )
+    AssertTrue(
+        InStr(source, "EnsureVisionPythonEnvironment()") > 0,
+        "vision runner bootstraps the project environment before use"
+    )
+    AssertTrue(
+        InStr(source, "ResolveVisionUVExecutable()") > 0,
+        "vision runner resolves uv when the current shell has not refreshed PATH"
+    )
+    AssertTrue(
+        InStr(source, ".venv\\Scripts\\python.exe") > 0,
+        "vision runner invokes the project virtual-environment interpreter"
+    )
+    AssertTrue(
+        InStr(source, 'cmd.exe /c python "') == 0,
+        "vision runner does not invoke an unpinned global Python"
+    )
+}
+
+TestLabFractionOCRPreservesTheDenominatorLeadingEdge() {
+    source := FileRead(A_ScriptDir "\\vision_hook.py")
+    AssertTrue(
+        InStr(source, "slash_x + sh_w - 7") > 0,
+        "lab denominator search includes the pixels hidden by slash-template padding"
+    )
+}
+
+TestVisionFailuresAreNotReportedAsResourceAvailability() {
+    source := FileRead(A_ScriptDir "\\ADBcocbotrefactor.ahk")
+    for readerName in [
+        "ReadBuilderAvailabilityFromADBFrame(framePath)",
+        "ReadLabAvailabilityFromADBFrame(framePath)"
+    ] {
+        readerStart := InStr(source, readerName)
+        readerEnd := InStr(source, "`n}", false, readerStart)
+        readerSource := SubStr(source, readerStart, readerEnd - readerStart)
+        AssertTrue(
+            InStr(readerSource, "valid: false") > 0,
+            readerName " marks failed OCR as invalid"
+        )
+        AssertTrue(
+            InStr(readerSource, "goblin: true") == 0,
+            readerName " does not fabricate a Goblin result after OCR failure"
+        )
+        AssertTrue(
+            InStr(readerSource, "total <= 0") > 0,
+            readerName " rejects an impossible zero denominator"
+        )
+    }
+}
+
+TestStartDoesNotPauseARunningBot() {
+    source := FileRead(A_ScriptDir "\\ADBcocbotrefactor.ahk")
+    start := InStr(source, "UnifiedStart() {")
+    end := InStr(source, "`nLegacyUnifiedStart()", false, start)
+    unifiedStart := SubStr(source, start, end - start)
+    AssertTrue(
+        InStr(unifiedStart, "PauseBot()") == 0,
+        "a repeated Start/F1 leaves the running bot active"
+    )
+}
+
+TestDiagnosticLogsRedactUserPathsAndPruneImages() {
+    source := FileRead(A_ScriptDir "\\ADBcocbotrefactor.ahk")
+    AssertTrue(
+        InStr(source, "SanitizeLogMessage(message)") > 0,
+        "the visible log sanitizes messages before displaying them"
+    )
+    AssertTrue(
+        InStr(source, "[A-Z]:\\Users\\") > 0,
+        "the visible log redacts absolute Windows user paths"
+    )
+    AssertTrue(
+        InStr(source, "PruneRefactorDiagnosticImages()") > 0,
+        "the bot periodically prunes stale diagnostic images"
+    )
+    AssertTrue(
+        InStr(source, "coc_refactor_*.png") > 0,
+        "only bot-owned temporary images are eligible for cleanup"
+    )
+    AssertTrue(
+        InStr(source, "retained a diagnostic capture temporarily") > 0,
+        "the failure log names no diagnostic image path"
+    )
+}
+
+TestMultiPointRecognitionUsesOneFreshFrame() {
+    source := FileRead(A_ScriptDir "\\ADBcocbotrefactor.ahk")
+    for contract in [
+        "FindCenterGreenButton(&outX, &outY) {",
+        "IsGoblinFace(centerX, centerY) {",
+        "IsReturnHomePresentADB() {",
+        "IsGolden(x, y) {",
+        "AreCloudsPresent() {",
+        "IsWarLogoPresentADB(x, y, framePath := "
+    ] {
+        AssertTrue(InStr(source, contract) > 0, "multi-point recognizer declares the shared-frame contract")
+    }
+    for required in [
+        "framePath := CaptureADBFrame(true)",
+        "GetADBFramePixelColor(framePath, clientX, clientY)",
+        "GetADBFramePixelColor(framePath, centerX + pt[1], centerY + pt[2])",
+        "GetADBFramePixelColor(framePath, ReturnHomeClickX + pt.x, ReturnHomeClickY + pt.y)",
+        "GetADBFramePixelColor(framePath, x + dx, y + dy)",
+        "AreCloudsPresentInADBFrame(framePath)",
+        "GetADBFramePixelColor(framePath, x + pt.x, y + pt.y)"
+    ] {
+        AssertTrue(InStr(source, required) > 0, "multi-point recognition reads a shared ADB frame")
+    }
+}
+
 TestLiveGlobalCycleProductionContract() {
     source := FileRead(A_ScriptDir "\ADBcocbotrefactor.ahk")
     support := FileRead(A_ScriptDir "\ADBcocbotrefactor_support.ahk")
@@ -1184,6 +1307,32 @@ TestLiveGlobalCycleProductionContract() {
             && InStr(support, "IsExplicitReloadActionText(") > 0,
         "support owns the shared cycle controller and action classifier"
     )
+    AssertTrue(
+        InStr(support, 'this.Primitives.Do("wait", 1000)') > 0
+            && InStr(support, 'this.Primitives.Do("wait", 10000)') > 0
+            && InStr(support, "OOOO") == 0,
+        "shared recovery waits before and after its quiet explicit action tap"
+    )
+    reloadStart := InStr(source, "FindReloadActionFromADBFrame(frame) {")
+    reloadEnd := InStr(source, "TapLiveReloadAction(action) {", false, reloadStart)
+    AssertTrue(
+        reloadStart > 0 && reloadEnd > reloadStart,
+        "live reload OCR can be isolated"
+    )
+    reloadSource := SubStr(source, reloadStart, reloadEnd - reloadStart)
+    for required in [
+        "global ReconnectCropLeftRatio, ReconnectCropRightRatio",
+        "global ReconnectCropTopRatio, ReconnectCropBottomRatio",
+        "viewport.width * ReconnectCropLeftRatio",
+        "viewport.height * ReconnectCropTopRatio",
+        "ReconnectCropRightRatio - ReconnectCropLeftRatio",
+        "ReconnectCropBottomRatio - ReconnectCropTopRatio"
+    ] {
+        AssertTrue(
+            InStr(reloadSource, required) > 0,
+            "live reload OCR uses calibrated action-band geometry " required
+        )
+    }
 
     builderStart := InStr(source, "class LiveBuilderBasePrimitives {")
     builderEnd := InStr(
@@ -1248,6 +1397,48 @@ TestLiveGlobalCycleProductionContract() {
         InStr(stopSource, "IsRunning := false") > 0
             && InStr(stopSource, "IsBBRunning := false") > 0,
         "common stop clears both village run flags"
+    )
+}
+
+TestReconnectReloadInspectorContract() {
+    harnessPath := A_ScriptDir "\test_reconnect_reload.ahk"
+    AssertTrue(FileExist(harnessPath) != "", "reconnect inspector exists")
+    source := FileRead(harnessPath)
+    for required in [
+        "F1::RunReconnectTestCycle(true)",
+        "F2::TapConfirmedReconnectAction()",
+        "F1 Analyze (No Tap)",
+        "F2 Tap Confirmed Result",
+        "ReconnectCropLeftRatio := 0.28",
+        "ReconnectCropRightRatio := 0.72",
+        "ReconnectCropTopRatio := 0.51",
+        "ReconnectCropBottomRatio := 0.64",
+        "SaveReconnectFrameOverlay(",
+        "0xFF00FF00",
+        "DrawReconnectMarkerDot(",
+        "FitReconnectPreviewToImage("
+    ] {
+        AssertTrue(
+            InStr(source, required) > 0,
+            "reconnect inspector includes " required
+        )
+    }
+
+    analysisStart := InStr(source, "RunReconnectTestCycle(isManual := true) {")
+    analysisEnd := InStr(
+        source,
+        "TapConfirmedReconnectAction() {",
+        false,
+        analysisStart
+    )
+    AssertTrue(
+        analysisStart > 0 && analysisEnd > analysisStart,
+        "reconnect analysis and explicit tap paths can be isolated"
+    )
+    analysisSource := SubStr(source, analysisStart, analysisEnd - analysisStart)
+    AssertTrue(
+        InStr(analysisSource, "ClientClickPoint(") == 0,
+        "F1 reconnect analysis never taps"
     )
 }
 
@@ -1721,7 +1912,13 @@ TestLiveLootOCRUsesProvenADBContract() {
         "ElixirIconX + LootCropOffsetX",
         "ElixirIconY + LootCropOffsetY",
         "SelectLootConsensus(readings)",
-        "IniWrite(LootCropOffsetX"
+        "IniWrite(LootCropOffsetX",
+        "global LootCropOffsetX := 10",
+        "global LootCropOffsetY := -27",
+        "global LootCropW := 161",
+        "global LootCropH := 59",
+        "for scaleValue in [1.5]",
+        "monochrome: 160"
     ] {
         AssertTrue(
             InStr(botSource, required) > 0,
@@ -1749,6 +1946,95 @@ TestLiveLootOCRUsesProvenADBContract() {
             "both Gold and Elixir OCR results are invalid"
         ) > 0,
         "both-invalid attack fallback is logged"
+    )
+}
+
+TestLootOCRComparisonHarnessContract() {
+    harnessPath := A_ScriptDir "\test_loot_ocr_comparison.ahk"
+    AssertTrue(FileExist(harnessPath) != "", "loot OCR comparison harness exists")
+    source := FileRead(harnessPath)
+    for required in [
+        "F1::StartLootComparison()",
+        "F2::StopLootComparison()",
+        "CaptureComparisonADBFrame()",
+        "TapComparisonNextMatch()",
+        "Normal:",
+        "Grey:",
+        "Contrast:",
+        "monochrome: 160",
+        "SelectLootConsensus(",
+        "Override size:\s*(\d+)x(\d+)",
+        "Physical size:\s*(\d+)x(\d+)",
+        "gdiplus\GdipCreateBitmapFromFile",
+        "cFFA500",
+        "finishing Normal, Grey, and Contrast",
+        "Waiting 5 seconds before Next Match.",
+        "Sleep(5000)"
+    ] {
+        AssertTrue(
+            InStr(source, required) > 0,
+            "loot OCR comparison harness includes " required
+        )
+    }
+}
+
+TestBuilderLabOCRComparisonHarnessContract() {
+    harnessPath := A_ScriptDir "\test_builder_lab_ocr_comparison.ahk"
+    AssertTrue(FileExist(harnessPath) != "", "builder/lab OCR comparison harness exists")
+    source := FileRead(harnessPath)
+    for required in [
+        "F1::CaptureBuilderLabComparison()",
+        "CaptureBuilderLabADBFrame()",
+        "OCR.FromFile(",
+        "Normal:",
+        "Grey:",
+        "Contrast:",
+        "monochrome: 160",
+        "ParseComparisonFraction(",
+        "SelectComparisonFractionConsensus(",
+        "global BLViewportTop, BLViewportBottom",
+        "SaveBLPreviewVariant(",
+        "Grey preview",
+        "Contrast preview",
+        "BLBuilderGreyCropPath",
+        "BLBuilderContrastCropPath",
+        "RunWaitPythonScript"
+    ] {
+        if (required = "RunWaitPythonScript") {
+            AssertTrue(
+                InStr(source, required) == 0,
+                "builder/lab comparison harness does not call the Python vision hook"
+            )
+        } else {
+            AssertTrue(
+                InStr(source, required) > 0,
+                "builder/lab comparison harness includes " required
+            )
+        }
+    }
+}
+
+TestBuilderLabComparisonCropsTrimOnlyTheirLeftEdges() {
+    source := FileRead(A_ScriptDir "\test_builder_lab_ocr_comparison.ahk")
+    AssertEqual(
+        1,
+        StrSplit(source, "Round(fullWidth * 0.55)").Length - 1,
+        "Builder crop retains 55% of its original width after another 10% left trim"
+    )
+    AssertEqual(
+        1,
+        StrSplit(source, "offsetX := fullOffsetX - Round(fullWidth * 0.45)").Length - 1,
+        "Builder crop moves only its left edge inward by 45% total"
+    )
+    AssertEqual(
+        1,
+        StrSplit(source, "width := Max(75, Round(fullWidth * 0.50))").Length - 1,
+        "Laboratory crop retains 50% of its original width to exclude the sword"
+    )
+    AssertEqual(
+        1,
+        StrSplit(source, "offsetX := fullOffsetX - Round(fullWidth * 0.50)").Length - 1,
+        "Laboratory crop moves only its left edge inward by 50% total"
     )
 }
 
@@ -2490,6 +2776,80 @@ TestLiveSuggestedUpgradeUsesOneImmutableCapture() {
     )
 }
 
+TestLegacyWallPickerUsesSuggestedMenuRow() {
+    source := FileRead(A_ScriptDir "\ADBcocbotrefactor.ahk")
+    functionStart := InStr(source, "FindAnyWallInDropdown() {")
+    functionEnd := InStr(source, "UpgradeWalls(wallState :=", false, functionStart)
+    AssertTrue(
+        functionStart > 0 && functionEnd > functionStart,
+        "legacy wall picker can be inspected"
+    )
+    functionSource := SubStr(source, functionStart, functionEnd - functionStart)
+    AssertTrue(
+        InStr(functionSource, "SelectFirstSuggestedUpgradeOCRWord(result.Lines)") > 0,
+        "legacy wall picker selects only the first Suggested Upgrades row"
+    )
+    AssertTrue(
+        InStr(functionSource, "NormalizeBuilderOCRMatch(selected, sc)") > 0,
+        "legacy wall picker normalizes its OCR row coordinates"
+    )
+    AssertTrue(
+        InStr(functionSource, "IsWallSuggestedUpgrade(selected)") > 0,
+        "legacy wall picker verifies that the Suggested row is a Wall"
+    )
+}
+
+TestWallSuggestedUpgradeRejectsVillageOverlayText() {
+    AssertTrue(
+        IsWallSuggestedUpgrade({text: "Wall"}),
+        "Wall is a valid suggested-upgrade word"
+    )
+    AssertTrue(
+        IsWallSuggestedUpgrade({text: "Wa11"}),
+        "common Wall OCR substitution is accepted"
+    )
+    AssertTrue(
+        !IsWallSuggestedUpgrade({text: "Wall Level 3"}),
+        "selected village Wall Level text is never treated as the menu word"
+    )
+}
+
+TestWallPickerSelectsRowDirectlyBelowSuggestedHeader() {
+    selected := SelectFirstSuggestedUpgradeOCRWord([
+        {
+            Text: "Suggested upgrades:",
+            x: 20,
+            y: 100,
+            w: 180,
+            h: 20,
+            Words: [{Text: "Suggested", x: 20, y: 100, w: 90, h: 20}]
+        },
+        {
+            Text: "Wall x16",
+            x: 20,
+            y: 140,
+            w: 130,
+            h: 22,
+            Words: [
+                {Text: "Wall", x: 20, y: 140, w: 54, h: 22},
+                {Text: "x16", x: 84, y: 140, w: 40, h: 22}
+            ]
+        },
+        {
+            Text: "Wall Level 3",
+            x: 430,
+            y: 500,
+            w: 180,
+            h: 30,
+            Words: [{Text: "Wall", x: 430, y: 500, w: 54, h: 30}]
+        }
+    ])
+    AssertTrue(IsObject(selected), "Suggested Upgrades produces a first-row selection")
+    AssertEqual("Wall", selected.text, "wall picker selects the row directly below the header")
+    AssertEqual(20, selected.x, "wall picker retains the menu word coordinate")
+    AssertEqual(140, selected.y, "wall picker retains the menu row coordinate")
+}
+
 RunTest("scale cache and client translation", TestScaleCacheAndTranslation)
 RunTest("invalid mapping fails explicitly", TestInvalidMappingFails)
 RunTest("mapping identity changes invalidate cached scales", TestMappingIdentityInvalidation)
@@ -2513,6 +2873,9 @@ RunTest("loot mode rounds close valid readings", TestLootModeRoundsCloseValidRea
 RunTest("both invalid loot readings attack", TestBothInvalidLootAttacks)
 RunTest("valid loot readings preserve the 500k decision", TestLootThresholdDecisionRemainsAuthoritative)
 RunTest("live loot OCR uses the proven ADB contract", TestLiveLootOCRUsesProvenADBContract)
+RunTest("loot OCR comparison harness contract", TestLootOCRComparisonHarnessContract)
+RunTest("builder/lab OCR comparison harness contract", TestBuilderLabOCRComparisonHarnessContract)
+RunTest("builder/lab comparison crops trim only their left edges", TestBuilderLabComparisonCropsTrimOnlyTheirLeftEdges)
 RunTest("threshold inspector uses one fresh ADB contract", TestThresholdVisualInspectorUsesFreshADBContract)
 RunTest("threshold neighborhoods ignore light text", TestThresholdNeighborhoodIgnoresLightPixels)
 RunTest("live thresholds use proven neighborhoods", TestLiveThresholdReaderUsesProvenNeighborhoodContract)
@@ -2526,6 +2889,9 @@ RunTest("live builder flow taps Info before confirmation", TestLiveBuilderFlowRe
 RunTest("live builder flow skips confirmation without Info", TestLiveBuilderFlowSkipsConfirmationWithoutInfo)
 RunTest("live bot contains the proven builder Info integration", TestLiveBuilderInfoProductionContract)
 RunTest("live suggestions reuse one immutable ADB capture", TestLiveSuggestedUpgradeUsesOneImmutableCapture)
+RunTest("legacy wall picker uses the Suggested Upgrades row", TestLegacyWallPickerUsesSuggestedMenuRow)
+RunTest("wall picker rejects village overlay text", TestWallSuggestedUpgradeRejectsVillageOverlayText)
+RunTest("wall picker selects the row below Suggested Upgrades", TestWallPickerSelectsRowDirectlyBelowSuggestedHeader)
 RunTest("split Suggested Upgrades header selects the following choice", TestSplitSuggestedUpgradesHeaderSelectsFollowingChoice)
 RunTest("real corrupted Suggested headers select the following choice", TestRealCorruptedSuggestedHeadersSelectFollowingChoice)
 RunTest("builder confirmation failure cannot complete", TestBuilderConfirmationFailureCannotComplete)
@@ -2552,7 +2918,14 @@ RunTest("Builder Base harness reports actionable errors", TestBuilderBaseHarness
 RunTest("Builder Base monitor reports check and Return Home progress", TestBuilderBaseFlowLogsCheckAndReturnHomeProgress)
 RunTest("production Builder Base loop uses the proven flow", TestLiveBuilderBaseUsesProvenFlow)
 RunTest("reload OCR accepts only explicit action labels", TestExplicitReloadActionLabels)
+RunTest("vision OCR uses a project-managed Python runtime", TestVisionRuntimeUsesProjectManagedEnvironment)
+RunTest("lab fraction OCR preserves the denominator leading edge", TestLabFractionOCRPreservesTheDenominatorLeadingEdge)
+RunTest("vision OCR failures are not reported as availability", TestVisionFailuresAreNotReportedAsResourceAvailability)
+RunTest("repeated Start does not pause the running bot", TestStartDoesNotPauseARunningBot)
+RunTest("diagnostic logs redact user paths and prune images", TestDiagnosticLogsRedactUserPathsAndPruneImages)
+RunTest("multi-point recognition uses one fresh frame", TestMultiPointRecognitionUsesOneFreshFrame)
 RunTest("production uses one shared live cycle lifecycle", TestLiveGlobalCycleProductionContract)
+RunTest("reconnect inspector separates analysis from confirmed tap", TestReconnectReloadInspectorContract)
 
 FileAppend(
     Format("RESULT: {} passed, {} failed.`n", TestPassCount, TestFailCount),

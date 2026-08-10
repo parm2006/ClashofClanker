@@ -127,9 +127,59 @@ ResolveTimerExitOkayClientPoint(
 
 IsExplicitReloadActionText(text) {
     normalized := StrLower(RegExReplace(String(text), "[^A-Za-z]", ""))
-    return normalized == "reload"
-        || normalized == "retry"
-        || normalized == "tryagain"
+    if (InStr(normalized, "disconnect") > 0)
+        return false
+    return InStr(normalized, "reload") > 0
+        || InStr(normalized, "retry") > 0
+        || InStr(normalized, "tryagain") > 0
+        || InStr(normalized, "reconnect") > 0
+        || InStr(normalized, "relogin") > 0
+        || InStr(normalized, "okay") > 0
+        || InStr(normalized, "connect") > 0
+        || normalized == "ok"
+}
+
+IsErrorCardColorMatch(framePath, viewportX, viewportY, viewportW, viewportH) {
+    if (framePath == "" || !FileExist(framePath))
+        return {isMatch: false, count: 0, total: 6}
+
+    centerX := viewportX + viewportW * 0.50
+    centerY := viewportY + viewportH * 0.50
+
+    offsets := [
+        {x: 0, y: 0},
+        {x: -15, y: 0},
+        {x: 15, y: 0},
+        {x: 0, y: -15},
+        {x: 0, y: 15},
+        {x: -15, y: -15}
+    ]
+
+    matchCount := 0
+    InitGDIPlus()
+    pBitmap := 0
+    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
+        return {isMatch: false, count: 0, total: 6}
+
+    try {
+        for off in offsets {
+            adbPt := TranslateClientPointToADB(centerX + off.x, centerY + off.y)
+            argb := 0
+            status := DllCall("gdiplus\GdipBitmapGetPixel", "ptr", pBitmap, "int", Round(adbPt.x), "int", Round(adbPt.y), "uint*", &argb)
+            if (status == 0) {
+                rgb := argb & 0x00FFFFFF
+                r := (rgb >> 16) & 0xFF
+                g := (rgb >> 8) & 0xFF
+                b := rgb & 0xFF
+                if (Abs(r - 0x19) <= 15 && Abs(g - 0x1C) <= 15 && Abs(b - 0x1E) <= 15)
+                    matchCount += 1
+            }
+        }
+    } finally {
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+    }
+
+    return {isMatch: matchCount >= 3, count: matchCount, total: offsets.Length}
 }
 
 InvalidateADBClientMapping() {
@@ -472,6 +522,11 @@ class ADBMainFlowSections {
         builders := this.Primitives.Do("read_builders_from_frame", frame)
         if !IsObject(builders)
             throw Error("Builder availability could not be read.")
+        if (builders.HasOwnProp("valid") && !builders.valid) {
+            errorText := builders.HasOwnProp("error") ? builders.error : "no OCR result"
+            this._Log("Builder availability OCR failed: " errorText ".")
+            return false
+        }
         this._Log(
             "Builder availability: " builders.free "/" builders.total
                 ", Goblin=" this._YesNo(builders.goblin) "."
@@ -607,6 +662,11 @@ class ADBMainFlowSections {
         lab := this.Primitives.Do("read_lab_from_frame", frame)
         if !IsObject(lab)
             throw Error("Lab availability could not be read.")
+        if (lab.HasOwnProp("valid") && !lab.valid) {
+            errorText := lab.HasOwnProp("error") ? lab.error : "no OCR result"
+            this._Log("Lab availability OCR failed: " errorText ".")
+            return false
+        }
         this._Log(
             "Lab availability: " lab.free "/" lab.total
                 ", Goblin=" this._YesNo(lab.goblin) "."
@@ -813,11 +873,48 @@ class ADBMainFlowSections {
             )
             if atHome
                 break
+            if (attempt >= 25) {
+                this._Log(
+                    "Return Home reached 25 failed attempts; checking for a reload popup."
+                )
+                if this._RecoverReturnHomeAfterRetryLimit()
+                    break
+                throw Error(
+                    "Return Home failed after 25 attempts and no reload action restored Main Village."
+                )
+            }
         }
         this._Log("Home confirmed; resetting the Main Village viewport.")
         this.Primitives.Do("reset_main_viewport")
         this._Log("Return Home complete.")
         return true
+    }
+
+    _RecoverReturnHomeAfterRetryLimit() {
+        frame := this._CaptureFreshFrame("reload")
+        reloadAction := this.Primitives.Do(
+            "find_reload_action_from_frame",
+            frame
+        )
+        if !IsObject(reloadAction) {
+            this._Log("Return Home recovery: no explicit reload action found.")
+            return false
+        }
+
+        this._Log("Return Home recovery: waiting 1000 ms before tapping reload action.")
+        if !this.Primitives.Do("wait", 1000)
+            return false
+        this.Primitives.Do("tap_reload_action", reloadAction)
+        this._Log("Return Home recovery: waiting 10000 ms for Main Village.")
+        if !this.Primitives.Do("wait", 10000)
+            return false
+
+        frame := this._CaptureFreshFrame("home")
+        atHome := this.Primitives.Do("detect_main_home_from_frame", frame)
+        this._Log(
+            "Return Home recovery detection: " (atHome ? "HOME" : "NOT HOME") "."
+        )
+        return atHome
     }
 
     FinishMainCycle() {
@@ -948,9 +1045,12 @@ class ADBGlobalCycleFlow {
             return "continue"
         }
 
+        this._Log("Reconnect checkpoint: action found; waiting 1000 ms before tap.")
+        if !this.Primitives.Do("wait", 1000)
+            return "stopped"
         this._Log("Reconnect checkpoint: tapping explicit reload action.")
         this.Primitives.Do("tap_reload_action", reloadAction)
-        if !this.Primitives.Do("wait", 15000)
+        if !this.Primitives.Do("wait", 10000)
             return "stopped"
 
         Loop {
@@ -1051,6 +1151,11 @@ class ADBRefactorFlowController {
         )
         operations.Do("clear_tap")
         operations.Do("log", "Clear tap complete.")
+        operations.Do(
+            "log",
+            "Startup: restoring the calibrated viewport before village detection."
+        )
+        operations.Do("reset_main_viewport")
 
         village := operations.Do("detect_village")
         if (village == "main") {
