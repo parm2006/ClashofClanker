@@ -5256,11 +5256,19 @@ F2:: {
     StartBBCalibration()
 }
 
-; Milestone Checkpoint 2.5: Verified ADB Storage Bar Pixel Thresholds and Multi-Point Village Detection
+#HotIf
+
+IsBotMaximizedAndActive() {
+    global MyGui
+    if !MyGui || !IsObject(MyGui) || !WinExist("ahk_id " MyGui.Hwnd)
+        return false
+    return WinActive("ahk_id " MyGui.Hwnd) && (WinGetMinMax("ahk_id " MyGui.Hwnd) == 1)
+}
+
+#HotIf !IsCalibrating && !IsBBCalibrating && IsBotMaximizedAndActive()
 Esc:: {
     ShowToolTip("Exiting Clash of Clans Bot...")
     Sleep 1000
     ExitApp
 }
-; Checkpoint: Functional Bot 2.2
 #HotIf
