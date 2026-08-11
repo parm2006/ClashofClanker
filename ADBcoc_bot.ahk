@@ -5258,15 +5258,15 @@ F2:: {
 
 #HotIf
 
-IsBotMaximizedAndActive() {
+IsBotActive() {
     global MyGui
     if !MyGui || !IsObject(MyGui) || !WinExist("ahk_id " MyGui.Hwnd)
         return false
-    return WinActive("ahk_id " MyGui.Hwnd) && (WinGetMinMax("ahk_id " MyGui.Hwnd) == 1)
+    return WinActive("ahk_id " MyGui.Hwnd)
 }
 
-; Milestone Checkpoint 2.6: Revamped Escape Hotkey for Active & Maximized Bot Window
-#HotIf !IsCalibrating && !IsBBCalibrating && IsBotMaximizedAndActive()
+; Escape exits only while the bot GUI is the foreground window; its size does not matter.
+#HotIf !IsCalibrating && !IsBBCalibrating && IsBotActive()
 Esc:: {
     ShowToolTip("Exiting Clash of Clans Bot...")
     Sleep 1000
