@@ -24,7 +24,7 @@ Before running the bot, make sure you have the following installed on your syste
 
 1) **Launch the Bot:** Download the entire GitHub repository (preferably as a ZIP file and extract it). Once all files are contained in the same folder, double-click `ADBcoc_bot.ahk` to run the bot and open the GUI.
 2) **Configure Limits:** Set your farming limits in the GUI (e.g. 500k Gold/Elixir minimum, and toggle Wall Upgrades on/off). **Note: You must click the 'Save Settings' button at the bottom of the tab to save and apply any changes.** 
-3) **Run Calibration (`Ctrl + F1`):** The bot will maximize the game window and guide you through 26 calibration steps:
+3) **Run Calibration (`Ctrl + Shift + Alt + F1`):** The bot will maximize the game window and guide you through 26 calibration steps:
    - **Step 1–2:** Gold and Elixir storage thresholds (tells the bot when your storages are full).
    - **Step 3:** The Builder Head icon (top-center of the screen).
    - **Steps 4–8:** Wall upgrade menu coordinates (Upgrade More, Add Wall, Remove Wall, Gold/Elixir upgrade buttons).
@@ -40,4 +40,4 @@ Before running the bot, make sure you have the following installed on your syste
    - For **Heroes**, it goes straight to the confirm coordinates.
    - For **Buildings**, it uses Python template matching (`upgrade_button_hook.py`) with your magenta template (`hammer_template_trans.png`) to locate the Upgrade button center.
    - By default, it hovers on the confirmation coordinates and clears the selection (skipping the actual click for testing safety).
-5) **Builder Base Calibration (`Ctrl + F2`):** Run this if you want the bot to farm the Builder Base (it spams attacks and switches phases).
+5) **Builder Base Calibration (`Ctrl + Shift + Alt + F2`):** Run this if you want the bot to farm the Builder Base (it spams attacks and switches phases).

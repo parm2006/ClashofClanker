@@ -32,9 +32,9 @@ An AutoHotkey (AHK) v2.0 bot for Clash of Clans using **100% background-safe And
 
 Because screen sizes and window placements differ, **you must calibrate the bot before running it**. The local `config.ini` settings are ignored by Git so that each installation has its own customized settings.
 
-### Main Village Calibration Steps (`Ctrl + F1`)
+### Main Village Calibration Steps (`Ctrl + Shift + Alt + F1`)
 1. Double-click `ADBcoc_bot.ahk` to launch the bot GUI.
-2. Click **Start Calibration** in the GUI or press **`Ctrl + F1`**.
+2. Click **Start Calibration** in the GUI or press **`Ctrl + Shift + Alt + F1`**.
 3. Switch to the game window. Follow the onscreen tooltips to calibrate the 26 targets:
    - **Steps 1–3 (Home Village - Storage & Focus)**: Gold Storage Bar Threshold, Elixir Storage Bar Threshold, Builder Face.
    - **Steps 4–8 (Home Village - Wall Upgrades)**: Upgrade More, Add Wall (+1), Remove Wall (-1), Gold Upgrade, Elixir Upgrade.
@@ -46,8 +46,8 @@ Because screen sizes and window placements differ, **you must calibrate the bot 
    - **Step 25 (Battle End)**: Return Home Button.
    - **Step 26 (Resource Collectors)**: Hover over your Gold Mines, Elixir Collectors, or Dark Elixir Drills and press **`SPACE`** to add each one. Press **`ENTER`** to finish and save.
 
-### Builder Base Calibration Steps (`Ctrl + F2`)
-1. In the Builder Base, press **`Ctrl + F2`** to start calibration.
+### Builder Base Calibration Steps (`Ctrl + Shift + Alt + F2`)
+1. In the Builder Base, press **`Ctrl + Shift + Alt + F2`** to start calibration.
 2. Follow the tooltips to calibrate the 5 targets:
    - **Step 1**: BB Attack Button
    - **Step 2**: BB Find Match Button
@@ -81,11 +81,15 @@ The bot GUI includes tabs that allow you to customize configuration variables at
 
 | Hotkey | Action |
 | --- | --- |
-| **`Ctrl + F1`** | Start / Cancel Main Village Calibration |
-| **`Ctrl + F2`** | Start / Cancel Builder Base Calibration |
-| **`F1`** | Unified Start (Detects Base and Starts Loop) |
-| **`F2`** | Pause Bot Loop |
+| **`Ctrl + Shift + F1`** | Unified Start (Detects Base and Starts Loop) |
+| **`Ctrl + Shift + F2`** | Pause Bot Loop |
+| **`Ctrl + Shift + Alt + F1`** | Start / Cancel Main Village Calibration |
+| **`Ctrl + Shift + Alt + F2`** | Start / Cancel Builder Base Calibration |
 | **`ESC`** | Exit Bot |
+
+## Virtual Desktop Use
+
+After calibration, you can place the bot and emulator on another Windows virtual desktop. Runtime checks use ADB to confirm that the selected device is online and that Clash of Clans is the foreground Android app; they do not require the emulator's Windows window to be visible. Calibration still requires the emulator window to be on the active desktop.
 
 ---
 

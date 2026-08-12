@@ -331,15 +331,13 @@ ValidateADBViewportRuntime() {
     if !IsADBViewportValid(ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom,
         ADBViewportClientWidth, ADBViewportClientHeight)
         return {Ok: false, Message: "Android viewport bounds are invalid. Run Main Calibration."}
+    ; A window on another Windows virtual desktop can be cloaked from WinExist.
+    ; Runtime input and capture use ADB, so retain the calibrated client size then.
     hwnd := WinExist(TargetWindowTitle)
-    if !hwnd {
-        InvalidateADBClientMapping()
-        return {Ok: false, Message: "The configured emulator window was not found."}
-    }
-    isMinimized := WinGetMinMax(hwnd) == -1
+    isMinimized := !hwnd || WinGetMinMax(hwnd) == -1
     currentClientWidth := 0
     currentClientHeight := 0
-    if !isMinimized
+    if hwnd && !isMinimized
         WinGetClientPos ,, &currentClientWidth, &currentClientHeight, hwnd
     validationSize := ResolveADBValidationClientSize(
         isMinimized,
@@ -1470,9 +1468,9 @@ CreateGUI() {
     EditWindow := MyGui.Add("Edit", "x140 y48 w200 h20", TargetWindowTitle)
     StatusText := MyGui.Add("Text", "x20 y80 w320 h30 +Center", "STATUS: IDLE")
     StatusText.SetFont("s12 bold", "Segoe UI")
-    StartBtn := MyGui.Add("Button", "x20 y120 w150 h40", "Start Bot (F1)")
+    StartBtn := MyGui.Add("Button", "x20 y120 w150 h40", "Start Bot (Ctrl+Shift+F1)")
     StartBtn.OnEvent("Click", (*) => UnifiedStart())
-    PauseBtn := MyGui.Add("Button", "x190 y120 w150 h40", "Pause Bot (F2)")
+    PauseBtn := MyGui.Add("Button", "x190 y120 w150 h40", "Pause Bot (Ctrl+Shift+F2)")
     PauseBtn.OnEvent("Click", (*) => PauseBot())
     PauseBtn.Enabled := false
     MyGui.Add("GroupBox", "x20 y170 w320 h195", "Activity Log")
@@ -1494,9 +1492,9 @@ CreateGUI() {
     ; --- TAB 2: Calibration ---
     Tab.UseTab(2)
     MyGui.Add("Text", "x20 y35 w320 h40", "Click a button below or use its shortcut to calibrate coordinates relative to the game window.")
-    CalibStartBtn := MyGui.Add("Button", "x20 y75 w150 h35", "Main Calib (Ctrl+F1)")
+    CalibStartBtn := MyGui.Add("Button", "x20 y75 w150 h35", "Main Calib (Ctrl+Shift+Alt+F1)")
     CalibStartBtn.OnEvent("Click", (*) => StartCalibration())
-    CalibBBBtn := MyGui.Add("Button", "x180 y75 w150 h35", "BB Calib (Ctrl+F2)")
+    CalibBBBtn := MyGui.Add("Button", "x180 y75 w150 h35", "BB Calib (Ctrl+Shift+Alt+F2)")
     CalibBBBtn.OnEvent("Click", (*) => StartBBCalibration())
     CalibrationText := MyGui.Add("Text", "x20 y120 w320 h100 +Border", "Calibration is inactive.`n`nClick a start button to begin.")
     CalibrationText.SetFont("s10", "Segoe UI")
@@ -1688,19 +1686,19 @@ TestADBConnection(*) {
 ; STATE CONTROL ACTIONS
 ; ==============================================================================
 StartBot() {
-    global IsRunning, StatusText, StartBtn, PauseBtn, TargetWindowTitle, DDHours, DDMinutes, TimerDurationMs, TimerStartTick
+    global IsRunning, StatusText, StartBtn, PauseBtn, DDHours, DDMinutes, TimerDurationMs, TimerStartTick
 
     if IsRunning {
         LogMessage("Bot is already running!")
         return
     }
-    if !WinExist(TargetWindowTitle) {
-        MsgBox("Please ensure the game window '" TargetWindowTitle "' is open before starting.", "Error", "Iconx")
-        return
-    }
     adbReady := EnsureADBConnection()
     if !adbReady.Ok {
         MsgBox(adbReady.Message, "ADB Error", "Iconx")
+        return
+    }
+    if !IsClashForeground(adbReady.Serial) {
+        MsgBox("Clash of Clans is not the foreground Android app on the selected ADB device.", "ADB Error", "Iconx")
         return
     }
     IsRunning := true
@@ -3219,10 +3217,7 @@ UpgradeLab() {
     ClearingClick()
 }
 UpgradeBuilding() {
-    global TargetWindowTitle, BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, UpgradeConfirmX, UpgradeConfirmY
-    hwnd := WinExist(TargetWindowTitle)
-    if !hwnd
-        return false
+    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, UpgradeConfirmX, UpgradeConfirmY
     viewport := GetADBClientViewportRect()
     LogMessage("Farming: Opening Builder suggestions menu...")
     ADBClickPoint(BuilderFaceX, BuilderFaceY)
@@ -3496,12 +3491,12 @@ class LiveADBFlowPrimitives {
     }
 
     VerifyEmulator() {
-        global TargetWindowTitle
-        if !WinExist(TargetWindowTitle)
-            throw Error("The configured emulator window is not open.")
+        global ADB_TARGET_PACKAGE
         ready := EnsureADBConnection()
         if !ready.Ok
             throw Error(ready.Message)
+        if !IsADBPackageInstalled(ready.Serial, ADB_TARGET_PACKAGE)
+            throw Error("Clash of Clans is not installed on the selected ADB device.")
         if !IsClashForeground(ready.Serial)
             throw Error("Clash of Clans is not the foreground Android app.")
         return true
@@ -3913,12 +3908,8 @@ LegacyStartBotLoop() {
     LastTimeoutCheck := A_TickCount
     CheckGameTimeout(true)
     ; Send an ADB tap without activating the emulator window.
-    if WinExist(TargetWindowTitle) {
-        LogMessage("Performing initial ADB focus clicks inside viewport...")
-        ClearingClick()
-    } else {
-        LogMessage("Error: Game window not found. Skipping initial focus click.")
-    }
+    LogMessage("Performing initial ADB focus clicks inside viewport...")
+    ClearingClick()
     Loop {
         if !IsRunning
             break
@@ -4129,12 +4120,9 @@ LegacyStartBotLoop() {
             ADBClickPoint(ReturnHomeClickX, ReturnHomeClickY)
             if !SafeSleep(2000)
                 goto LoopExit
-            ; Unconditionally click where the Star Bonus "Okay" button would be
-            WinGetClientPos ,, &cw, &ch, TargetWindowTitle
-            if (cw && ch) {
-                ADBClickFraction(0.5, 0.77)
-                SafeSleep(400)
-            }
+            ; Unconditionally click where the Star Bonus "Okay" button would be.
+            ADBClickFraction(0.5, 0.77)
+            SafeSleep(400)
             ; Dismiss Star Bonus or other post-battle popup screens
             ClearingClick()
             if IsAtHomeVillage()
@@ -5149,7 +5137,7 @@ UnifiedStart() {
     global SessionCompletedAttacks
     global DDHours, DDMinutes, StatusText
     if (IsRunning || IsBBRunning) {
-        LogMessage("Start ignored: bot is already running. Use Pause (F2) to stop it.")
+        LogMessage("Start ignored: bot is already running. Use Ctrl+Shift+F2 to stop it.")
         return
     }
 
@@ -5214,19 +5202,19 @@ LegacyUnifiedStart() {
     ; 4. Check village type and start the appropriate loop
     if IsAtHomeVillage() {
         if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION) {
-            LogMessage("ADB coordinates are stale. Run Main Calib (Ctrl+F1) once to rebuild them from client coordinates.")
+            LogMessage("ADB coordinates are stale. Run Main Calib (Ctrl+Shift+Alt+F1) once to rebuild them from client coordinates.")
             StatusText.Value := "Status: Main Calibration Needed"
             return
         }
         if (WarLogoColor == 0x000000) {
-            LogMessage("WARNING: War Logo is uncalibrated! Please run Main Calib (Ctrl+F1).")
+            LogMessage("WARNING: War Logo is uncalibrated! Please run Main Calib (Ctrl+Shift+Alt+F1).")
             StatusText.Value := "Status: Calibration Needed"
             return
         }
         StartBot()
     } else if IsAtBuilderBase() {
         if (ADBBBCalibrationVersion != ADB_COORDINATE_VERSION) {
-            LogMessage("Builder Base ADB coordinates are stale. Run BB Calib (Ctrl+F2) once.")
+            LogMessage("Builder Base ADB coordinates are stale. Run BB Calib (Ctrl+Shift+Alt+F2) once.")
             StatusText.Value := "Status: BB Calibration Needed"
             return
         }
@@ -5242,17 +5230,17 @@ LegacyUnifiedStart() {
         SetTimer UnifiedStart, -15000
     }
 }
-F1:: {
+^+F1:: {
     UnifiedStart()
 }
-F2:: {
+^+F2:: {
     PauseBot()
     IsBBRunning := false
 }
-^F1:: {
+^!+F1:: {
     StartCalibration()
 }
-^F2:: {
+^!+F2:: {
     StartBBCalibration()
 }
 
