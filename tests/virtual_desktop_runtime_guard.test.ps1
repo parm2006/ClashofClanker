@@ -3,6 +3,11 @@ $ErrorActionPreference = 'Stop'
 $sourcePath = Join-Path $PSScriptRoot '..\ADBcoc_bot.ahk'
 $source = Get-Content -Raw $sourcePath
 
+$expectedReconnectCrop = 'global ReconnectCropLeftRatio := 0\.10, ReconnectCropRightRatio := 0\.90\s*\r?\nglobal ReconnectCropTopRatio := 0\.35, ReconnectCropBottomRatio := 0\.65'
+if ($source -notmatch $expectedReconnectCrop) {
+    throw 'Reload OCR crop must be centered at 80% of the viewport width and 30% of its height.'
+}
+
 function Get-AhkFunctionBody([string] $name) {
     $start = $source.IndexOf("$name() {")
     if ($start -lt 0) {

@@ -2,6 +2,7 @@
 #SingleInstance Force
 ; Active production ADB bot.
 #include "OCR.ahk"
+#include "reload_ocr_logic.ahk"
 #include "loot_ocr_logic.ahk"
 #include "resource_threshold_logic.ahk"
 #include "builder_info_ocr_logic.ahk"
@@ -145,8 +146,8 @@ global ADBViewportProvider := ""
 global ADBViewportSerial := ""
 global ADBViewportVersion := 0
 global ADB_VIEWPORT_VERSION := 1
-global ReconnectCropLeftRatio := 0.28, ReconnectCropRightRatio := 0.72
-global ReconnectCropTopRatio := 0.51, ReconnectCropBottomRatio := 0.64
+global ReconnectCropLeftRatio := 0.10, ReconnectCropRightRatio := 0.90
+global ReconnectCropTopRatio := 0.35, ReconnectCropBottomRatio := 0.65
 global PendingViewportLeft := 0
 global PendingViewportTop := 0
 global BuilderMenuBottomX := 960, BuilderMenuBottomY := 800
@@ -964,6 +965,25 @@ RunADBTapAt(clientX, clientY, intendedDelayMs := 0) {
         return point
     } catch as err {
         LogMessage("ADB tap failed: " err.Message)
+        return false
+    }
+}
+
+RunADBDirectTapAt(adbX, adbY, intendedDelayMs := 0) {
+    try {
+        ready := EnsureADBActionReady()
+        if !ready.Ok
+            throw Error(ready.Message)
+
+        WaitForADBActionPreDelay(intendedDelayMs)
+        point := {x: Round(adbX), y: Round(adbY)}
+        RunADBInteractionCommand(
+            BuildADBTapArguments(ready.Serial, point.x, point.y)
+        )
+        LogMessage("Direct ADB tap executed at (" point.x ", " point.y ").")
+        return point
+    } catch as err {
+        LogMessage("Direct ADB tap failed: " err.Message)
         return false
     }
 }
@@ -2598,53 +2618,29 @@ IsReturnHomePresentADB() {
 CheckGameTimeout(force := false) {
     global IsRunning
     if !force && !IsRunning
-        return
+        return false
     try {
-        viewport := GetADBClientViewportRect()
-    } catch {
-        return
-    }
-    searchX := viewport.x + (viewport.width * 0.25)
-    searchY := viewport.y + (viewport.height * 0.4)
-    searchW := viewport.width * 0.5
-    searchH := viewport.height * 0.4
-    imgName := A_Temp "\coc_refactor_timeout.png"
-    try {
-        adbCrop := SaveRegionToPNG(searchX, searchY, searchW, searchH, imgName)
-        result := OCR.FromFile(imgName, {scale: 1.5})
-        timeoutDetected := false
-        buttonLine := ""
-        for line in result.Lines {
-            text := StrReplace(line.Text, " ", "")
-            ; Check if any line indicates timeout / reload screen is active
-            if InStr(text, "eload") || InStr(text, "Sync") || InStr(text, "Break") || InStr(text, "Connection") || InStr(text, "Another") {
-                timeoutDetected := true
-            }
-            ; Check if this line is a button we can click
-            if InStr(text, "eload") || InStr(text, "Try") || InStr(text, "Okay") || InStr(text, "Retry") {
-                buttonLine := line
-            }
+        framePath := CaptureADBFrame(true)
+        frame := {
+            section: "reload",
+            path: framePath,
+            capturedAt: A_TickCount
         }
-        if timeoutDetected {
-            LogMessage("Farming: Game Timeout/Reload screen detected!")
-            if (buttonLine != "") {
-                LogMessage("Farming: Clicking detected reload/action button...")
-                clientPoint := ADBFramePointToClient(
-                    adbCrop,
-                    buttonLine.x + (buttonLine.w / 2),
-                    buttonLine.y + (buttonLine.h / 2)
-                )
-                ClientClickPoint(clientPoint.x, clientPoint.y)
-            } else {
-                LogMessage("Farming: No specific button text detected, clicking screen center fallback...")
-                ADBClickFraction(0.5, 0.55)
-            }
-            Sleep 10000 ; Wait 10 seconds for game to reload
+        reloadAction := FindReloadActionFromADBFrame(frame)
+        if !IsObject(reloadAction) {
+            LogMessage("Timeout check: no explicit Reload/Retry action found.")
+            return false
         }
-        try FileDelete(imgName)
+        LogMessage(
+            "Timeout check: fresh OCR found '" reloadAction.name
+                "'; tapping its current center."
+        )
+        TapLiveReloadAction(reloadAction)
+        Sleep 10000
+        return true
     } catch as err {
-        try FileDelete(imgName)
-        LogMessage("Timeout OCR failed: " err.Message)
+        LogMessage("Unified reload recovery failed: " err.Message)
+        return false
     }
 }
 SaveRegionToPNG(x, y, w, h, filepath) {
@@ -3642,6 +3638,8 @@ class LiveADBFlowPrimitives {
 
     TapReturnHome() {
         global ReturnHomeClickX, ReturnHomeClickY
+        centerPoint := ClientViewportPointFromFraction(0.5, 0.5)
+        RunADBTapAt(centerPoint.x, centerPoint.y, 200)
         return RunADBTapAt(ReturnHomeClickX, ReturnHomeClickY, 200)
     }
 
@@ -3790,23 +3788,29 @@ FindReloadActionFromADBFrame(frame) {
             searchH,
             imagePath
         )
-        result := OCR.FromFile(imagePath, {scale: 1.5})
-        for line in result.Lines {
-            if !IsExplicitReloadActionText(line.Text)
+        ocrScale := 1.5
+        result := OCR.FromFile(imagePath, {scale: ocrScale})
+        for word in result.Words {
+            normalizedWord := NormalizeOCRFromFileWord(word, ocrScale)
+            if !IsExplicitReloadActionText(normalizedWord.text)
                 continue
+            adbX := adbCrop.x + normalizedWord.x + normalizedWord.w / 2
+            adbY := adbCrop.y + normalizedWord.y + normalizedWord.h / 2
             clientPoint := ADBFramePointToClient(
                 adbCrop,
-                line.x + line.w / 2,
-                line.y + line.h / 2
+                normalizedWord.x + normalizedWord.w / 2,
+                normalizedWord.y + normalizedWord.h / 2
             )
-            actionName := Trim(line.Text, " `t`r`n")
+            actionName := Trim(normalizedWord.text, " `t`r`n")
             LogMessage(
                 "Reconnect OCR: explicit action '" actionName
-                    "' at client (" clientPoint.x ", "
-                    clientPoint.y ")."
+                    "' at ADB (" Round(adbX) ", " Round(adbY)
+                    ") and client (" clientPoint.x ", " clientPoint.y ")."
             )
             return {
                 name: actionName,
+                adbX: adbX,
+                adbY: adbY,
                 x: clientPoint.x,
                 y: clientPoint.y
             }
@@ -3820,11 +3824,11 @@ FindReloadActionFromADBFrame(frame) {
 
 TapLiveReloadAction(action) {
     if (!IsObject(action)
-        || !action.HasOwnProp("x")
-        || !action.HasOwnProp("y")) {
-        throw Error("Reload action is missing its client point.")
+        || !action.HasOwnProp("adbX")
+        || !action.HasOwnProp("adbY")) {
+        throw Error("Reload action is missing its direct ADB point.")
     }
-    tapped := RunADBTapAt(action.x, action.y, 300)
+    tapped := RunADBDirectTapAt(action.adbX, action.adbY, 300)
     if !IsObject(tapped)
         throw Error("Could not tap the explicit Reload/Retry action.")
     return tapped

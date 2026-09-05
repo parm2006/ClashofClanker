@@ -747,29 +747,10 @@ class ADBMainFlowSections {
 
             this._Log(
                 "Base search: clouds cleared; resetting the viewport before "
-                    "state detection and loot OCR."
+                    "loot OCR."
             )
             this.Primitives.Do("reset_main_viewport")
             baseFrame := this._CaptureFreshFrame("base")
-            village := this.Primitives.Do(
-                "detect_village_from_frame",
-                baseFrame
-            )
-            this._Log("Base search state detection: " village ".")
-            if (village == "main") {
-                this._Log(
-                    "Base search is still at Main Village; retrying the "
-                        "complete battle entry."
-                )
-                this.EnterMainBattle()
-                continue
-            }
-            if (village != "battle") {
-                throw Error(
-                    "Expected a Main Village battle after clouds cleared; "
-                        "detected " village "."
-                )
-            }
             loot := this.Primitives.Do("read_loot_from_frame", baseFrame)
             if (!IsObject(loot)
                 || !loot.HasOwnProp("gold")
@@ -819,22 +800,22 @@ class ADBMainFlowSections {
     AttackMainBase() {
         sideName := "side" this.Primitives.Do("random_side")
         this._Log("Attack: selected " sideName " for deployment.")
-        for key in ["1", "2", "3"] {
-            this._Log("Deploying troop slot " key " on " sideName ".")
-            this.Primitives.Do("deploy_main", key, sideName)
-        }
-        this._Log("Deploying siege machine z on " sideName ".")
-        this.Primitives.Do("deploy_main", "z", sideName)
         for key in ["q", "w", "e", "r"] {
             this._Log("Deploying hero " key " on " sideName ".")
             this.Primitives.Do("deploy_main", key, sideName)
         }
+        this._Log("Deploying siege machine z on " sideName ".")
+        this.Primitives.Do("deploy_main", "z", sideName)
         for key in ["a", "s"] {
             this._Log(
                 "Deploying spell " key " on " sideName
-                    " with a 35-pixel-per-axis inward shift."
+                    " with a 150-pixel-per-axis inward shift."
             )
-            this.Primitives.Do("deploy_spell", key, sideName, 35)
+            this.Primitives.Do("deploy_spell", key, sideName, 150)
+        }
+        for key in ["1", "2", "3"] {
+            this._Log("Deploying troop slot " key " on " sideName ".")
+            this.Primitives.Do("deploy_main", key, sideName)
         }
         this._Log("Battle in progress; waiting 30000 ms.")
         this.Primitives.Do("wait", 30000)
