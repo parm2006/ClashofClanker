@@ -3,6 +3,8 @@
 ; test_adb_refactor_interactions.ahk.
 
 global ADBRefactorSupportLoaded := true
+; Main Village spells move 150 ADB pixels per axis toward the display center.
+global MAIN_SPELL_INWARD_OFFSET_PIXELS := 150
 global ADBScaleX := 0.0
 global ADBScaleY := 0.0
 global ADBRefactorViewportLeft := 0
@@ -798,6 +800,7 @@ class ADBMainFlowSections {
     }
 
     AttackMainBase() {
+        global MAIN_SPELL_INWARD_OFFSET_PIXELS
         sideName := "side" this.Primitives.Do("random_side")
         this._Log("Attack: selected " sideName " for deployment.")
         for key in ["q", "w", "e", "r"] {
@@ -809,9 +812,15 @@ class ADBMainFlowSections {
         for key in ["a", "s"] {
             this._Log(
                 "Deploying spell " key " on " sideName
-                    " with a 150-pixel-per-axis inward shift."
+                    " with a " MAIN_SPELL_INWARD_OFFSET_PIXELS
+                    "-pixel-per-axis inward shift."
             )
-            this.Primitives.Do("deploy_spell", key, sideName, 150)
+            this.Primitives.Do(
+                "deploy_spell",
+                key,
+                sideName,
+                MAIN_SPELL_INWARD_OFFSET_PIXELS
+            )
         }
         for key in ["1", "2", "3"] {
             this._Log("Deploying troop slot " key " on " sideName ".")

@@ -11,6 +11,7 @@
 #include "builder_base_loop_logic.ahk"
 ; Every gameplay input must enter through the client-coordinate interaction
 ; contract in this support file. Callers must never pretranslate coordinates.
+; Main Village spells use a 150-pixel-per-axis inward ADB shift from this support file.
 #include "ADBcocbotrefactor_support.ahk"
 ; Set coordinate modes relative to the active window's client area and match substring titles
 CoordMode "Mouse", "Client"

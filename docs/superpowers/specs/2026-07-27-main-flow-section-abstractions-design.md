@@ -105,14 +105,14 @@ section with the approved every-fifth-attack reload recovery.
 
 Spell placement stores and receives client coordinates. The interaction layer
 translates each client point to ADB coordinates, then moves each translated
-axis 35 pixels toward the Android display center:
+axis 150 pixels toward the Android display center:
 
 ```text
-shiftedX = adbX + sign(centerX - adbX) * 35
-shiftedY = adbY + sign(centerY - adbY) * 35
+shiftedX = adbX + sign(centerX - adbX) * 150
+shiftedY = adbY + sign(centerY - adbY) * 150
 ```
 
-For a diagonal point, this moves the spell approximately 49.5 pixels toward
+For a diagonal point, this moves the spell approximately 212.1 pixels toward
 the center. An axis already aligned with the center remains unchanged. After
 the shift, the interaction layer clamps the point, applies independent uniform
 offsets from -7 through +8, and sends the tap. It never changes stored client
