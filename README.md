@@ -1,6 +1,6 @@
 # Clash of Clans Automation Bot
 
-An AutoHotkey (AHK) v2.0 bot for Clash of Clans using **100% background-safe Android Debug Bridge (ADB)** execution.
+An AutoHotkey v2.0 bot for Clash of Clans using **100% background-safe Android Debug Bridge (ADB)** execution.
 
 ## Available Scripts
 
