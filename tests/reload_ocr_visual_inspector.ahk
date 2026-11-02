@@ -191,9 +191,9 @@ ReloadConfig() {
 
     TargetWindowTitle := IniRead(ConfigPath, "Settings", "TargetWindowTitle", "Clash of Clans")
     provider := IniRead(ConfigPath, "ADB", "Provider", "Google Play Games Developer Emulator")
-    ADBSerial := provider == "BlueStacks"
-        ? IniRead(ConfigPath, "ADB", "BlueStacksSerial", "127.0.0.1:5555")
-        : "localhost:6520"
+    ADBSerial := (provider == "Habumi" || provider == "Habuki")
+        ? IniRead(ConfigPath, "ADB", "HabumiSerial", "127.0.0.1:15555")
+        : (provider == "BlueStacks" ? IniRead(ConfigPath, "ADB", "BlueStacksSerial", "127.0.0.1:5555") : "localhost:6520")
     left := ReadIniInteger("ADBViewport", "Left", 0)
     top := ReadIniInteger("ADBViewport", "Top", 0)
     right := ReadIniInteger("ADBViewport", "Right", -1)

@@ -2,7 +2,22 @@
 
 global ResourceThresholdLogicLoaded := true
 
+IsDarkElixirThresholdColor(color) {
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+    ; Fixed swatches sampled once from the filled bar: upper shading and lower fluid.
+    ; Purple tint rejects the gray empty bar even when its brightness is similar.
+    if (r - g < 8 || b - g < 12 || b - r < 4)
+        return false
+    return (Abs(r - 118) <= 22 && Abs(g - 101) <= 22 && Abs(b - 126) <= 22)
+        || (Abs(r - 39) <= 18 && Abs(g - 13) <= 18 && Abs(b - 51) <= 18)
+}
+
 IsThresholdLightColor(color) {
+    ; The filled Dark Elixir bar's muted purple used to be discarded as neutral.
+    if IsDarkElixirThresholdColor(color)
+        return false
     r := (color >> 16) & 0xFF
     g := (color >> 8) & 0xFF
     b := color & 0xFF

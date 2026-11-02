@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+Persistent(true)
 ; Disposable staged click visualizer copied from the active production ADB bot.
 ; This file deliberately executes the same live ADB/OCR helpers while keeping all
 ; visualizer-specific control and drawing code isolated from the production bot.
@@ -11,8 +12,16 @@
 #include "builder_base_loop_logic.ahk"
 ; Every gameplay input must enter through the client-coordinate interaction
 ; contract in this support file. Callers must never pretranslate coordinates.
-; Main Village spells use a 150-pixel-per-axis inward ADB shift from this support file.
+; Main Village spells use a 75-pixel-per-axis inward ADB shift from this support file.
 #include "ADBcocbotrefactor_support.ahk"
+#include "clash_app_recovery.ahk"
+#include "habumi_watchdog.ahk"
+#include "bot_runtime.ahk"
+#include "upgrade_settings.ahk"
+#include "settings_autosave.ahk"
+#include "upgrade_rows.ahk"
+#include "visualizer_manual_actions.ahk"
+#include "visualizer_read_regions.ahk"
 ; Set coordinate modes relative to the active window's client area and match substring titles
 CoordMode "Mouse", "Client"
 SetTitleMatchMode 2
@@ -28,9 +37,12 @@ global BBClickCount := 1
 ; --- ADB target and pinch helper ---
 global GPGDE_PROVIDER := "Google Play Games Developer Emulator"
 global BLUESTACKS_PROVIDER := "BlueStacks"
+global HABUMI_PROVIDER := "Habumi"
 global GPGDE_SERIAL := "localhost:6520"
-global ADBProvider := GPGDE_PROVIDER
+global HABUMI_SERIAL := "127.0.0.1:15555"
+global ADBProvider := HABUMI_PROVIDER
 global BlueStacksSerial := "127.0.0.1:5555"
+global HabumiSerial := "127.0.0.1:15555"
 global ADBConnectionSerial := ""
 global ADBHelperSerial := ""
 global ADBDisplaySerial := ""
@@ -62,8 +74,8 @@ global ReturnHomeClickX := 960
 global ReturnHomeClickY := 920
 global ReturnHomeColor := 0x5FA41A
 global ReturnHomeTolerance := 35
-global ClearTapX := 1676
-global ClearTapY := 416
+global ClearTapX := 657
+global ClearTapY := 108
 ; --- Builder Base Coordinates & Stars ---
 global BBAttackBtnX := 100
 global BBAttackBtnY := 970
@@ -76,16 +88,22 @@ global BBStar2Y := 540
 global BBStar3X := 960
 global BBStar3Y := 540
 global BBStarColor := 0x000000
-global WarLogoX := 100
-global WarLogoY := 700
-global MVLogoX := 100
-global MVLogoY := 700
-global WarLogoColor := 0x000000
+global WarLogoX := 1245
+global WarLogoY := 125
+global MVLogoX := 1245
+global MVLogoY := 125
+global WarLogoColor := 0x2E242F
 ; --- OCR Target Areas ---
 global BuilderFaceX := 960
 global BuilderFaceY := 30
 global LabFaceX := 960
 global LabFaceY := 30
+global DrawerCloseBtnX := 1240
+global DrawerCloseBtnY := 38
+global DrawerTabBuilderX := 905
+global DrawerTabLabX := 1010
+global DrawerTabPetX := 1220
+global DrawerTabY := 750
 global UpgradeConfirmX := 960
 global UpgradeConfirmY := 540
 global GoldAreaX := 50
@@ -124,6 +142,10 @@ global GoldUpgradeX := 960
 global GoldUpgradeY := 800
 global ElixirUpgradeX := 960
 global ElixirUpgradeY := 800
+; --- Pet House State Globals ---
+global PetHouseChecked := false
+global NeedPetUpgrade := false
+global PetIsUpgrading := false
 ; --- Clouds Checking Coordinates ---
 global CloudPt1X := 500
 global CloudPt1Y := 300
@@ -182,6 +204,7 @@ global BBSides := [
 ; ==============================================================================
 global IsRunning := false
 global IsBBRunning := false
+global IsStarting := false
 global IsCalibrating := false
 global IsBBCalibrating := false
 global IsWaitingForReset := false
@@ -224,6 +247,13 @@ global LastADBFrameTick := 0
 ; ==============================================================================
 ; STANDALONE CLICK VISUALIZER STATE
 ; ==============================================================================
+global VisualizerActionButtons := [], VisualizerReviewButtons := []
+global VisualizerSideChoice := "", VisualizerCollectorChoice := "", VisualizerResultText := "", VisualizerNote := ""
+global VisualizerLastAction := "", VisualizerLastLabel := "", VisualizerLastMode := ""
+global VisualizerInputCount := 0, VisualizerInputFailed := false, VisualizerCancelled := false
+global VisualizerActionExecuting := false, VisualizerCache := Map()
+global VisualizerReadRegionKeys := Map()
+global VisualizerCalibrationWasActive := false
 global VisualizerStage := "home"
 global VisualizerStageRunning := false
 global VisualizerAutoLoopActive := false
@@ -250,31 +280,51 @@ if VisualizerHasArg("--self-test") {
 
 ; Load the same configuration as the main bot, but create only the disposable
 ; staged controller and overlay owned by this copy.
+AcquireADBControllerLock()
 LoadConfig()
 CreateClickVisualizerGUI()
 InitializeClickOverlay()
 OnExit(ShutdownClickVisualizer)
 SetTimer(SyncClickOverlayPosition, 250)
-LogMessage("Standalone click visualizer initialized. Automatic Home stage starting.")
-SetTimer(StartAutomaticVisualizerLoop, -250)
+LogMessage("Manual visualizer ready. Choose a test; automatic farming is off.")
 
-ResolveADBSerial(provider, blueStacksSerial) {
-    global GPGDE_PROVIDER, BLUESTACKS_PROVIDER, GPGDE_SERIAL
+ResolveADBSerial(provider, customSerial) {
+    global GPGDE_PROVIDER, BLUESTACKS_PROVIDER, HABUMI_PROVIDER, GPGDE_SERIAL, HABUMI_SERIAL
     if (provider == GPGDE_PROVIDER)
         return GPGDE_SERIAL
+    if (provider == HABUMI_PROVIDER || provider == "Habuki")
+        return (customSerial != "") ? ValidateBlueStacksSerial(customSerial) : HABUMI_SERIAL
     if (provider == BLUESTACKS_PROVIDER)
-        return ValidateBlueStacksSerial(blueStacksSerial)
-    throw Error("Choose Google Play Games Developer Emulator or BlueStacks.")
+        return ValidateBlueStacksSerial(customSerial)
+    throw Error("Choose Habumi, Google Play Games Developer Emulator, or BlueStacks.")
 }
 
 ValidateBlueStacksSerial(serial) {
     serial := Trim(serial)
-    if !RegExMatch(serial, "^(localhost|127\.0\.0\.1):(\d{1,5})$", &match)
-        throw Error("BlueStacks must use localhost:PORT or 127.0.0.1:PORT.")
+    if !RegExMatch(serial, "^(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{1,5})$", &match)
+        throw Error("Emulator serial must use localhost:PORT or IP:PORT.")
     port := Integer(match[2])
     if (port < 1 || port > 65535)
-        throw Error("BlueStacks port must be between 1 and 65535.")
+        throw Error("Emulator port must be between 1 and 65535.")
     return serial
+}
+
+FindTargetWindow(preferredTitle := "") {
+    global TargetWindowTitle, ADBProvider, HABUMI_PROVIDER
+    target := preferredTitle != "" ? preferredTitle : TargetWindowTitle
+    if (target != "" && (hwnd := WinExist(target)))
+        return hwnd
+    if (ADBProvider == HABUMI_PROVIDER || ADBProvider == "Habuki") {
+        for candidate in ["Android", "Habumi", "ahk_exe Habumi.exe", "ahk_exe qemu-nostro.exe", "ahk_class winq-finestra", "ahk_class AndroidRuntimeGuscio"] {
+            if (hwnd := WinExist(candidate))
+                return hwnd
+        }
+    }
+    for candidate in ["Clash of Clans", "BlueStacks App Player", "ahk_exe HD-Player.exe", "ahk_exe crosvm.exe"] {
+        if (hwnd := WinExist(candidate))
+            return hwnd
+    }
+    return 0
 }
 
 QuoteADBArgument(value) {
@@ -288,16 +338,18 @@ IsADBViewportValid(left, top, right, bottom, clientWidth, clientHeight) {
         && top >= 0
         && right > left
         && bottom > top
-        && right < clientWidth
-        && bottom < clientHeight
+        && right <= clientWidth
+        && bottom <= clientHeight
 }
 
 DoesADBViewportMatchRuntime(calibratedClientWidth, calibratedClientHeight, calibratedProvider, calibratedSerial,
     currentClientWidth, currentClientHeight, currentProvider, currentSerial) {
-    return calibratedClientWidth == currentClientWidth
-        && calibratedClientHeight == currentClientHeight
-        && calibratedProvider == currentProvider
-        && calibratedSerial == currentSerial
+    ; Validate that we are targeting the same emulator provider and ADB serial
+    if (calibratedProvider != currentProvider || calibratedSerial != currentSerial)
+        return false
+    ; ADB translates coordinates directly to the 1280x800 display based on the calibrated viewport
+    ; bounds, so desktop window size differences (e.g. maximized vs restored) do not affect ADB mapping.
+    return true
 }
 
 ParseBuilderFraction(text, &free, &total) {
@@ -312,16 +364,17 @@ ParseBuilderFraction(text, &free, &total) {
 }
 
 ClientToADBPoint(x, y) {
+    global IsCalibrating
     viewportState := ValidateADBViewportRuntime()
-    if !viewportState.Ok
+    if (!viewportState.Ok && !IsCalibrating)
         throw Error(viewportState.Message)
     return TranslateClientPointToADB(x, y)
 }
 
 GetADBClientViewportRect() {
-    global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
+    global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom, IsCalibrating
     viewportState := ValidateADBViewportRuntime()
-    if !viewportState.Ok
+    if (!viewportState.Ok && !IsCalibrating)
         throw Error(viewportState.Message)
     return {
         x: ADBViewportLeft,
@@ -360,7 +413,25 @@ ValidateADBViewportRuntime() {
     global TargetWindowTitle, ADBProvider
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
     global ADBViewportClientWidth, ADBViewportClientHeight, ADBViewportProvider, ADBViewportSerial
-    global ADBViewportVersion, ADB_VIEWPORT_VERSION
+    global ADBViewportVersion, ADB_VIEWPORT_VERSION, IsCalibrating, IsBBCalibrating
+    if (IsCalibrating || IsBBCalibrating) {
+        try {
+            display := GetADBDisplaySize()
+            ConfigureADBClientMapping(
+                ADBViewportLeft,
+                ADBViewportTop,
+                ADBViewportRight,
+                ADBViewportBottom,
+                display.width,
+                display.height,
+                ADBViewportClientWidth,
+                ADBViewportClientHeight,
+                ADBProvider,
+                GetSelectedADBSerial()
+            )
+        }
+        return {Ok: true, Message: "Android viewport is valid (calibrating)."}
+    }
     if (ADBViewportVersion != ADB_VIEWPORT_VERSION)
         return {Ok: false, Message: "Android viewport calibration is missing or stale. Run Main Calibration."}
     if !IsADBViewportValid(ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom,
@@ -368,7 +439,7 @@ ValidateADBViewportRuntime() {
         return {Ok: false, Message: "Android viewport bounds are invalid. Run Main Calibration."}
     ; A window on another Windows virtual desktop can be cloaked from WinExist.
     ; Runtime input and capture use ADB, so retain the calibrated client size then.
-    hwnd := WinExist(TargetWindowTitle)
+    hwnd := FindTargetWindow()
     isMinimized := !hwnd || WinGetMinMax(hwnd) == -1
     currentClientWidth := 0
     currentClientHeight := 0
@@ -445,6 +516,10 @@ BuildBuilderMenuSwipe(builderFaceX, menuBottomY, builderFaceY) {
 }
 
 ResolveADBPath() {
+    customADB := IniRead("config.ini", "ADB", "AdbPath", "")
+    if (customADB != "" && FileExist(customADB))
+        return customADB
+
     for directory in StrSplit(EnvGet("PATH"), ";") {
         directory := Trim(directory, ' "')
         if (directory == "")
@@ -453,30 +528,54 @@ ResolveADBPath() {
         if FileExist(candidate)
             return candidate
     }
-    bundledADB := "C:\Program Files\Google\Play Games Developer Emulator\current\emulator\adb.exe"
-    if FileExist(bundledADB)
-        return bundledADB
-    throw Error("adb.exe was not found in PATH or the GPGDE installation folder.")
+    knownPaths := [
+        "C:\Users\" A_UserName "\Habumi-Trial-20261030\runtime-package\runtime\bin\adb.exe",
+        "C:\Program Files\Google\Play Games Developer Emulator\current\emulator\adb.exe",
+        "C:\LDPlayer\LDPlayer9\adb.exe",
+        "C:\Program Files\Netease\MuMuPlayerARM\shell\adb.exe",
+        "C:\Program Files\Netease\MuMuPlayerGlobal-12.0\shell\adb.exe"
+    ]
+    for candidate in knownPaths {
+        if FileExist(candidate)
+            return candidate
+    }
+    Loop Files, "C:\Users\" A_UserName "\Habumi*\runtime-package\runtime\bin\adb.exe", "F" {
+        return A_LoopFileFullPath
+    }
+    throw Error("adb.exe was not found in PATH or known emulator folders.")
 }
 
 RunADB(arguments, captureOutput := false) {
+    global VisualizerStageRunning, VisualizerInputFailed, VisualizerCancelled
+    isInput := RegExMatch(arguments, "i)\bshell (?:input|am (?:instrument|start))\b")
+    if isInput && VisualizerStageRunning && VisualizerCancelled
+        throw Error("Manual test was stopped before this input.")
+    if isInput
+        TraceManualVisualizerInput(arguments)
     adbPath := ResolveADBPath()
     try {
         if !captureOutput {
-            exitCode := RunWait(QuoteADBArgument(adbPath) " " arguments, A_ScriptDir, "Hide")
+            command := A_ComSpec ' /D /S /C ""' adbPath '" ' arguments ' > nul 2>&1"'
+            exitCode := RunADBProcess(command, InStr(arguments, " am instrument ") ? 40 : RegExMatch(arguments, "^install\b") ? 120 : 24)
+            if isInput && exitCode != 0
+                VisualizerInputFailed := true
             return {Ok: exitCode == 0, ExitCode: exitCode, Output: ""}
         }
-        outputPath := A_ScriptDir "\scratch\coc_bot_adb_output.txt"
+        outputPath := A_ScriptDir "\scratch\adb_out_" A_TickCount "_" Random(10000, 99999) ".txt"
         DirCreate(A_ScriptDir "\scratch")
-        if FileExist(outputPath)
-            FileDelete(outputPath)
         command := A_ComSpec ' /D /S /C ""' adbPath '" ' arguments ' > "' outputPath '" 2>&1"'
-        exitCode := RunWait(command, A_ScriptDir, "Hide")
-        output := FileExist(outputPath) ? Trim(FileRead(outputPath), " `t`r`n") : ""
-        if FileExist(outputPath)
-            FileDelete(outputPath)
+        exitCode := RunADBProcess(command, InStr(arguments, " am instrument ") ? 40 : RegExMatch(arguments, "^install\b") ? 120 : 24)
+        output := ""
+        if FileExist(outputPath) {
+            try output := Trim(FileRead(outputPath), " `t`r`n")
+            try FileDelete(outputPath)
+        }
+        if isInput && (exitCode != 0 || InStr(output, "Pinch failed:") || InStr(output, "INSTRUMENTATION_ABORTED"))
+            VisualizerInputFailed := true
         return {Ok: exitCode == 0, ExitCode: exitCode, Output: output}
     } catch as err {
+        if isInput
+            VisualizerInputFailed := true
         throw Error("Could not run ADB: " err.Message)
     }
 }
@@ -486,20 +585,23 @@ FormatADBResult(result) {
 }
 
 GetSelectedADBSerial() {
-    global ADBProvider, BlueStacksSerial
+    global ADBProvider, BlueStacksSerial, HabumiSerial, HABUMI_PROVIDER
+    if (ADBProvider == HABUMI_PROVIDER || ADBProvider == "Habuki")
+        return ResolveADBSerial(ADBProvider, HabumiSerial)
     return ResolveADBSerial(ADBProvider, BlueStacksSerial)
 }
 
 EnsureADBConnection(force := false) {
     global ADBConnectionSerial, ADBHelperSerial, ADBDisplaySerial
+    WaitForHabumiWatchdog(false)
     serial := GetSelectedADBSerial()
     if !force && ADBConnectionSerial == serial
         return {Ok: true, Message: "Connected (cached).", Serial: serial}
     state := RunADB('-s ' QuoteADBArgument(serial) ' get-state', true)
-    if !state.Ok {
-        connected := RunADB('connect ' QuoteADBArgument(serial), true)
-        if !connected.Ok
-            return {Ok: false, Message: "ADB connect failed. " FormatADBResult(connected), Serial: serial}
+    Loop 2 {
+        if state.Ok
+            break
+        RunADB('connect ' QuoteADBArgument(serial), true)
         state := RunADB('-s ' QuoteADBArgument(serial) ' get-state', true)
     }
     if !state.Ok
@@ -560,36 +662,41 @@ CaptureADBFrame(force := false) {
     adbPath := ResolveADBPath()
     outputPath := ADBFramePath
     command := A_ComSpec ' /D /S /C ""' adbPath '" -s ' QuoteADBArgument(ready.Serial) ' exec-out screencap -p > "' outputPath '" 2>&1"'
-    RunWait(command, A_ScriptDir, "Hide")
+    RunADBProcess(command, 24)
     LastADBFrameTick := A_TickCount
     return ADBFramePath
 }
 
 GetADBPixelColor(clientX, clientY, forceRefresh := false) {
-    adbPoint := ClientToADBPoint(clientX, clientY)
-    framePath := CaptureADBFrame(forceRefresh)
-    if !FileExist(framePath)
-        return 0x000000
+    try {
+        adbPoint := ClientToADBPoint(clientX, clientY)
+        AddVisualizerADBReadRegion(adbPoint.x, adbPoint.y, 1, 1)
+        framePath := CaptureADBFrame(forceRefresh)
+        if !FileExist(framePath)
+            return 0x000000
 
-    InitGDIPlus()
-    pBitmap := 0
-    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
-        return 0x000000
+        InitGDIPlus()
+        pBitmap := 0
+        if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pBitmap) != 0
+            return 0x000000
 
-    argb := 0
-    DllCall(
-        "gdiplus\GdipBitmapGetPixel",
-        "ptr",
-        pBitmap,
-        "int",
-        adbPoint.x,
-        "int",
-        adbPoint.y,
-        "uint*",
-        &argb
-    )
-    DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
-    return argb & 0x00FFFFFF
+        argb := 0
+        DllCall(
+            "gdiplus\GdipBitmapGetPixel",
+            "ptr",
+            pBitmap,
+            "int",
+            adbPoint.x,
+            "int",
+            adbPoint.y,
+            "uint*",
+            &argb
+        )
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap)
+        return argb & 0x00FFFFFF
+    } catch {
+        return 0x000000
+    }
 }
 
 GetADBFramePixelColor(framePath, clientX, clientY) {
@@ -627,6 +734,7 @@ GetADBFrameThresholdNeighborhood(
     if (framePath == "" || !FileExist(framePath))
         throw Error("Fresh ADB threshold frame is missing.")
 
+    AddVisualizerClientReadRegion(clientX - clientRadiusX, clientY - clientRadiusY, clientRadiusX * 2 + 1, clientRadiusY * 2 + 1)
     center := ClientToADBPoint(clientX, clientY)
     InitGDIPlus()
     pBitmap := 0
@@ -682,6 +790,11 @@ GetADBFrameThresholdNeighborhood(
 }
 
 ReadResourceThresholdsFromADBFrame(framePath) {
+    global NoUpgrades
+    if NoUpgrades {
+        LogMessage("No upgrades enabled: Gold=NO, Elixir=NO, Dark Elixir=NO.")
+        return {gold: false, elixir: false, darkElixir: false}
+    }
     global GoldBarThreshX, GoldBarThreshY
     global ElixirBarThreshX, ElixirBarThreshY
     global DarkElixirBarThreshX, DarkElixirBarThreshY
@@ -731,10 +844,7 @@ ReadResourceThresholdsFromADBFrame(framePath) {
     darkR := (darkColor >> 16) & 0xFF
     darkG := (darkColor >> 8) & 0xFF
     darkB := darkColor & 0xFF
-    darkFilled := darkSample.valid
-        && darkR < 70
-        && darkG < 60
-        && darkB < 80
+    darkFilled := darkSample.valid && IsDarkElixirThresholdColor(darkColor)
 
     LogMessage(
         Format(
@@ -790,6 +900,7 @@ IsGoblinFaceInADBFrame(framePath, centerX, centerY) {
         [0, 0], [-7, 0], [7, 0], [0, -7], [0, 7],
         [-5, -5], [5, -5], [-5, 5], [5, 5], [0, -4]
     ]
+    AddVisualizerClientReadRegion(centerX - 7, centerY - 7, 15, 15)
     greenCount := 0
     for pt in offsets {
         color := GetADBFramePixelColor(
@@ -807,6 +918,7 @@ IsGoblinFaceInADBFrame(framePath, centerX, centerY) {
 }
 
 IsAttackButtonInADBFrame(framePath, x, y) {
+    AddVisualizerClientReadRegion(x - 1, y - 1, 3, 3)
     color := GetADBFramePixelColor(framePath, x, y)
     r := (color >> 16) & 0xFF
     g := (color >> 8) & 0xFF
@@ -815,15 +927,16 @@ IsAttackButtonInADBFrame(framePath, x, y) {
 }
 
 IsWarLogoInADBFrame(framePath) {
-    global WarLogoX, WarLogoY, MVLogoX, MVLogoY
+    global WarLogoX, WarLogoY, MVLogoX, MVLogoY, DarkElixirBarThreshX, DarkElixirBarThreshY
     targetX := WarLogoX > 0 ? WarLogoX : MVLogoX
     targetY := WarLogoY > 0 ? WarLogoY : MVLogoY
+    AddVisualizerClientReadRegion(targetX - 15, targetY - 15, 31, 31)
     offsets := [
         {x: 0, y: 0},
-        {x: -20, y: -20},
-        {x: 20, y: -20},
-        {x: -20, y: 20},
-        {x: 20, y: 20}
+        {x: -15, y: -15},
+        {x: 15, y: -15},
+        {x: -15, y: 15},
+        {x: 15, y: 15}
     ]
     for pt in offsets {
         color := GetADBFramePixelColor(
@@ -837,6 +950,16 @@ IsWarLogoInADBFrame(framePath) {
         if IsWarLogoColor(r, g, b)
             return true
     }
+    ; Secondary check: if Dark Elixir bar threshold point is dark (not grass), it's Main Base
+    if (DarkElixirBarThreshX > 0 && DarkElixirBarThreshY > 0) {
+        AddVisualizerClientReadRegion(DarkElixirBarThreshX - 1, DarkElixirBarThreshY - 1, 3, 3)
+        color := GetADBFramePixelColor(framePath, DarkElixirBarThreshX, DarkElixirBarThreshY)
+        r := (color >> 16) & 0xFF
+        g := (color >> 8) & 0xFF
+        b := color & 0xFF
+        if (r < 100 && g < 80 && b < 100)
+            return true
+    }
     return false
 }
 
@@ -844,6 +967,7 @@ DetectVillageFromADBFrame(framePath) {
     global AttackBtnX, AttackBtnY, BBAttackBtnX, BBAttackBtnY
     mainAttack := IsAttackButtonInADBFrame(framePath, AttackBtnX - 45, AttackBtnY)
         || IsAttackButtonInADBFrame(framePath, AttackBtnX + 45, AttackBtnY)
+        || IsAttackButtonInADBFrame(framePath, AttackBtnX, AttackBtnY)
     warLogo := IsWarLogoInADBFrame(framePath)
     if (mainAttack && warLogo)
         return "main"
@@ -872,6 +996,7 @@ AreCloudsPresentInADBFrame(framePath) {
         {x: CloudPt3X, y: CloudPt3Y},
         {x: CloudPt4X, y: CloudPt4Y}
     ] {
+        AddVisualizerClientReadRegion(point.x - 1, point.y - 1, 3, 3)
         color := GetADBFramePixelColor(framePath, point.x, point.y)
         r := (color >> 16) & 0xFF
         g := (color >> 8) & 0xFF
@@ -940,9 +1065,8 @@ EnsureADBActionReady() {
 IsClashForeground(serial) {
     global ADB_TARGET_PACKAGE
     result := RunADB('-s ' QuoteADBArgument(serial) ' shell dumpsys activity activities', true)
-    if !result.Ok
-        return false
-    return RegExMatch(result.Output, "im)^\s*(topResumedActivity|mResumedActivity|ResumedActivity).*" ADB_TARGET_PACKAGE "/")
+    return result.Ok && RegExMatch(result.Output,
+        "im)^\s*(topResumedActivity|mResumedActivity|ResumedActivity).*\b" ADB_TARGET_PACKAGE "/") > 0
 }
 
 RunADBInteractionCommand(arguments) {
@@ -1015,7 +1139,7 @@ RunADBDirectTapAt(adbX, adbY, intendedDelayMs := 0) {
         RunADBInteractionCommand(
             BuildADBTapArguments(ready.Serial, point.x, point.y)
         )
-        AddVisualizerADBRectangle(point.x, point.y, point.x, point.y)
+        AddVisualizerADBRectangle(point.x - 3, point.y - 3, point.x + 3, point.y + 3)
         LogMessage("Direct ADB tap executed at (" point.x ", " point.y ").")
         return point
     } catch as err {
@@ -1128,9 +1252,13 @@ RunADBPinchAt(centerClientX, centerClientY, intendedDelayMs := 0) {
         EnsureADBPinchHelper(ready.Serial)
         interaction := CreateLiveADBClientInteraction()
         WaitForADBActionPreDelay(intendedDelayMs)
-        center := interaction.Pinch(centerClientX, centerClientY, 200, 45, 200, intendedDelayMs)
-        AddVisualizerADBLine(center.x - 200, center.y, center.x - 45, center.y)
-        AddVisualizerADBLine(center.x + 200, center.y, center.x + 45, center.y)
+        Loop 2 {
+            center := interaction.Pinch(centerClientX, centerClientY, 150, 34, 200, intendedDelayMs)
+            AddVisualizerADBLine(center.x - 150, center.y, center.x - 34, center.y)
+            AddVisualizerADBLine(center.x + 150, center.y, center.x + 34, center.y)
+            if A_Index < 2
+                RandomizedDelay(300)
+        }
         return true
     } catch as err {
         LogMessage("ADB pinch failed: " err.Message)
@@ -1142,6 +1270,8 @@ RunADBPinchAt(centerClientX, centerClientY, intendedDelayMs := 0) {
 ; CONFIGURATION LOADING AND SAVING
 ; ==============================================================================
 LoadConfig() {
+    global DrawerCloseBtnX, DrawerCloseBtnY
+    global DrawerTabBuilderX, DrawerTabLabX, DrawerTabPetX, DrawerTabY
     global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, BattleLoadDelay
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade, UpgradeConfirmX, UpgradeConfirmY
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
@@ -1170,12 +1300,18 @@ LoadConfig() {
     global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
     global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
     global BBSides
-    global ADBProvider, BlueStacksSerial, GPGDE_PROVIDER, BLUESTACKS_PROVIDER
+    global ADBProvider, BlueStacksSerial, HabumiSerial, GPGDE_PROVIDER, BLUESTACKS_PROVIDER, HABUMI_PROVIDER
     global ADBMainCalibrationVersion, ADBBBCalibrationVersion
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
     global ADBViewportClientWidth, ADBViewportClientHeight, ADBViewportProvider, ADBViewportSerial, ADBViewportVersion
     global ClearTapX, ClearTapY
-    TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", "Clash of Clans")
+    ADBProvider := IniRead("config.ini", "ADB", "Provider", HABUMI_PROVIDER)
+    if (ADBProvider != GPGDE_PROVIDER && ADBProvider != BLUESTACKS_PROVIDER && ADBProvider != HABUMI_PROVIDER && ADBProvider != "Habuki")
+        ADBProvider := HABUMI_PROVIDER
+    if (ADBProvider == "Habuki")
+        ADBProvider := HABUMI_PROVIDER
+    defaultTitle := (ADBProvider == HABUMI_PROVIDER) ? "Android" : "Clash of Clans"
+    TargetWindowTitle := IniRead("config.ini", "Settings", "TargetWindowTitle", defaultTitle)
     ButtonDelta := SafeInteger(IniRead("config.ini", "Settings", "ButtonDelta", ""), 5)
     DeployDelta := SafeInteger(IniRead("config.ini", "Settings", "DeployDelta", ""), 15)
     TransitionDelay := SafeInteger(IniRead("config.ini", "Settings", "TransitionDelay", ""), 500)
@@ -1185,10 +1321,8 @@ LoadConfig() {
     MinElixir := SafeInteger(IniRead("config.ini", "Farming", "MinElixir", ""), 500000)
     EnableLootSearch := IniRead("config.ini", "Farming", "EnableLootSearch", "1") == "1"
     EnableWallUpgrade := IniRead("config.ini", "Farming", "EnableWallUpgrade", "1") == "1"
-    ADBProvider := IniRead("config.ini", "ADB", "Provider", GPGDE_PROVIDER)
-    if (ADBProvider != GPGDE_PROVIDER && ADBProvider != BLUESTACKS_PROVIDER)
-        ADBProvider := GPGDE_PROVIDER
     BlueStacksSerial := IniRead("config.ini", "ADB", "BlueStacksSerial", "127.0.0.1:5555")
+    HabumiSerial := IniRead("config.ini", "ADB", "HabumiSerial", "127.0.0.1:15555")
     ADBMainCalibrationVersion := SafeInteger(IniRead("config.ini", "ADB", "MainCalibrationVersion", ""), 0)
     ADBBBCalibrationVersion := SafeInteger(IniRead("config.ini", "ADB", "BBCalibrationVersion", ""), 0)
     ADBViewportLeft := SafeInteger(IniRead("config.ini", "ADBViewport", "Left", ""), 0)
@@ -1201,10 +1335,10 @@ LoadConfig() {
     ADBViewportSerial := IniRead("config.ini", "ADBViewport", "Serial", "")
     ADBViewportVersion := SafeInteger(IniRead("config.ini", "ADBViewport", "Version", ""), 0)
     defaultClearTapX := Round(
-        ADBViewportLeft + (ADBViewportRight - ADBViewportLeft - 1) * 0.9522
+        ADBViewportLeft + (ADBViewportRight - ADBViewportLeft - 1) * 0.31
     )
     defaultClearTapY := Round(
-        ADBViewportTop + (ADBViewportBottom - ADBViewportTop - 1) * 0.383
+        ADBViewportTop + (ADBViewportBottom - ADBViewportTop - 1) * 0.10
     )
     ClearTapX := SafeInteger(
         IniRead("config.ini", "VisualTests", "ClearTapX", ""),
@@ -1217,18 +1351,21 @@ LoadConfig() {
     try BlueStacksSerial := ValidateBlueStacksSerial(BlueStacksSerial)
     catch
         BlueStacksSerial := "127.0.0.1:5555"
+    try HabumiSerial := ValidateBlueStacksSerial(HabumiSerial)
+    catch
+        HabumiSerial := "127.0.0.1:15555"
     Troop1Count := SafeInteger(IniRead("config.ini", "Farming", "Troop1Count", ""), 14)
     Troop2Count := SafeInteger(IniRead("config.ini", "Farming", "Troop2Count", ""), 14)
     Troop3Count := SafeInteger(IniRead("config.ini", "Farming", "Troop3Count", ""), 14)
-    AttackBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnX", ""), 100)
-    AttackBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnY", ""), 970)
-    FindMatchBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnX", ""), 250)
-    FindMatchBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnY", ""), 750)
-    AttackStartBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnX", ""), 1630)
-    AttackStartBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnY", ""), 920)
-    ReturnHomeClickX := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickX", ""), 960)
-    ReturnHomeClickY := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickY", ""), 920)
-    ReturnHomeColor := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeColor", ""), 0x5FA41A)
+    AttackBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnX", ""), 65)
+    AttackBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackBtnY", ""), 740)
+    FindMatchBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnX", ""), 165)
+    FindMatchBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "FindMatchBtnY", ""), 545)
+    AttackStartBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnX", ""), 1085)
+    AttackStartBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "AttackStartBtnY", ""), 655)
+    ReturnHomeClickX := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickX", ""), 83)
+    ReturnHomeClickY := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeClickY", ""), 612)
+    ReturnHomeColor := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeColor", ""), 0xFFFFFF)
     ReturnHomeTolerance := SafeInteger(IniRead("config.ini", "Coordinates", "ReturnHomeTolerance", ""), 35)
     BBAttackBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "BBAttackBtnX", ""), 100)
     BBAttackBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "BBAttackBtnY", ""), 970)
@@ -1246,48 +1383,54 @@ LoadConfig() {
     WarLogoX := MVLogoX
     WarLogoY := MVLogoY
     WarLogoColor := SafeInteger(IniRead("config.ini", "Coordinates", "MVLogoColor", ""), 0x000000)
-    BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 960)
-    BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 30)
-    BuilderMenuBottomX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderMenuBottomX", ""), BuilderFaceX)
-    BuilderMenuBottomY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderMenuBottomY", ""), 800)
-    LabFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceX", ""), 960)
-    LabFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceY", ""), 30)
-    UpgradeConfirmX := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmX", ""), 960)
-    UpgradeConfirmY := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmY", ""), 540)
-    DarkElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshX", ""), 0)
-    DarkElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshY", ""), 0)
-    GoldBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshX", ""), 1750)
-    GoldBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshY", ""), 100)
-    ElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshX", ""), 1750)
-    ElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshY", ""), 160)
-    GoldAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaX", ""), 50)
-    GoldAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaY", ""), 50)
-    GoldAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaW", ""), 150)
-    GoldAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaH", ""), 30)
-    ElixirAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaX", ""), 50)
-    ElixirAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaY", ""), 90)
-    ElixirAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaW", ""), 150)
-    ElixirAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaH", ""), 30)
+    BuilderFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceX", ""), 1180)
+    BuilderFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderFaceY", ""), 642)
+    BuilderMenuBottomX := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderMenuBottomX", ""), 1205)
+    BuilderMenuBottomY := SafeInteger(IniRead("config.ini", "Coordinates", "BuilderMenuBottomY", ""), 730)
+    DrawerCloseBtnX := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerCloseBtnX", ""), 1240)
+    DrawerCloseBtnY := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerCloseBtnY", ""), 38)
+    DrawerTabBuilderX := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerTabBuilderX", ""), 905)
+    DrawerTabLabX := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerTabLabX", ""), 1010)
+    DrawerTabPetX := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerTabPetX", ""), 1220)
+    DrawerTabY := SafeInteger(IniRead("config.ini", "Coordinates", "DrawerTabY", ""), 750)
+    LabFaceX := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceX", ""), 1245)
+    LabFaceY := SafeInteger(IniRead("config.ini", "Coordinates", "LabFaceY", ""), 642)
+    UpgradeConfirmX := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmX", ""), 816)
+    UpgradeConfirmY := SafeInteger(IniRead("config.ini", "Coordinates", "UpgradeConfirmY", ""), 711)
+    DarkElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshX", ""), 1170)
+    DarkElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "DarkElixirBarThreshY", ""), 155)
+    GoldBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshX", ""), 1170)
+    GoldBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldBarThreshY", ""), 42)
+    ElixirBarThreshX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshX", ""), 1170)
+    ElixirBarThreshY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirBarThreshY", ""), 98)
+    GoldAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaX", ""), 45)
+    GoldAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaY", ""), 105)
+    GoldAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaW", ""), 161)
+    GoldAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "GoldAreaH", ""), 59)
+    ElixirAreaX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaX", ""), 45)
+    ElixirAreaY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaY", ""), 145)
+    ElixirAreaW := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaW", ""), 161)
+    ElixirAreaH := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirAreaH", ""), 59)
     GoldIconX := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconX", ""), 45)
-    GoldIconY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconY", ""), 145)
+    GoldIconY := SafeInteger(IniRead("config.ini", "Coordinates", "GoldIconY", ""), 105)
     ElixirIconX := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconX", ""), 45)
-    ElixirIconY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconY", ""), 195)
+    ElixirIconY := SafeInteger(IniRead("config.ini", "Coordinates", "ElixirIconY", ""), 145)
     LootCropOffsetX := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetX", ""), 10)
     LootCropOffsetY := SafeInteger(IniRead("config.ini", "Settings", "LootCropOffsetY", ""), -27)
     LootCropW := SafeInteger(IniRead("config.ini", "Settings", "LootCropW", ""), 161)
     LootCropH := SafeInteger(IniRead("config.ini", "Settings", "LootCropH", ""), 59)
-    NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1630))
-    NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 850))
-    UpgradeMoreBtnX := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnX", 960))
-    UpgradeMoreBtnY := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnY", 850))
-    AddWall1X := Integer(IniRead("config.ini", "Coordinates", "AddWall1X", 960))
-    AddWall1Y := Integer(IniRead("config.ini", "Coordinates", "AddWall1Y", 800))
-    RemoveWallX := Integer(IniRead("config.ini", "Coordinates", "RemoveWallX", 960))
-    RemoveWallY := Integer(IniRead("config.ini", "Coordinates", "RemoveWallY", 800))
-    GoldUpgradeX := Integer(IniRead("config.ini", "Coordinates", "GoldUpgradeX", 960))
-    GoldUpgradeY := Integer(IniRead("config.ini", "Coordinates", "GoldUpgradeY", 800))
-    ElixirUpgradeX := Integer(IniRead("config.ini", "Coordinates", "ElixirUpgradeX", 960))
-    ElixirUpgradeY := Integer(IniRead("config.ini", "Coordinates", "ElixirUpgradeY", 800))
+    NextMatchBtnX := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnX", 1160))
+    NextMatchBtnY := Integer(IniRead("config.ini", "Coordinates", "NextMatchBtnY", 745))
+    UpgradeMoreBtnX := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnX", 512))
+    UpgradeMoreBtnY := Integer(IniRead("config.ini", "Coordinates", "UpgradeMoreBtnY", 650))
+    AddWall1X := Integer(IniRead("config.ini", "Coordinates", "AddWall1X", 410))
+    AddWall1Y := Integer(IniRead("config.ini", "Coordinates", "AddWall1Y", 650))
+    RemoveWallX := Integer(IniRead("config.ini", "Coordinates", "RemoveWallX", 417))
+    RemoveWallY := Integer(IniRead("config.ini", "Coordinates", "RemoveWallY", 650))
+    GoldUpgradeX := Integer(IniRead("config.ini", "Coordinates", "GoldUpgradeX", 500))
+    GoldUpgradeY := Integer(IniRead("config.ini", "Coordinates", "GoldUpgradeY", 650))
+    ElixirUpgradeX := Integer(IniRead("config.ini", "Coordinates", "ElixirUpgradeX", 590))
+    ElixirUpgradeY := Integer(IniRead("config.ini", "Coordinates", "ElixirUpgradeY", 650))
     CloudPt1X := Integer(IniRead("config.ini", "Coordinates", "CloudPt1X", 500))
     CloudPt1Y := Integer(IniRead("config.ini", "Coordinates", "CloudPt1Y", 300))
     CloudPt2X := Integer(IniRead("config.ini", "Coordinates", "CloudPt2X", 1420))
@@ -1357,6 +1500,8 @@ LoadConfig() {
     ]
 }
 SaveConfig() {
+    global DrawerCloseBtnX, DrawerCloseBtnY
+    global DrawerTabBuilderX, DrawerTabLabX, DrawerTabPetX, DrawerTabY
     global TargetWindowTitle, ButtonDelta, DeployDelta, TransitionDelay, BattleLoadDelay
     global MinGold, MinElixir, EnableLootSearch, EnableWallUpgrade, UpgradeConfirmX, UpgradeConfirmY
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
@@ -1382,7 +1527,7 @@ SaveConfig() {
     global BBSide2StartX, BBSide2StartY, BBSide2EndX, BBSide2EndY
     global BBSide3StartX, BBSide3StartY, BBSide3EndX, BBSide3EndY
     global BBSide4StartX, BBSide4StartY, BBSide4EndX, BBSide4EndY
-    global ADBProvider, BlueStacksSerial, ADBMainCalibrationVersion, ADBBBCalibrationVersion
+    global ADBProvider, BlueStacksSerial, HabumiSerial, ADBMainCalibrationVersion, ADBBBCalibrationVersion
     global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
     global ADBViewportClientWidth, ADBViewportClientHeight, ADBViewportProvider, ADBViewportSerial, ADBViewportVersion
     IniWrite(TargetWindowTitle, "config.ini", "Settings", "TargetWindowTitle")
@@ -1393,6 +1538,7 @@ SaveConfig() {
     IniWrite(BBClickCount, "config.ini", "Settings", "BBClickCount")
     IniWrite(ADBProvider, "config.ini", "ADB", "Provider")
     IniWrite(BlueStacksSerial, "config.ini", "ADB", "BlueStacksSerial")
+    IniWrite(HabumiSerial, "config.ini", "ADB", "HabumiSerial")
     IniWrite(ADBMainCalibrationVersion, "config.ini", "ADB", "MainCalibrationVersion")
     IniWrite(ADBBBCalibrationVersion, "config.ini", "ADB", "BBCalibrationVersion")
     IniWrite(ADBViewportLeft, "config.ini", "ADBViewport", "Left")
@@ -1439,6 +1585,12 @@ SaveConfig() {
     IniWrite(BuilderFaceY, "config.ini", "Coordinates", "BuilderFaceY")
     IniWrite(BuilderMenuBottomX, "config.ini", "Coordinates", "BuilderMenuBottomX")
     IniWrite(BuilderMenuBottomY, "config.ini", "Coordinates", "BuilderMenuBottomY")
+    IniWrite(DrawerCloseBtnX, "config.ini", "Coordinates", "DrawerCloseBtnX")
+    IniWrite(DrawerCloseBtnY, "config.ini", "Coordinates", "DrawerCloseBtnY")
+    IniWrite(DrawerTabBuilderX, "config.ini", "Coordinates", "DrawerTabBuilderX")
+    IniWrite(DrawerTabLabX, "config.ini", "Coordinates", "DrawerTabLabX")
+    IniWrite(DrawerTabPetX, "config.ini", "Coordinates", "DrawerTabPetX")
+    IniWrite(DrawerTabY, "config.ini", "Coordinates", "DrawerTabY")
     IniWrite(LabFaceX, "config.ini", "Coordinates", "LabFaceX")
     IniWrite(LabFaceY, "config.ini", "Coordinates", "LabFaceY")
     IniWrite(UpgradeConfirmX, "config.ini", "Coordinates", "UpgradeConfirmX")
@@ -1570,6 +1722,8 @@ VisualizerAttackStageSteps() {
 }
 
 RunClickVisualizerSelfTest() {
+    global VisualizerCache
+    global ADBRefactorDisplayWidth, ADBRefactorDisplayHeight, VisualizerOverlayMarks, VisualizerReadRegionKeys
     bounds := VisualizerTapJitterBounds(100, 200, 1920, 1080)
     VisualizerAssert(bounds.left == 93, "tap jitter left bound")
     VisualizerAssert(bounds.top == 193, "tap jitter top bound")
@@ -1597,7 +1751,41 @@ RunClickVisualizerSelfTest() {
     VisualizerAssert(attackSteps[2] == "find_eligible_base", "attack stage searches bases second")
     VisualizerAssert(attackSteps[3] == "attack_main_base", "attack stage deploys third")
     VisualizerAssert(attackSteps[4] == "return_main_home", "attack stage returns home last")
-    FileAppend("PASS: standalone click visualizer self-test.`n", "*")
+    ids := Map(), actionCount := 0
+    VisualizerAssert(ManualVisualizerGroups()[1].name == "Overview", "complete paths are the default page")
+    for group in ManualVisualizerGroups() {
+        VisualizerAssert(group.items.Length <= 18, "manual action group fits its tab")
+        for item in group.items {
+            VisualizerAssert(item.Length == 3, "manual action has id, label, and mode")
+            ids[item[1]] := true
+            actionCount += 1
+        }
+    }
+    for required in ["path_cycle", "path_bb", "path_builder", "path_lab", "path_walls", "cast:a", "cast:s", "ability:q", "bb_phase2", "workshop"]
+        VisualizerAssert(ids.Has(required), "manual coverage: " required)
+    VisualizerAssert(actionCount >= 90, "manual test coverage")
+    VisualizerAssert(InStr(FormatManualVisualizerResult(false), "FALSE"), "false never reports success")
+    VisualizerAssert(FormatManualVisualizerResult({x: 123, y: 456}) == "x=123; y=456", "coordinates remain numeric")
+    VisualizerCache := Map("builder", {point: {x: 123, y: 456}, capturedAt: A_TickCount})
+    point := GetManualVisualizerPoint("builder")
+    VisualizerAssert(point.x == 123 && !VisualizerCache.Has("builder"), "OCR target is consumed once")
+    VisualizerCache["builder"] := {point: {x: 123, y: 456}, capturedAt: A_TickCount - 31000}
+    staleRejected := false
+    try GetManualVisualizerPoint("builder")
+    catch
+        staleRejected := true
+    VisualizerAssert(staleRejected, "stale OCR targets cannot be clicked")
+    readBounds := VisualizerReadRegionBounds(-5, -2, 20, 10, 1280, 800)
+    VisualizerAssert(readBounds.left == 0 && readBounds.top == 0 && readBounds.right == 14 && readBounds.bottom == 7, "read boxes clip to the framebuffer")
+    VisualizerAssert(!IsObject(VisualizerReadRegionBounds(1300, 5, 20, 10, 1280, 800)), "offscreen read boxes are rejected")
+    VisualizerAssert(!IsObject(VisualizerReadRegionBounds(5, 5, 0, 10, 1280, 800)), "empty read boxes are rejected")
+    ADBRefactorDisplayWidth := 1280, ADBRefactorDisplayHeight := 800
+    AddVisualizerADBReadRegion(50, 60, 100, 30)
+    AddVisualizerADBReadRegion(50, 60, 100, 30)
+    VisualizerAssert(VisualizerOverlayMarks.Length == 1 && VisualizerOverlayMarks[1].kind == "read", "repeated reads share one eye marker")
+    ClearOverlayMarks()
+    VisualizerAssert(VisualizerReadRegionKeys.Count == 0, "new tests clear read marker deduplication")
+    FileAppend("PASS: standalone manual visualizer self-test (" actionCount " buttons).`n", "*")
 }
 
 VisualizerAssert(condition, message) {
@@ -1605,155 +1793,14 @@ VisualizerAssert(condition, message) {
         throw Error("Click visualizer self-test failed: " message ".")
 }
 
-CreateClickVisualizerGUI() {
-    global MyGui, LogEdit, StatusText, StartBtn, PauseBtn
-    global VisualizerPlayBtn, VisualizerStageText, VisualizerMarkCountText
-
-    MyGui := Gui("+AlwaysOnTop +MinSize420x330", "CoC Staged Click Visualizer")
-    MyGui.SetFont("s10", "Segoe UI")
-    MyGui.Add(
-        "Text",
-        "x18 y14 w384 h42 +Wrap",
-        "Automatically loops Home and Attack with live ADB input. Each stage's marks remain visible for 2 seconds."
-    )
-    VisualizerStageText := MyGui.Add(
-        "Text",
-        "x18 y64 w384 h28 +Center +Border",
-        "NEXT STAGE: HOME (automatic loop starting)"
-    )
-    VisualizerStageText.SetFont("s10 bold")
-    StatusText := MyGui.Add("Text", "x18 y102 w384 h24 +Center", "STATUS: READY")
-    VisualizerPlayBtn := MyGui.Add("Button", "x18 y136 w185 h42", "Automatic Loop Starting...")
-    PauseBtn := MyGui.Add("Button", "x217 y136 w185 h42", "Close AutoHotkey (Ctrl+Shift+F2)")
-    StartBtn := VisualizerPlayBtn
-    StartBtn.Enabled := false
-    VisualizerPlayBtn.OnEvent("Click", (*) => PlayVisualizerStage())
-    PauseBtn.OnEvent("Click", (*) => StopClickVisualizerStage())
-    VisualizerMarkCountText := MyGui.Add("Text", "x18 y188 w384 h22", "Visible marks: 0")
-    MyGui.Add("GroupBox", "x18 y214 w384 h96", "Stage log")
-    LogEdit := MyGui.Add("Edit", "x28 y236 w364 h64 +ReadOnly +Multi +WantReturn -Wrap", "")
-    MyGui.OnEvent("Close", (*) => ExitApp())
-    MyGui.Show("w420 h328")
-}
-
-StartAutomaticVisualizerLoop() {
-    global VisualizerAutoLoopActive, StartBtn, PauseBtn
-    if VisualizerAutoLoopActive
-        return
-    VisualizerAutoLoopActive := true
-    StartBtn.Text := "Automatic Loop Running"
-    StartBtn.Enabled := false
-    PauseBtn.Enabled := true
-    LogMessage("Automatic loop started. Close AutoHotkey to stop it.")
-    SetTimer(RunSelectedVisualizerStage, -10)
-}
-
-PlayVisualizerStage() {
-    StartAutomaticVisualizerLoop()
-}
-
-RunSelectedVisualizerStage() {
-    global VisualizerStage, VisualizerStageRunning, IsRunning, IsBBRunning
-    global StartBtn, PauseBtn, StatusText, VisualizerStageText
-
-    ; This callback is the automatic equivalent of pressing the old Play button.
-    ; The previous stage's marks stayed visible throughout the two-second delay;
-    ; clear them only now, immediately before the next stage begins.
-    ClearOverlayMarks()
-    VisualizerStageRunning := true
-    IsRunning := true
-    IsBBRunning := false
-    StartBtn.Enabled := false
-    PauseBtn.Enabled := true
-    StatusText.Value := "STATUS: RUNNING " StrUpper(VisualizerStage)
-    VisualizerStageText.Value := "CURRENT STAGE: " StrUpper(VisualizerStage)
-    LogMessage("Starting " VisualizerStage " stage; previous marks cleared.")
-
-    stageToRun := VisualizerStage
-    completed := false
-    try {
-        if (stageToRun == "home")
-            RunVisualizerHomeStage()
-        else
-            RunVisualizerAttackStage()
-        completed := true
-    } catch as err {
-        LogMessage("Visualizer " stageToRun " stage stopped: " err.Message)
-    }
-
-    IsRunning := false
-    VisualizerStageRunning := false
-    StartBtn.Enabled := false
-    PauseBtn.Enabled := true
-
-    if completed {
-        if (stageToRun == "home") {
-            VisualizerStage := "attack"
-            VisualizerStageText.Value := "NEXT STAGE: ATTACK IN 2 SECONDS"
-            StatusText.Value := "STATUS: HOME COMPLETE; MARKS HELD"
-            LogMessage("Home stage complete. Holding marks for 2 seconds before automatic Attack stage.")
-        } else {
-            VisualizerStage := "home"
-            VisualizerStageText.Value := "NEXT STAGE: HOME IN 2 SECONDS"
-            StatusText.Value := "STATUS: ATTACK COMPLETE; MARKS HELD"
-            LogMessage("Attack stage complete. Holding marks for 2 seconds before automatic Home stage.")
-        }
-    } else {
-        StatusText.Value := "STATUS: RETRYING " StrUpper(stageToRun) " IN 2 SECONDS"
-        VisualizerStageText.Value := "RETRY STAGE: " StrUpper(stageToRun) " IN 2 SECONDS"
-        LogMessage("Holding marks for 2 seconds, then automatically retrying the same stage.")
-    }
-    SetTimer(RunSelectedVisualizerStage, -2000)
-}
-
 RunVisualizerHomeStage() {
-    global CollectorCoords, EnableWallUpgrade
-
-    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
-    EnsureVisualizerMainReady(operations)
-
-    ; Mirror startup and the Main Village cycle through Find a Match, then stop
-    ; immediately before the green Attack button.
-    operations.Do("clear_tap")
-    operations.Do("reset_main_viewport")
-    village := operations.Do("detect_village")
-    if (village != "main")
-        throw Error("Home stage requires the Main Village; detected " village ".")
-
-    operations.Do("reset_main_viewport")
-    operations.Do("collect_resources", CollectorCoords.Length)
-    thresholds := operations.Do("check_resource_thresholds")
-    operations.Do("run_builder_upgrade", thresholds, EnableWallUpgrade)
-    operations.Do("run_wall_upgrades", thresholds, EnableWallUpgrade)
-    operations.Do("run_lab_upgrade", thresholds)
-    operations.Do("tap_main_attack")
-    operations.Do("tap_find_match")
+    RenderClickOverlay()
+    return ADBRefactorFlowAPI.RunHomeStage(CreateADBMainFlowSections(LiveADBFlowPrimitives()), GetLiveMainCycleState())
 }
 
 RunVisualizerAttackStage() {
-    global MinGold, MinElixir
-
-    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
-    EnsureVisualizerMainReady(operations)
-
-    ; Continue at the exact boundary where the Home stage paused.
-    operations.Do("tap_attack_start")
-    operations.Do("find_eligible_base", MinGold, MinElixir)
-    operations.Do("attack_main_base")
-    operations.Do("return_main_home")
-}
-
-EnsureVisualizerMainReady(operations) {
-    global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION
-    operations.Do("verify_emulator")
-    operations.Do("verify_calibration")
-    if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION)
-        throw Error("Main Village coordinates are missing or stale. Run calibration in the main bot first.")
     RenderClickOverlay()
-}
-
-StopClickVisualizerStage() {
-    ExitApp
+    return ADBRefactorFlowAPI.RunAttackStage(CreateADBMainFlowSections(LiveADBFlowPrimitives()), GetLiveMainCycleState())
 }
 
 InitializeClickOverlay() {
@@ -1767,16 +1814,29 @@ InitializeClickOverlay() {
     RenderClickOverlay()
 }
 
-GetVisualizerOverlayGeometry() {
-    global TargetWindowTitle
-    global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
+VisualizerFitAndroidDisplay(x, y, width, height, adbWidth, adbHeight) {
+    scale := Min(width / adbWidth, height / adbHeight)
+    displayW := Round(adbWidth * scale)
+    displayH := Round(adbHeight * scale)
+    return {ok: true, x: x + (width - displayW) // 2,
+        y: y + (height - displayH) // 2, width: displayW, height: displayH}
+}
 
-    hwnd := WinExist(TargetWindowTitle)
+GetVisualizerOverlayGeometry() {
+    global ADBProvider, HABUMI_PROVIDER, ADBRefactorDisplayWidth, ADBRefactorDisplayHeight
+    global ADBViewportLeft, ADBViewportTop, ADBViewportRight, ADBViewportBottom
+    hwnd := FindTargetWindow()
     if !hwnd || WinGetMinMax("ahk_id " hwnd) == -1
         return {ok: false}
     try WinGetClientPos(&clientX, &clientY, &clientW, &clientH, "ahk_id " hwnd)
     catch
         return {ok: false}
+    if (ADBProvider == HABUMI_PROVIDER || ADBProvider == "Habuki") {
+        if (ADBRefactorDisplayWidth <= 1 || ADBRefactorDisplayHeight <= 1)
+            return {ok: false}
+        return VisualizerFitAndroidDisplay(clientX, clientY, clientW, clientH,
+            ADBRefactorDisplayWidth, ADBRefactorDisplayHeight)
+    }
     if (ADBViewportRight <= ADBViewportLeft || ADBViewportBottom <= ADBViewportTop)
         return {ok: false}
     return {
@@ -1811,8 +1871,9 @@ SyncClickOverlayPosition() {
 }
 
 ClearOverlayMarks() {
-    global VisualizerOverlayMarks
+    global VisualizerOverlayMarks, VisualizerReadRegionKeys
     VisualizerOverlayMarks := []
+    VisualizerReadRegionKeys := Map()
     RenderClickOverlay()
     UpdateVisualizerMarkCount()
 }
@@ -1888,11 +1949,13 @@ UpdateVisualizerMarkCount() {
 }
 
 VisualizerADBToOverlayPoint(adbX, adbY) {
-    global ADBViewportLeft, ADBViewportTop
-    clientPoint := TranslateADBPointToClient(adbX, adbY)
+    global ADBRefactorDisplayWidth, ADBRefactorDisplayHeight
+    geometry := GetVisualizerOverlayGeometry()
     return {
-        x: clientPoint.x - ADBViewportLeft,
-        y: clientPoint.y - ADBViewportTop
+        x: Round(Max(0, Min(ADBRefactorDisplayWidth - 1, adbX))
+            * (geometry.width - 1) / (ADBRefactorDisplayWidth - 1)),
+        y: Round(Max(0, Min(ADBRefactorDisplayHeight - 1, adbY))
+            * (geometry.height - 1) / (ADBRefactorDisplayHeight - 1))
     }
 }
 
@@ -1914,10 +1977,14 @@ RenderClickOverlay() {
 
     tapBrush := 0
     gesturePen := 0
+    readPen := 0, eyeBackground := 0, eyePupil := 0
     ; Tap jitter regions are opaque, solid colored rectangles. Gesture paths
     ; remain exactly one pixel wide.
     DllCall("gdiplus\GdipCreateSolidFill", "uint", 0xFFFF2D55, "ptr*", &tapBrush)
     DllCall("gdiplus\GdipCreatePen1", "uint", 0xE600E5FF, "float", 1.0, "int", 2, "ptr*", &gesturePen)
+    DllCall("gdiplus\GdipCreatePen1", "uint", 0xFFFFD84D, "float", 2.0, "int", 2, "ptr*", &readPen)
+    DllCall("gdiplus\GdipCreateSolidFill", "uint", 0xF0202020, "ptr*", &eyeBackground)
+    DllCall("gdiplus\GdipCreateSolidFill", "uint", 0xFFFFD84D, "ptr*", &eyePupil)
     try {
         for mark in VisualizerOverlayMarks {
             if (mark.kind == "rectangle") {
@@ -1932,6 +1999,15 @@ RenderClickOverlay() {
                     "float", Max(1, bottomRight.x - topLeft.x + 1),
                     "float", Max(1, bottomRight.y - topLeft.y + 1)
                 )
+            } else if (mark.kind == "read") {
+                topLeft := VisualizerADBToOverlayPoint(mark.left, mark.top)
+                bottomRight := VisualizerADBToOverlayPoint(mark.right, mark.bottom)
+                DllCall("gdiplus\GdipDrawRectangle", "ptr", VisualizerOverlayGraphics, "ptr", readPen,
+                    "float", topLeft.x, "float", topLeft.y,
+                    "float", Max(1, bottomRight.x - topLeft.x), "float", Max(1, bottomRight.y - topLeft.y))
+                eyeX := Max(1, Min(geometry.width - 30, bottomRight.x - 28))
+                eyeY := Max(1, Min(geometry.height - 20, topLeft.y - 20))
+                DrawVisualizerEye(VisualizerOverlayGraphics, eyeX, eyeY, readPen, eyeBackground, eyePupil)
             } else {
                 startPoint := VisualizerADBToOverlayPoint(mark.startX, mark.startY)
                 endPoint := VisualizerADBToOverlayPoint(mark.endX, mark.endY)
@@ -1951,6 +2027,12 @@ RenderClickOverlay() {
             DllCall("gdiplus\GdipDeleteBrush", "ptr", tapBrush)
         if gesturePen
             DllCall("gdiplus\GdipDeletePen", "ptr", gesturePen)
+        if readPen
+            DllCall("gdiplus\GdipDeletePen", "ptr", readPen)
+        if eyeBackground
+            DllCall("gdiplus\GdipDeleteBrush", "ptr", eyeBackground)
+        if eyePupil
+            DllCall("gdiplus\GdipDeleteBrush", "ptr", eyePupil)
     }
 
     destination := Buffer(8, 0)
@@ -2071,7 +2153,7 @@ CreateGUI() {
     StatusText := MyGui.Add("Text", "x20 y80 w320 h30 +Center", "STATUS: IDLE")
     StatusText.SetFont("s12 bold", "Segoe UI")
     StartBtn := MyGui.Add("Button", "x20 y120 w150 h40", "Start Bot (Ctrl+Shift+F1)")
-    StartBtn.OnEvent("Click", (*) => UnifiedStart())
+    StartBtn.OnEvent("Click", (*) => SetTimer(UnifiedStart, -10))
     PauseBtn := MyGui.Add("Button", "x190 y120 w150 h40", "Pause Bot (Ctrl+Shift+F2)")
     PauseBtn.OnEvent("Click", (*) => PauseBot())
     PauseBtn.Enabled := false
@@ -2118,8 +2200,6 @@ CreateGUI() {
     MyGui.Add("Text", "x35 y370 w180 h20", "Calibrated Collectors:")
     TextCollectorCount := MyGui.Add("Text", "x220 y370 w80 h20", String(CollectorCoords.Length))
     TextCollectorCount.SetFont("bold")
-    SaveBtnFarming := MyGui.Add("Button", "x20 y415 w320 h35", "Save Settings")
-    SaveBtnFarming.OnEvent("Click", (*) => ApplyAndSaveSettings())
     ; --- TAB 4: Settings ---
     Tab.UseTab(4)
     MyGui.Add("GroupBox", "x20 y45 w320 h70", "Delays (milliseconds)")
@@ -2140,27 +2220,97 @@ CreateGUI() {
     EditTroop2Count := MyGui.Add("Edit", "x210 y303 w45 h20 Number", String(Troop2Count))
     MyGui.Add("Text", "x35 y335 w60 h20", "Troop 3:")
     EditTroop3Count := MyGui.Add("Edit", "x95 y333 w45 h20 Number", String(Troop3Count))
-    SaveBtn := MyGui.Add("Button", "x20 y370 w320 h35", "Save Settings")
-    SaveBtn.OnEvent("Click", (*) => ApplyAndSaveSettings())
     ; --- TAB 5: ADB ---
     Tab.UseTab(5)
     MyGui.Add("GroupBox", "x20 y45 w320 h150", "Single Emulator Target")
     MyGui.Add("Text", "x35 y70 w120 h20", "Emulator:")
-    providerChoice := ADBProvider == BLUESTACKS_PROVIDER ? 2 : 1
-    EditADBProvider := MyGui.Add("DropDownList", "x35 y92 w290 Choose" providerChoice, [GPGDE_PROVIDER, BLUESTACKS_PROVIDER])
-    MyGui.Add("Text", "x35 y127 w120 h20", "BlueStacks serial:")
-    EditBlueStacksSerial := MyGui.Add("Edit", "x155 y125 w170 h22", BlueStacksSerial)
+    providerChoice := ADBProvider == BLUESTACKS_PROVIDER ? 3 : (ADBProvider == GPGDE_PROVIDER ? 2 : 1)
+    EditADBProvider := MyGui.Add("DropDownList", "x35 y92 w290 Choose" providerChoice, [HABUMI_PROVIDER, GPGDE_PROVIDER, BLUESTACKS_PROVIDER])
+    MyGui.Add("Text", "x35 y127 w120 h20", "Target serial:")
+    currentSerial := (ADBProvider == HABUMI_PROVIDER || ADBProvider == "Habuki") ? HabumiSerial : (ADBProvider == GPGDE_PROVIDER ? GPGDE_SERIAL : BlueStacksSerial)
+    EditBlueStacksSerial := MyGui.Add("Edit", "x155 y125 w170 h22", currentSerial)
     EditADBProvider.OnEvent("Change", OnADBProviderChanged)
     TestADBBtn := MyGui.Add("Button", "x35 y158 w135 h28", "Test Connection")
     TestADBBtn.OnEvent("Click", TestADBConnection)
-    SaveADBBtn := MyGui.Add("Button", "x185 y158 w140 h28", "Save ADB Target")
-    SaveADBBtn.OnEvent("Click", (*) => ApplyAndSaveSettings())
     MyGui.Add("GroupBox", "x20 y210 w320 h120", "Status")
-    ADBStatusText := MyGui.Add("Text", "x35 y235 w290 h75 +Wrap", "Not tested. GPGDE uses localhost:6520. BlueStacks uses its configured local port.")
+    ADBStatusText := MyGui.Add("Text", "x35 y235 w290 h75 +Wrap", "Not tested. Habumi uses 127.0.0.1:15555. GPGDE uses localhost:6520. BlueStacks uses its configured local port.")
     MyGui.Add("Text", "x20 y350 w320 h60 +Wrap", "One emulator is controlled at a time. Multi-instance and simultaneous control are not supported yet.")
     OnADBProviderChanged()
+    SetupSettingsAutoSave()
     MyGui.OnEvent("Close", (*) => ExitApp())
     MyGui.Show("w380 h470")
+    SetTimer(CheckBotAPI, 250)
+}
+
+CheckBotAPI() {
+    global IsRunning, IsBBRunning, IsStarting, StatusText, SessionCompletedAttacks
+    global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
+    static lastStateTick := 0
+    now := A_TickCount
+
+    ; Periodically update bot_state.json every 500ms
+    if (now - lastStateTick >= 500) {
+        lastStateTick := now
+        try {
+            if !DirExist(A_ScriptDir "\scratch")
+                DirCreate(A_ScriptDir "\scratch")
+            st := StatusText ? StatusText.Value : "Unknown"
+            json := '{"isRunning":' (IsRunning ? "true" : "false") ',"isBBRunning":' (IsBBRunning ? "true" : "false") ',"isStarting":' (IsStarting ? "true" : "false") ',"status":"' st '","completedAttacks":' SessionCompletedAttacks '}'
+            try FileDelete(A_ScriptDir "\scratch\bot_state.json.tmp")
+            FileAppend(json, A_ScriptDir "\scratch\bot_state.json.tmp", "UTF-8")
+            FileMove(A_ScriptDir "\scratch\bot_state.json.tmp", A_ScriptDir "\scratch\bot_state.json", true)
+        }
+    }
+
+    ; Check for incoming command file
+    cmdFile := A_ScriptDir "\scratch\bot_cmd.txt"
+    if FileExist(cmdFile) {
+        cmd := ""
+        try {
+            cmd := Trim(FileRead(cmdFile, "UTF-8"), " `t`r`n")
+            FileDelete(cmdFile)
+        }
+        if (cmd != "") {
+            LogMessage("API Command received: " cmd)
+            result := "ok"
+            try {
+                if (cmd = "START") {
+                    UnifiedStart()
+                } else if (cmd = "PAUSE") {
+                    PauseBot()
+                } else if (cmd = "CLEAR_TAP") {
+                    FlowClearTap()
+                } else if (cmd = "RESET_VIEWPORT") {
+                    ResetViewport()
+                } else if (cmd = "DETECT_VILLAGE") {
+                    v := DetectVillageFromADBFrame(CaptureADBFrame(true))
+                    LogMessage("API detect_village result: " v)
+                    result := v
+                } else if (cmd = "TAP_ATTACK") {
+                    RunADBTapAt(AttackBtnX, AttackBtnY, 200)
+                } else if (cmd = "TAP_FIND_MATCH") {
+                    RunADBTapAt(FindMatchBtnX, FindMatchBtnY, 800)
+                } else if (cmd = "TAP_ATTACK_START") {
+                    RunADBTapAt(AttackStartBtnX, AttackStartBtnY, 1000)
+                } else if SubStr(cmd, 1, 12) = "SELECT_SLOT " {
+                    slotKey := Trim(SubStr(cmd, 13))
+                    SelectBattleSlot(slotKey)
+                } else if (cmd = "EXIT") {
+                    ExitApp()
+                } else {
+                    result := "unknown command: " cmd
+                }
+            } catch as err {
+                result := "error: " err.Message
+                LogMessage("API Command error: " err.Message)
+            }
+            try {
+                resp := '{"command":"' cmd '","result":"' result '","time":' A_TickCount '}'
+                try FileDelete(A_ScriptDir "\scratch\bot_cmd_result.json")
+                FileAppend(resp, A_ScriptDir "\scratch\bot_cmd_result.json", "UTF-8")
+            }
+        }
+    }
 }
 PruneRefactorDiagnosticImages() {
     static lastPruneTick := 0
@@ -2184,11 +2334,18 @@ SanitizeLogMessage(message) {
 
 LogMessage(message) {
     global LogEdit
-    if !LogEdit
-        return
     message := SanitizeLogMessage(message)
     timeStr := FormatTime(, "HH:mm:ss")
     newLine := "[" timeStr "] " message "`r`n"
+
+    try {
+        if !DirExist(A_ScriptDir "\scratch")
+            DirCreate(A_ScriptDir "\scratch")
+        FileAppend(newLine, A_ScriptDir "\scratch\bot_activity.log", "UTF-8")
+    }
+
+    if !LogEdit
+        return
 
     totalLines := SendMessage(0x00BA, 0, 0, LogEdit) ; EM_GETLINECOUNT
     firstVisibleLine := SendMessage(0x00CE, 0, 0, LogEdit) ; EM_GETFIRSTVISIBLELINE
@@ -2218,7 +2375,7 @@ ApplyAndSaveSettings() {
     global EditWindow, EditBattleLoad, EditButtonDelta, EditDeployDelta
     global EditMinGold, EditMinElixir, CheckLootSearch, CheckWallUpgrade
     global EditTroop1Count, EditTroop2Count, EditTroop3Count, EditBBClickCount
-    global EditADBProvider, EditBlueStacksSerial, ADBProvider, BlueStacksSerial, GPGDE_PROVIDER
+    global EditADBProvider, EditBlueStacksSerial, ADBProvider, BlueStacksSerial, HabumiSerial, GPGDE_PROVIDER, HABUMI_PROVIDER
     global ADBConnectionSerial, ADBHelperSerial
     global ADBMainCalibrationVersion, ADBBBCalibrationVersion
     TargetWindowTitle := EditWindow.Value
@@ -2234,40 +2391,69 @@ ApplyAndSaveSettings() {
     Troop2Count := Integer(EditTroop2Count.Value)
     Troop3Count := Integer(EditTroop3Count.Value)
     newProvider := EditADBProvider.Text
-    newSerial := newProvider == GPGDE_PROVIDER ? BlueStacksSerial : ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
-    if (newProvider != ADBProvider || newSerial != BlueStacksSerial) {
+    if (newProvider == GPGDE_PROVIDER) {
+        newSerial := GPGDE_SERIAL
+    } else if (newProvider == HABUMI_PROVIDER || newProvider == "Habuki") {
+        newSerial := ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
+        HabumiSerial := newSerial
+    } else {
+        newSerial := ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
+        BlueStacksSerial := newSerial
+    }
+    if (newProvider != ADBProvider || (newProvider == HABUMI_PROVIDER ? newSerial != HabumiSerial : newSerial != BlueStacksSerial)) {
         ADBConnectionSerial := ""
         ADBHelperSerial := ""
         InvalidateADBViewport()
     }
     ADBProvider := newProvider
-    BlueStacksSerial := newSerial
     SaveConfig()
-    LogMessage("Settings saved successfully!")
-    ShowToolTip("Settings saved!")
+    LogMessage("Settings applied and saved automatically.")
 }
 
 OnADBProviderChanged(*) {
-    global EditADBProvider, EditBlueStacksSerial, GPGDE_PROVIDER, GPGDE_SERIAL, BlueStacksSerial
+    global EditADBProvider, EditBlueStacksSerial, EditWindow
+    global GPGDE_PROVIDER, BLUESTACKS_PROVIDER, HABUMI_PROVIDER
+    global GPGDE_SERIAL, BlueStacksSerial, HabumiSerial
     if !EditADBProvider
         return
-    isGPGDE := EditADBProvider.Text == GPGDE_PROVIDER
-    EditBlueStacksSerial.Enabled := !isGPGDE
-    EditBlueStacksSerial.Value := isGPGDE ? GPGDE_SERIAL : BlueStacksSerial
+    provider := EditADBProvider.Text
+    if (provider == GPGDE_PROVIDER) {
+        EditBlueStacksSerial.Enabled := false
+        EditBlueStacksSerial.Value := GPGDE_SERIAL
+        if (EditWindow && EditWindow.Value == "Android")
+            EditWindow.Value := "Clash of Clans"
+    } else if (provider == HABUMI_PROVIDER || provider == "Habuki") {
+        EditBlueStacksSerial.Enabled := true
+        EditBlueStacksSerial.Value := HabumiSerial
+        if (EditWindow && EditWindow.Value == "Clash of Clans")
+            EditWindow.Value := "Android"
+    } else {
+        EditBlueStacksSerial.Enabled := true
+        EditBlueStacksSerial.Value := BlueStacksSerial
+        if (EditWindow && EditWindow.Value == "Android")
+            EditWindow.Value := "Clash of Clans"
+    }
 }
 
 TestADBConnection(*) {
-    global ADBProvider, BlueStacksSerial, EditADBProvider, EditBlueStacksSerial
-    global ADBConnectionSerial, ADBHelperSerial, ADBDisplaySerial, ADBStatusText, GPGDE_PROVIDER
+    global ADBProvider, BlueStacksSerial, HabumiSerial, EditADBProvider, EditBlueStacksSerial
+    global ADBConnectionSerial, ADBHelperSerial, ADBDisplaySerial, ADBStatusText, GPGDE_PROVIDER, HABUMI_PROVIDER
     global ADBMainCalibrationVersion, ADBBBCalibrationVersion
     try {
         newProvider := EditADBProvider.Text
-        newSerial := newProvider == GPGDE_PROVIDER ? BlueStacksSerial : ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
-        if (newProvider != ADBProvider || newSerial != BlueStacksSerial) {
+        if (newProvider == GPGDE_PROVIDER) {
+            newSerial := GPGDE_SERIAL
+        } else if (newProvider == HABUMI_PROVIDER || newProvider == "Habuki") {
+            newSerial := ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
+            HabumiSerial := newSerial
+        } else {
+            newSerial := ValidateBlueStacksSerial(EditBlueStacksSerial.Value)
+            BlueStacksSerial := newSerial
+        }
+        if (newProvider != ADBProvider) {
             InvalidateADBViewport()
         }
         ADBProvider := newProvider
-        BlueStacksSerial := newSerial
         ADBConnectionSerial := ""
         ADBHelperSerial := ""
         ADBDisplaySerial := ""
@@ -2277,7 +2463,7 @@ TestADBConnection(*) {
             throw Error(result.Message)
         SaveConfig()
         if IsClashForeground(result.Serial)
-            ADBStatusText.Value := "Connected to " result.Serial ". Clash of Clans is the foreground Android app."
+            ADBStatusText.Value := "Connected to " result.Serial " (" newProvider "). Clash of Clans is ready."
         else
             ADBStatusText.Value := "Connected to " result.Serial ", but Clash of Clans is not the foreground Android app."
     } catch as err {
@@ -2323,12 +2509,14 @@ StartBot() {
 
 }
 PauseBot() {
-    global IsRunning, IsBBRunning, StatusText, StartBtn, PauseBtn
+    global IsRunning, IsBBRunning, IsStarting, StatusText, StartBtn, PauseBtn
+    StopHabumiWatchdog()
     SetTimer(UnifiedStart, 0)
-    if !(IsRunning || IsBBRunning) {
+    if !(IsRunning || IsBBRunning || IsStarting) {
         LogMessage("Bot is not running.")
         return
     }
+    IsStarting := false
     IsRunning := false
     IsBBRunning := false
     StatusText.Text := "STATUS: PAUSED"
@@ -2346,11 +2534,12 @@ StartCalibration() {
         CancelCalibration()
         return
     }
-    if !WinExist(TargetWindowTitle) {
+    targetHwnd := FindTargetWindow()
+    if !targetHwnd {
         MsgBox("Game window '" TargetWindowTitle "' must be open before calibrating.", "Calibration Error", "Iconx")
         return
     }
-    WinActivate(TargetWindowTitle)
+    WinActivate(targetHwnd)
     try {
         display := GetADBDisplaySize()
         LogMessage(Format("ADB display detected at {}x{}. Main Calibration will now capture the Android viewport.",
@@ -2386,11 +2575,12 @@ StartBBCalibration() {
         CancelBBCalibration()
         return
     }
-    if !WinExist(TargetWindowTitle) {
+    targetHwnd := FindTargetWindow()
+    if !targetHwnd {
         MsgBox("Game window '" TargetWindowTitle "' must be open before calibrating.", "Calibration Error", "Iconx")
         return
     }
-    WinActivate(TargetWindowTitle)
+    WinActivate(targetHwnd)
     viewportState := ValidateADBViewportRuntime()
     if !viewportState.Ok {
         MsgBox(viewportState.Message, "Builder Base Calibration Error", "Iconx")
@@ -2468,21 +2658,25 @@ FinishBBCalibration() {
 }
 RunCollectorReset() {
     global CalibStep, IsCalibrating, IsWaitingForReset, CollectorCoords, CalibrationText
-    if !IsCalibrating || CalibStep != 31
+    if !IsCalibrating || CalibStep != 30
         return
-    ResetViewport()
+    try {
+        ResetViewport()
+    }
     IsWaitingForReset := false
-    instructions := "Step 31/31: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
+    instructions := "Step 30/30: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
 RunSidesReset() {
     global CalibStep, IsCalibrating, IsWaitingForReset, CalibrationText
-    if !IsCalibrating || CalibStep != 22
+    if !IsCalibrating || CalibStep != 21
         return
-    ResetViewport()
+    try {
+        ResetViewport()
+    }
     IsWaitingForReset := false
-    instructions := "Step 22/31: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE."
+    instructions := "Step 21/30: Side 1 (Bottom-Right) Start Point`n`nHover mouse over the starting point of the Bottom-Right deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
     CalibrationText.Value := instructions
     ToolTip(instructions "`n`nPress ESC to cancel.")
 }
@@ -2491,74 +2685,72 @@ UpdateCalibrationUI() {
     instructions := ""
     switch CalibStep {
         case 1:
-            instructions := "Step 1/31: Android Viewport Top-Left`n`nHide the BlueStacks sidebar if applicable. Hover over the first visible pixel at the TOP-LEFT of the Android game picture, excluding emulator bars and black borders, then press SPACE."
+            instructions := "Step 1/30: Android Viewport Top-Left`n`nHide the BlueStacks sidebar if applicable. Hover over the first visible pixel at the TOP-LEFT of the Android game picture, excluding emulator bars and black borders, then press SPACE."
         case 2:
-            instructions := "Step 2/31: Android Viewport Bottom-Right`n`nWithout resizing or changing window mode, hover over the last visible pixel at the BOTTOM-RIGHT of the Android game picture, excluding emulator bars and black borders, then press SPACE."
+            instructions := "Step 2/30: Android Viewport Bottom-Right`n`nWithout resizing or changing window mode, hover over the last visible pixel at the BOTTOM-RIGHT of the Android game picture, excluding emulator bars and black borders, then press SPACE."
         case 3:
-            instructions := "Step 3/31: Dark Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Dark Elixir storage bar at the point where you want lab upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 3/30: Village Identifier (Dark Elixir Drop Icon / Bar)`n`nHover mouse over the black Dark Elixir drop icon (or bar, 3rd resource bar at top right) and press SPACE."
         case 4:
-            instructions := "Step 4/31: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall/lab upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 4/30: Dark Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Dark Elixir storage bar at the point where you want lab upgrades to trigger (e.g. 85% full) and press SPACE."
         case 5:
-            instructions := "Step 5/31: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
+            instructions := "Step 5/30: Elixir Storage Bar Threshold Point (Home Screen)`n`nHover over your Elixir storage bar at the point where you want wall/lab upgrades to trigger (e.g. 85% full) and press SPACE."
         case 6:
-            instructions := "Step 6/31: Builder Face (Home Screen)`n`nHover mouse over the Builder's nose and press SPACE."
+            instructions := "Step 6/30: Gold Storage Bar Threshold Point (Home Screen)`n`nHover over your Gold storage bar at the point where you want wall upgrades to trigger (e.g. 85% full) and press SPACE."
         case 7:
-            instructions := "Step 7/31: Builder Menu Bottom`n`nClick the Builder Face to open the Builder menu. Hover over the bottom point where the upward drag should start and press SPACE. The ADB drag will use the Builder Face X and this point's Y."
+            instructions := "Step 7/30: Builder Count Badge (Home Screen)`n`nHover mouse over the Builder Count badge (bottom right, directly above the Build hammer) and press SPACE."
         case 8:
-            instructions := "Step 8/31: Lab Icon (Home Screen)`n`nClose the Builder menu, hover mouse over the Lab Icon (Rage Potion or Goblin Researcher) and press SPACE."
+            instructions := "Step 8/30: Lab Count Badge (Home Screen)`n`nHover mouse over the Lab Count badge (bottom right, directly above the Build hammer, next to the builder badge) and press SPACE."
         case 9:
-            instructions := "Step 9/31: Upgrade More Button (Wall Selected)`n`nHover mouse over the 'Upgrade More' button (first select a wall manually to show it) and press SPACE."
+            instructions := "Step 9/30: Wall Action Bar / Upgrade More Button`n`nSelect a wall manually to show its action bar. Hover mouse over 'Upgrade More' (or row selection) and press SPACE."
         case 10:
-            instructions := "Step 10/31: Add Wall (+1) Button (Upgrade More Screen)`n`nHover mouse over the '+1 Add Wall' button (click 'Upgrade More' manually to show it) and press SPACE."
+            instructions := "Step 10/30: Add Wall / Expand Row Button`n`nHover mouse over the Add Wall / expand button and press SPACE."
         case 11:
-            instructions := "Step 11/31: Remove Wall (-1) Button (Upgrade More Screen)`n`nHover mouse over the '-1 Remove Wall' button and press SPACE."
+            instructions := "Step 11/30: Remove Wall / Rotate Row Button`n`nHover mouse over the Remove Wall / rotate button and press SPACE."
         case 12:
-            instructions := "Step 12/31: Gold Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Gold Upgrade button (showing the gold hammer/cost) and press SPACE."
+            instructions := "Step 12/30: Gold Wall Upgrade Button`n`nHover mouse over the Gold upgrade button (showing the gold cost) and press SPACE."
         case 13:
-            instructions := "Step 13/31: Elixir Upgrade Button (Upgrade More Screen)`n`nHover mouse over the Elixir Upgrade button (showing the purple hammer/cost) and press SPACE."
+            instructions := "Step 13/30: Elixir Wall Upgrade Button`n`nHover mouse over the Elixir upgrade button (showing the elixir cost) and press SPACE."
         case 14:
-            instructions := "Step 14/31: Upgrade Confirm Button (Upgrade Screen)`n`nHover mouse over the green 'Upgrade' confirmation button and press SPACE."
+            instructions := "Step 14/30: Upgrade Confirmation Button`n`nHover mouse over the green 'Confirm' upgrade button and press SPACE."
         case 15:
-            instructions := "Step 15/31: War Logo (Home Screen)`n`nHover mouse over the War Logo (or any logo) directly ABOVE the Barbarian head / Attack button and press SPACE."
+            instructions := "Step 15/30: Battle / Attack Button (Home Screen)`n`nHover mouse over the golden 'Battle' button (bottom left) in your home village and press SPACE."
         case 16:
-            instructions := "Step 16/31: Attack Button (Home Screen)`n`nHover mouse over the bottom-left brown 'Attack' button in your home village and press SPACE."
+            instructions := "Step 16/30: Find Match Button (Multiplayer Card)`n`nClick Battle to open multiplayer menu. Hover mouse over the yellow 'Find a Match' card button and press SPACE."
         case 17:
-            instructions := "Step 17/31: Find Match Button (Multiplayer Dialog)`n`nHover mouse over the golden 'Find a Match' button (multiplayer tab) and press SPACE."
+            instructions := "Step 17/30: Green 'Attack!' Start Button (My Army Popup)`n`nHover mouse over the green 'Attack!' button (if My Army dialog appears) and press SPACE."
         case 18:
-            instructions := "Step 18/31: Green 'Attack!' Start Button (My Army Dialog)`n`nHover mouse over the green 'Attack!' button (My Army dialog) and press SPACE."
+            instructions := "Step 18/30: Gold Coin Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the round Gold Coin Icon symbol in a multiplayer match search and press SPACE."
         case 19:
-            instructions := "Step 19/31: Gold Coin Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the round Gold Coin Icon symbol in a multiplayer match search and press SPACE."
+            instructions := "Step 19/30: Elixir Drop Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the purple Elixir Drop Icon symbol in a multiplayer match search and press SPACE."
         case 20:
-            instructions := "Step 20/31: Elixir Drop Symbol (Matchmaking Search)`n`nHover mouse over the CENTER of the purple Elixir Drop Icon symbol in a multiplayer match search and press SPACE."
+            instructions := "Step 20/30: Next Match Button (In Battle)`n`nHover mouse over the 'Next' button (bottom right) in a multiplayer match search and press SPACE."
         case 21:
-            instructions := "Step 21/31: Next Match Button (Matchmaking Search)`n`nHover mouse over the 'Next' button in a multiplayer match search and press SPACE."
-        case 22:
             IsWaitingForReset := true
             instructions := "Top-Left Screen Zoom-Out Calibration`n`nPlease Wait."
             SetTimer RunSidesReset, -3000
+        case 22:
+            instructions := "Step 22/30: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 23:
-            instructions := "Step 23/31: Side 1 (Bottom-Right) End Point`n`nHover mouse over the ending point of the Bottom-Right deployment line and press SPACE."
+            instructions := "Step 23/30: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 24:
-            instructions := "Step 24/31: Side 2 (Bottom-Left) Start Point`n`nHover mouse over the starting point of the Bottom-Left deployment line and press SPACE."
+            instructions := "Step 24/30: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 25:
-            instructions := "Step 25/31: Side 2 (Bottom-Left) End Point`n`nHover mouse over the ending point of the Bottom-Left deployment line and press SPACE."
+            instructions := "Step 25/30: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 26:
-            instructions := "Step 26/31: Side 3 (Top-Left) Start Point`n`nHover mouse over the starting point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 26/30: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 27:
-            instructions := "Step 27/31: Side 3 (Top-Left) End Point`n`nHover mouse over the ending point of the Top-Left deployment line and press SPACE."
+            instructions := "Step 27/30: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 28:
-            instructions := "Step 28/31: Side 4 (Top-Right) Start Point`n`nHover mouse over the starting point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 28/30: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE.`n`nKeep both endpoints and the entire straight line outside the red no-deploy area, with at least 10 ADB pixels of clearance."
         case 29:
-            instructions := "Step 29/31: Side 4 (Top-Right) End Point`n`nHover mouse over the ending point of the Top-Right deployment line and press SPACE."
+            instructions := "Step 29/30: Return Home Button (Battle Results)`n`nWait for the battle results screen. Hover over the green 'Return Home' button and press SPACE."
         case 30:
-            instructions := "Step 30/31: Return Home Button (Battle End)`n`nHover mouse over the center of the green 'Return Home' button and press SPACE."
-        case 31:
             if (CollectorCoords.Length == 0) {
                 IsWaitingForReset := true
                 instructions := "Top-Left Screen Zoom-Out Calibration`n`nPress Button and Please Wait."
                 SetTimer RunCollectorReset, -3000
             } else {
-                instructions := "Step 31/31: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
+                instructions := "Step 30/30: Resource Collectors (Home Screen)`n`nHover over a Gold Mine, Elixir Collector, or DE Drill and press SPACE to record.`n`nCurrently added: " CollectorCoords.Length "`n`nPlease don't move the screen.`n`nPress ENTER to finish and save."
             }
     }
     CalibrationText.Value := instructions
@@ -2830,23 +3022,17 @@ IsDarkElixirBarFilled(x, y, framePath := "") {
         if !FileExist(framePath)
             return false
         color := GetADBFramePixelColor(framePath, targetX, targetY)
-        actualHex := Integer(color)
-        r := (actualHex >> 16) & 0xFF
-        g := (actualHex >> 8) & 0xFF
-        b := actualHex & 0xFF
-
-        ; Dark Elixir fluid is dark purple/black (r < 70, g < 50, b < 80).
-        ; Empty DE bar background is light grey (r > 100, g > 100, b > 100).
-        return (r < 70) && (g < 50) && (b < 80)
+        return IsDarkElixirThresholdColor(color)
     } catch {
         return false
     }
 }
 GetBuilderCropRegion(h, &scrW, &scrH, &offX, &offY) {
-    scrW := Max(100, Round(h * 0.1362))
-    scrH := Max(24, Round(h * 0.0292))
-    offX := Round(scrW * 0.22)
-    offY := Round(scrH * 0.50)
+    ; Center the complete fraction and its padding around the calibrated badge.
+    scrW := Max(1, Round(h * 0.10))
+    scrH := Max(1, Round(h * 0.05))
+    offX := Round(scrW / 2)
+    offY := Round(scrH / 2)
 }
 
 IsGoblinFace(centerX, centerY) {
@@ -2899,8 +3085,9 @@ GetBuilderCount(&free, &total) {
     if RegExMatch(clean_out, "SUCCESS: (\d)/(\d)", &match) {
         free := Integer(match[1])
         total := Integer(match[2])
-
-        if (free > 0 && IsGoblinFace(centerX, centerY)) {
+        faceOffsetY := Round(24 * h / 800)
+        isGoblin := (free > 0 && IsGoblinFace(centerX, centerY - faceOffsetY)) || (total == 7 && free == 1)
+        if isGoblin {
             LogMessage(Format("Goblin Builder detected at ({}, {})! Free={}. Ignoring Goblin Builder to prevent spending gems.", centerX, centerY, free))
             free := 0
         } else {
@@ -2942,6 +3129,7 @@ FindCenterGreenButton(&outX, &outY) {
     searchY := viewport.y + (viewport.height * 0.4)
     searchW := viewport.width * 0.4
     searchH := viewport.height * 0.4
+    AddVisualizerClientReadRegion(searchX, searchY, searchW, searchH)
     ; Scan a grid in the center area for the signature green color
     loop 20 {
         clientY := searchY + (A_Index * (searchH / 20))
@@ -3168,6 +3356,8 @@ IsReturnHomePresent() {
     return ReturnHomeClickX > 0 && ReturnHomeClickY > 0 && IsReturnHomePresentADB()
 }
 IsReturnHomePresentADB() {
+    global ReturnHomeClickX, ReturnHomeClickY
+    AddVisualizerClientReadRegion(ReturnHomeClickX - 20, ReturnHomeClickY - 20, 41, 41)
     if (ReturnHomeClickX <= 0)
         return false
     framePath := CaptureADBFrame(true)
@@ -3227,6 +3417,7 @@ CheckGameTimeout(force := false) {
 }
 SaveRegionToPNG(x, y, w, h, filepath) {
     adbRect := ClientRectToADBRect(x, y, w, h)
+    AddVisualizerADBReadRegion(adbRect.x, adbRect.y, adbRect.width, adbRect.height)
     framePath := CaptureADBFrame()
     if !FileExist(framePath)
         throw Error("ADB frame capture did not produce an image.")
@@ -3335,6 +3526,7 @@ SaveADBFrameRegionToPNG(framePath, x, y, w, h, filepath) {
     if (framePath == "" || !FileExist(framePath))
         throw Error("ADB frame is unavailable.")
     adbRect := ClientRectToADBRect(x, y, w, h)
+    AddVisualizerADBReadRegion(adbRect.x, adbRect.y, adbRect.width, adbRect.height)
     InitGDIPlus()
     pSourceBitmap := 0
     if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", framePath, "ptr*", &pSourceBitmap) != 0
@@ -3395,6 +3587,7 @@ ReadBuilderAvailabilityFromADBFrame(framePath) {
     )
     adbDisplay := GetADBDisplaySize()
     output := Trim(RunWaitPythonScript('builders "' imagePath '" ' adbDisplay.height))
+    LogMessage("Builder badge OCR: " StrReplace(StrReplace(output, "`r", ""), "`n", " | "))
     try FileDelete(imagePath)
     if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
         return {valid: false, free: 0, total: 0, goblin: false, error: output}
@@ -3402,12 +3595,14 @@ ReadBuilderAvailabilityFromADBFrame(framePath) {
     total := Integer(match[2])
     if (total <= 0 || free > total)
         return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
+    faceOffsetY := Round(24 * viewport.height / 800)
+    isGoblin := (free > 0 && IsGoblinFaceInADBFrame(framePath, BuilderFaceX, BuilderFaceY - faceOffsetY))
+        || (total == 7 && free == 1)
     return {
         valid: true,
         free: free,
         total: total,
-        goblin: free > 0
-            && IsGoblinFaceInADBFrame(framePath, BuilderFaceX, BuilderFaceY)
+        goblin: isGoblin
     }
 }
 
@@ -3426,6 +3621,7 @@ ReadLabAvailabilityFromADBFrame(framePath) {
     )
     adbDisplay := GetADBDisplaySize()
     output := Trim(RunWaitPythonScript('lab "' imagePath '" ' adbDisplay.height))
+    LogMessage("Lab badge OCR: " StrReplace(StrReplace(output, "`r", ""), "`n", " | "))
     try FileDelete(imagePath)
     if !RegExMatch(output, "SUCCESS: (\d)/(\d)", &match)
         return {valid: false, free: 0, total: 0, goblin: false, error: output}
@@ -3433,86 +3629,19 @@ ReadLabAvailabilityFromADBFrame(framePath) {
     total := Integer(match[2])
     if (total <= 0 || free > total)
         return {valid: false, free: 0, total: 0, goblin: false, error: "Invalid vision availability result: " output}
+    faceOffsetY := Round(24 * viewport.height / 800)
+    isGoblin := (free > 0 && IsGoblinFaceInADBFrame(framePath, LabFaceX, LabFaceY - faceOffsetY))
+        || (total == 2 && free == 1)
     return {
         valid: true,
         free: free,
         total: total,
-        goblin: free > 0
-            && IsGoblinFaceInADBFrame(framePath, LabFaceX, LabFaceY)
+        goblin: isGoblin
     }
 }
 
 FindFlowSuggestedUpgrade(menuKind) {
-    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, LabFaceX
-    viewport := GetADBClientViewportRect()
-    if (menuKind == "builder") {
-        menuX := BuilderFaceX - viewport.width * 0.20
-        menuY := Max(viewport.y, BuilderFaceY)
-        menuW := viewport.width * 0.42
-        menuH := Max(1, BuilderMenuBottomY - menuY)
-        scales := [2.0, 2.5, 1.5, 3.0]
-    } else {
-        menuX := LabFaceX - viewport.width * 0.18
-        menuY := viewport.y + viewport.height * 0.12
-        menuW := viewport.width * 0.36
-        menuH := viewport.height * 0.75
-        scales := [2.5, 2.0, 3.0]
-    }
-    imagePath := A_Temp "\coc_refactor_flow_" menuKind "_menu.png"
-    framePath := CaptureADBFrame(true)
-    adbCrop := SaveADBFrameRegionToPNG(
-        framePath,
-        menuX,
-        menuY,
-        menuW,
-        menuH,
-        imagePath
-    )
-    for scaleValue in scales {
-        try {
-            result := OCR.FromFile(imagePath, {scale: scaleValue})
-            rawText := StrReplace(
-                StrReplace(result.Text, "`r", "\r"),
-                "`n",
-                "\n"
-            )
-            LogMessage(
-                "Suggested upgrades OCR " menuKind " scale "
-                    scaleValue "x: raw='" rawText "'."
-            )
-            selected := SelectFirstSuggestedUpgradeOCRWord(result.Lines)
-            if !IsObject(selected)
-                continue
-            selected := NormalizeBuilderOCRMatch(selected, scaleValue)
-            clientPoint := ADBFramePointToClient(
-                adbCrop,
-                selected.tapX,
-                selected.tapY
-            )
-            LogMessage(
-                "Suggested upgrades " menuKind ": OCR selected '"
-                    selected.lineText "' at normalized crop point ("
-                    Round(selected.tapX) ", " Round(selected.tapY)
-                    "), client (" clientPoint.x ", " clientPoint.y ")."
-            )
-            try FileDelete(imagePath)
-            return {
-                name: selected.lineText,
-                x: clientPoint.x,
-                y: clientPoint.y
-            }
-        } catch as err {
-            LogMessage(
-                "Suggested upgrades OCR " menuKind " scale "
-                    scaleValue "x error: " err.Message
-            )
-        }
-    }
-    LogMessage(
-        "Suggested upgrades OCR " menuKind
-            " failed; retained a diagnostic capture temporarily."
-    )
-    return ""
+    return FindUpgradeRow(menuKind, false, true)
 }
 
 FindBuilderInfoFromADBFrame(framePath) {
@@ -3695,10 +3824,11 @@ FindTemplateUpgradeButton(&outX, &outY) {
     return false
 }
 GetLabCropRegion(h, &scrW, &scrH, &offX, &offY) {
-    scrW := Max(100, Round(h * 0.12))
-    scrH := Max(30, Round(h * 0.04))
-    offX := Round(scrW * 0.15)
-    offY := Round(scrH * 0.50)
+    ; Center the complete fraction and its padding around the calibrated badge.
+    scrW := Max(1, Round(h * 0.10))
+    scrH := Max(1, Round(h * 0.05))
+    offX := Round(scrW / 2)
+    offY := Round(scrH / 2)
 }
 
 IsLabBusy() {
@@ -3722,7 +3852,9 @@ IsLabBusy() {
         free := Integer(match[1])
         total := Integer(match[2])
 
-        if (free > 0 && IsGoblinFace(centerX, centerY)) {
+        faceOffsetY := Round(24 * h / 800)
+        isGoblin := (free > 0 && IsGoblinFace(centerX, centerY - faceOffsetY)) || (total == 2 && free == 1)
+        if isGoblin {
             LogMessage(Format("Goblin Researcher detected at ({}, {})! Free={}. Treating Lab as busy to prevent spending gems.", centerX, centerY, free))
             return true
         }
@@ -3735,155 +3867,23 @@ IsLabBusy() {
 }
 
 UpgradeLab() {
-    global LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
-    viewport := GetADBClientViewportRect()
-    LogMessage("Lab available! Clicking Lab Face...")
-    ADBClickPoint(LabFaceX, LabFaceY)
-    Sleep 1200
-
-    w := viewport.width
-    h := viewport.height
-    menuLeft := LabFaceX - (w * 0.18)
-    menuWidth := w * 0.36
-    menuTop := viewport.y + h * 0.12
-    menuHeight := h * 0.75
-    imgName := A_Temp "\coc_refactor_lab_menu.png"
-
-    clickX := 0, clickY := 0
-    found_suggestion := false
-
-    for sc in [2.5, 2.0, 3.0] {
-        try {
-            adbCrop := SaveRegionToPNG(menuLeft, menuTop, menuWidth, menuHeight, imgName)
-            result := OCR.FromFile(imgName, {scale: sc})
-            lines := result.Lines
-            suggested_idx := -1
-            loop lines.Length {
-                if InStr(lines[A_Index].Text, "ggested") || InStr(lines[A_Index].Text, "Suggested") || InStr(lines[A_Index].Text, "ggested upgr") {
-                    suggested_idx := A_Index
-                    break
-                }
-            }
-            if (suggested_idx != -1 && suggested_idx < lines.Length) {
-                target_line := lines[suggested_idx + 1]
-                clientPoint := ADBFramePointToClient(
-                    adbCrop,
-                    target_line.x + 50,
-                    target_line.y + (target_line.h / 2)
-                )
-                clickX := clientPoint.x
-                clickY := clientPoint.y
-                found_suggestion := true
-                break
-            }
-        }
-    }
-    try FileDelete(imgName)
-
-    if !found_suggestion {
-        LogMessage("Failed to find 'Suggested upgrades' section.")
-        ClearingClick()
-        return
-    }
-
-    ClientClickPoint(clickX, clickY)
-    Sleep 2000
-
-    LogMessage("Confirming Lab Upgrade...")
-    ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
-    Sleep 1500
-    ClearingClick()
+    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
+    return operations.Do("run_lab_upgrade", ReadResourceThresholdsFromADBFrame(CaptureADBFrame(true)))
 }
+
 UpgradeBuilding() {
-    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, UpgradeConfirmX, UpgradeConfirmY
-    viewport := GetADBClientViewportRect()
-    LogMessage("Farming: Opening Builder suggestions menu...")
-    ADBClickPoint(BuilderFaceX, BuilderFaceY)
-    Sleep 1200
-    w := viewport.width
-    h := viewport.height
-    topY := Max(viewport.y, BuilderFaceY)
-    bottomY := (BuilderMenuBottomY > topY + 100) ? BuilderMenuBottomY : viewport.y + Integer(h * 0.85)
-    menuLeft := BuilderFaceX - (w * 0.20)
-    menuWidth := w * 0.42
-    menuTop := topY
-    menuHeight := bottomY - topY
-    imgName := A_Temp "\coc_refactor_builder_menu.png"
-    ; Scan dropdown using OCR
-    suggestion_text := ""
-    clickX := 0, clickY := 0
-    found_suggestion := false
-    for sc in [2.0, 2.5, 1.5, 3.0] {
-        try {
-            adbCrop := SaveRegionToPNG(menuLeft, menuTop, menuWidth, menuHeight, imgName)
-            result := OCR.FromFile(imgName, {scale: sc})
-            lines := result.Lines
-            ; Find the "Suggested upgrades" header
-            suggested_idx := -1
-            loop lines.Length {
-                t := lines[A_Index].Text
-                if InStr(t, "ggested Upgr") || InStr(t, "ggested upgr") || InStr(t, "Suggested") || InStr(t, "gested") {
-                    suggested_idx := A_Index
-                    break
-                }
-            }
-            ; If found, click the first line below it
-            if (suggested_idx != -1 && suggested_idx < lines.Length) {
-                target_line := lines[suggested_idx + 1]
-                suggestion_text := target_line.Text
-                clientPoint := ADBFramePointToClient(
-                    adbCrop,
-                    target_line.x + 50,
-                    target_line.y + (target_line.h / 2)
-                )
-                clickX := clientPoint.x
-                clickY := clientPoint.y
-                found_suggestion := true
-                break
-            }
-        }
-        catch as err {
-            LogMessage("Farming: OCR error in dropdown: " err.Message)
-        }
-    }
-    try FileDelete(imgName)
-    if !found_suggestion {
-        LogMessage("Farming: Failed to find 'Suggested upgrades' section.")
-        return false
-    }
-    ; Classify building vs hero
-    is_hero := InStr(suggestion_text, "Queen") || InStr(suggestion_text, "King") || InStr(suggestion_text, "Warden") || InStr(suggestion_text, "Champion")
-    LogMessage(Format("Farming: Target suggestion: '{}' (Type: {})", suggestion_text, is_hero ? "Hero" : "Building"))
-    ; Click suggestion
-    ClientClickPoint(clickX, clickY)
-    Sleep 2000 ; 2-second camera settle delay
-    if is_hero {
-        ; Hero upgrade flow: skip Upgrade button, go straight to confirm
-        LogMessage("Farming: Hero detected. Clicking calibrated confirmation button...")
-        ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
-        Sleep 1500
-        ClearingClick()
-        return true
-    } else {
-        ; Building upgrade flow: find "Upgrade" button using Template Matching
-        LogMessage("Farming: Building detected. Finding Upgrade hammer button...")
-        btnX := 0, btnY := 0
-        if FindTemplateUpgradeButton(&btnX, &btnY) {
-            LogMessage(Format("Farming: Clicking Upgrade hammer button at client {}, {}", btnX, btnY))
-            ClientClickPoint(btnX, btnY)
-            Sleep 1200
-            ; Click calibrated confirmation button directly
-            LogMessage(Format("Farming: Clicking calibrated confirmation button at client {}, {}", UpgradeConfirmX, UpgradeConfirmY))
-            ADBClickPoint(UpgradeConfirmX, UpgradeConfirmY)
-            Sleep 1500
-            ClearingClick()
-            return true
-        } else {
-            LogMessage("Farming: Failed to find Upgrade hammer button (Template Match threshold not reached). Check vision_hook log.")
-            ClearingClick()
-        }
-    }
-    return false
+    global EnableWallUpgrade
+    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
+    return operations.Do("run_builder_upgrade", ReadResourceThresholdsFromADBFrame(CaptureADBFrame(true)), EnableWallUpgrade)
+}
+
+CloseDrawer() {
+    global DrawerCloseBtnX, DrawerCloseBtnY
+    closeX := (DrawerCloseBtnX > 0) ? DrawerCloseBtnX : 1240
+    closeY := (DrawerCloseBtnY > 0) ? DrawerCloseBtnY : 38
+    RunADBTapAt(closeX, closeY, 200)
+    SafeFlowWait(400)
+    return true
 }
 
 class LiveADBFlowPrimitives {
@@ -3892,12 +3892,18 @@ class LiveADBFlowPrimitives {
     }
 
     Do(name, args*) {
+        CheckClashAppBeforeFlow(name)
         switch name {
             case "log":
                 LogMessage(args[1])
                 return true
             case "verify_emulator":
                 return this.VerifyEmulator()
+            case "verify_main_calibration":
+                global ADBMainCalibrationVersion, ADB_COORDINATE_VERSION
+                if (ADBMainCalibrationVersion != ADB_COORDINATE_VERSION)
+                    throw Error("Main Village coordinates are missing or stale. Run Main Calibration.")
+                return true
             case "verify_calibration":
                 return this.VerifyCalibration()
             case "start_timer":
@@ -3922,6 +3928,12 @@ class LiveADBFlowPrimitives {
                 return ReadResourceThresholdsFromADBFrame(
                     this.RequireFramePath(args[1], "thresholds")
                 )
+            case "check_pet_house":
+                return this.CheckPetHouse()
+            case "run_pet_upgrade":
+                return this.RunPetUpgrade(args[1])
+            case "close_drawer":
+                return this.CloseDrawer()
             case "read_builders_from_frame":
                 return ReadBuilderAvailabilityFromADBFrame(
                     this.RequireFramePath(args[1], "builder")
@@ -4076,7 +4088,7 @@ class LiveADBFlowPrimitives {
         if !IsADBPackageInstalled(ready.Serial, ADB_TARGET_PACKAGE)
             throw Error("Clash of Clans is not installed on the selected ADB device.")
         if !IsClashForeground(ready.Serial)
-            throw Error("Clash of Clans is not the foreground Android app.")
+            EnsureClashAppForeground(ready.Serial)
         return true
     }
 
@@ -4136,13 +4148,37 @@ class LiveADBFlowPrimitives {
     }
 
     OpenUpgradeMenu(menuKind) {
-        global BuilderFaceX, BuilderFaceY, LabFaceX, LabFaceY
-        if (menuKind == "builder")
-            tapped := RunADBTapAt(BuilderFaceX, BuilderFaceY, 200)
-        else
-            tapped := RunADBTapAt(LabFaceX, LabFaceY, 200)
-        if !tapped || !SafeFlowWait(1200)
-            throw Error("Could not open the " menuKind " upgrade menu.")
+        return OpenUpgradeDrawer(menuKind)
+    }
+
+    CheckPetHouse() {
+        global PetHouseChecked, NeedPetUpgrade, PetIsUpgrading
+        if PetHouseChecked
+            return true
+        LogMessage("Pet House check: initial session inspection starting...")
+        PetHouseChecked := true
+        NeedPetUpgrade := false
+        PetIsUpgrading := false
+        LogMessage("Pet House check: pass stub active for this account (no active pet upgrade).")
+        return true
+    }
+
+    RunPetUpgrade(thresholds) {
+        global NeedPetUpgrade, PetIsUpgrading
+        if (!NeedPetUpgrade || !thresholds.darkElixir)
+            return false
+        LogMessage("Pet House: Dark Elixir threshold met! Upgrading pet as top priority...")
+        NeedPetUpgrade := false
+        PetIsUpgrading := true
+        return true
+    }
+
+    CloseDrawer() {
+        global DrawerCloseBtnX, DrawerCloseBtnY
+        closeX := (DrawerCloseBtnX > 0) ? DrawerCloseBtnX : 1240
+        closeY := (DrawerCloseBtnY > 0) ? DrawerCloseBtnY : 38
+        RunADBTapAt(closeX, closeY, 200)
+        SafeFlowWait(400)
         return true
     }
 
@@ -4220,8 +4256,6 @@ class LiveADBFlowPrimitives {
 
     TapReturnHome() {
         global ReturnHomeClickX, ReturnHomeClickY
-        centerPoint := ClientViewportPointFromFraction(0.5, 0.5)
-        RunADBTapAt(centerPoint.x, centerPoint.y, 200)
         return RunADBTapAt(ReturnHomeClickX, ReturnHomeClickY, 200)
     }
 
@@ -4326,6 +4360,7 @@ class LiveADBFlowPrimitives {
 
     StopBot() {
         global IsRunning, IsBBRunning
+        StopHabumiWatchdog()
         IsRunning := false
         IsBBRunning := false
         return true
@@ -4345,6 +4380,7 @@ FindReloadActionFromADBFrame(frame) {
     framePath := LiveADBFlowPrimitives().RequireFramePath(frame, "reload")
     viewport := GetADBClientViewportRect()
 
+    AddVisualizerClientReadRegion(viewport.x + viewport.width / 2 - 15, viewport.y + viewport.height / 2 - 15, 31, 31)
     cardCheck := IsErrorCardColorMatch(framePath, viewport.x, viewport.y, viewport.width, viewport.height)
     if !cardCheck.isMatch {
         LogMessage("Reconnect card check: center color #191C1E matched " cardCheck.count "/" cardCheck.total " points; no error popup card (safe skip).")
@@ -4457,34 +4493,57 @@ StartBotLoop() {
     global IsRunning, IsBBRunning, SessionCompletedAttacks
     global CollectorCoords, EnableWallUpgrade, MinGold, MinElixir
     global TimerDurationMs, StatusText, StartBtn, PauseBtn
-    operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
-    while IsRunning {
-        state := {
-            completedAttacks: SessionCompletedAttacks,
-            collectorCount: CollectorCoords.Length,
-            wallUpgradesEnabled: EnableWallUpgrade,
-            minGold: MinGold,
-            minElixir: MinElixir,
-            timerEnabled: TimerDurationMs > 0
-        }
-        try {
-            ADBRefactorFlowAPI.RunMainLoop(operations, state)
-        } catch as err {
-            if IsRunning
-                LogMessage("Main Village flow stopped: " err.Message)
-            IsRunning := false
-        }
+    static active := false
+    if active {
+        LogMessage("Main loop is already active; duplicate start ignored.")
+        return
     }
-    if !IsBBRunning {
-        StatusText.Value := "Status: Idle"
-        StartBtn.Enabled := true
-        PauseBtn.Enabled := false
-        LogMessage("Main Village flow ended.")
-    } else {
-        LogMessage("Main Village flow handed control to Builder Base.")
+    active := true
+    try {
+        operations := CreateADBMainFlowSections(LiveADBFlowPrimitives())
+        while IsRunning {
+            state := GetLiveMainCycleState()
+            try {
+                ADBRefactorFlowAPI.RunMainLoop(operations, state)
+            } catch ClashAppRecoveredError as err {
+                LogMessage(err.Message)
+                try {
+                    operations.Do("return_main_home")
+                } catch as recoveryError {
+                    LogMessage("Recovery could not return home: " recoveryError.Message)
+                    IsRunning := false
+                    StatusText.Value := "Status: Recovery Failed"
+                }
+            } catch as err {
+                if IsRunning {
+                    try {
+                        if RecoverHabumiAfterFlowError() {
+                            LogMessage("Habumi recovered; restarting the interrupted Main cycle.")
+                            continue
+                        }
+                    } catch as recoveryError {
+                        LogMessage("Habumi recovery failed: " recoveryError.Message)
+                    }
+                }
+                if IsRunning
+                    LogMessage("Main Village flow stopped: " err.Message)
+                StatusText.Value := "Status: Error (see activity log)"
+                IsRunning := false
+            }
+        }
+        if !IsBBRunning {
+            if !InStr(StatusText.Value, "Failed") && !InStr(StatusText.Value, "Error")
+                StatusText.Value := "Status: Idle"
+            StartBtn.Enabled := true
+            PauseBtn.Enabled := false
+            LogMessage("Main Village flow ended.")
+        } else {
+            LogMessage("Main Village flow handed control to Builder Base.")
+        }
+    } finally {
+        active := false
     }
 }
-
 LegacyStartBotLoop() {
     global IsRunning, StatusText, StartBtn, PauseBtn
     global AttackBtnX, AttackBtnY, FindMatchBtnX, FindMatchBtnY, AttackStartBtnX, AttackStartBtnY
@@ -4748,8 +4807,12 @@ ClearingClick() {
 }
 
 FlowClearTap() {
-    global ClearTapX, ClearTapY
-    return RunADBClearTapAt(ClearTapX, ClearTapY, 200)
+    global WarLogoX, WarLogoY
+    viewport := GetADBClientViewportRect()
+    oppositeX := viewport.x + viewport.width - 1 - (WarLogoX - viewport.x)
+    if !RunADBTapAt(oppositeX, WarLogoY, 200)
+        return false
+    return RunADBTapAt(WarLogoX, WarLogoY, 200)
 }
 
 SafeSleep(ms) {
@@ -4799,12 +4862,33 @@ ADBClickFraction(xRatio, yRatio, delta := "") {
 ClientClickPoint(x, y, delta := "") {
     return ADBClickPoint(x, y, delta)
 }
+SelectBattleSlot(keyOrSlot) {
+    static slotMap := Map(
+        "1", {x: 167, y: 734},
+        "2", {x: 252, y: 734},
+        "3", {x: 339, y: 734},
+        "z", {x: 429, y: 734}, "4", {x: 429, y: 734},
+        "q", {x: 526, y: 734}, "5", {x: 526, y: 734},
+        "w", {x: 616, y: 734}, "6", {x: 616, y: 734},
+        "e", {x: 710, y: 734}, "7", {x: 710, y: 734},
+        "r", {x: 800, y: 734}, "8", {x: 800, y: 734},
+        "a", {x: 893, y: 734}, "9", {x: 893, y: 734},
+        "s", {x: 986, y: 734}, "10", {x: 986, y: 734}
+    )
+    lowerKey := StrLower(keyOrSlot)
+    if slotMap.Has(lowerKey) {
+        pt := slotMap[lowerKey]
+        RunADBDirectTapAt(pt.x, pt.y, 50)
+    }
+}
+
 SendKey(keyName) {
     try {
+        SelectBattleSlot(keyName)
         interaction := CreateLiveADBClientInteraction()
         keyCode := RegExMatch(keyName, "^\d$") ? "KEYCODE_" keyName : "KEYCODE_" StrUpper(keyName)
-        WaitForADBActionPreDelay(100)
-        interaction.KeyEvent(keyCode, 100)
+        WaitForADBActionPreDelay(50)
+        interaction.KeyEvent(keyCode, 50)
         return true
     } catch as err {
         LogMessage("ADB key failed: " err.Message)
@@ -4910,11 +4994,13 @@ AreCloudsPresent() {
     return AreCloudsPresentInADBFrame(framePath)
 }
 IsAttackBtnColor(r, g, b) {
-    ; 1. Brown Wood Shield Background (e.g. RGB 140, 75, 30)
+    ; 1. Brown Wood Shield Background (legacy UI)
     isBrownWood := (r > g) && (g > b) && (r - b >= 25) && (g - b >= 10) && (r >= 70 && r <= 250)
-    ; 2. Tan / Beige / Yellow Paper Map (e.g. RGB 245, 220, 175)
+    ; 2. Tan / Beige / Yellow Paper Map (legacy UI)
     isTanMap := (r >= 180) && (g >= 140) && (b >= 90) && (r >= g) && (g >= b * 0.75)
-    return isBrownWood || isTanMap
+    ; 3. New Golden/Yellow Battle Button (current UI: e.g. RGB 255, 238, 73)
+    isGoldYellow := (r >= 200) && (g >= 170) && (b <= 130) && (r >= g) && (g > b + 40)
+    return isBrownWood || isTanMap || isGoldYellow
 }
 
 IsAttackBtnPresentADB(x, y, framePath := "") {
@@ -4948,16 +5034,19 @@ IsAtHomeVillage() {
     return true
 }
 IsWarLogoColor(r, g, b) {
-    ; 1. Silver / White Sword Blades (e.g. RGB 240, 235, 225)
+    ; 1. Dark Elixir Droplet / Bar container (e.g. RGB 45, 35, 45, or dark purple/black)
+    isDarkElixir := (r <= 100) && (g <= 90) && (b <= 110) && (r + g + b <= 280)
+    ; 2. Silver / White Sword Blades (e.g. RGB 240, 235, 225)
     isSilverSword := (r >= 150) && (g >= 150) && (b >= 130) && (Abs(r - g) <= 40) && (Abs(g - b) <= 40)
-    ; 2. Brown Wood Shield (e.g. RGB 140, 75, 30)
+    ; 3. Brown Wood Shield (e.g. RGB 140, 75, 30)
     isBrownWood := (r > g) && (g > b) && (r - b >= 20) && (g - b >= 5) && (r >= 70 && r <= 250)
-    ; 3. Gold / Orange Outer Frame (e.g. RGB 245, 175, 50)
+    ; 4. Gold / Orange Outer Frame (e.g. RGB 245, 175, 50)
     isGoldFrame := (r >= 180) && (g >= 110) && (b <= 130) && (r > g + 15)
-    return isSilverSword || isBrownWood || isGoldFrame
+    return isDarkElixir || isSilverSword || isBrownWood || isGoldFrame
 }
 
 IsWarLogoPresentADB(x, y, framePath := "") {
+    AddVisualizerClientReadRegion(x - 20, y - 20, 41, 41)
     ; Check center and 4 diagonal offset points (+/- 20px)
     if (framePath = "")
         framePath := CaptureADBFrame(true)
@@ -5024,6 +5113,7 @@ class LiveBuilderBasePrimitives {
     }
 
     Do(name, args*) {
+        CheckClashAppBeforeFlow(name)
         switch name {
             case "log":
                 LogMessage(args[1])
@@ -5170,6 +5260,7 @@ AnalyzeLiveBuilderBaseThreeStars(frame) {
 }
 
 IsLiveBuilderBaseGoldenStar(bitmap, centerX, centerY) {
+    AddVisualizerADBReadRegion(centerX - 7, centerY - 7, 15, 15)
     for dx in [-7, -3, 0, 3, 7] {
         for dy in [-7, -3, 0, 3, 7] {
             color := ReadLiveBuilderBasePixel(
@@ -5224,7 +5315,11 @@ RunBuilderBaseLoop() {
     try {
         flow := BuilderBaseFlow(LiveBuilderBasePrimitives())
         flow.RunLoop()
+    } catch ClashAppRecoveredError as err {
+        LogMessage(err.Message)
+        SetTimer(UnifiedStart, -100)
     } catch as err {
+        StatusText.Value := "Status: Error (see activity log)"
         LogMessage(
             "Builder Base loop failed: " err.Message
                 " | " err.File ":" err.Line
@@ -5233,7 +5328,8 @@ RunBuilderBaseLoop() {
         LogMessage("--- Builder Base Loop Stopped ---")
         IsBBRunning := false
         if !IsRunning {
-            StatusText.Value := "Status: Stopped"
+            if !InStr(StatusText.Value, "Error")
+                StatusText.Value := "Status: Stopped"
             StartBtn.Enabled := true
             PauseBtn.Enabled := false
         } else {
@@ -5242,27 +5338,31 @@ RunBuilderBaseLoop() {
     }
 }
 ResetViewport() {
-    global IsRunning, IsCalibrating
-    viewport := GetADBClientViewportRect()
-    LogMessage("Viewport: Sending ADB focus tap inside the Android display...")
-    ADBClickFraction(0.8, 0.3)
-    RandomizedDelay(300)
-    LogMessage("Viewport: Zooming all the way out...")
-    RunADBPinchAt(viewport.x + viewport.width // 2, viewport.y + viewport.height // 2, 300)
-    RandomizedDelay(300)
-    LogMessage("Viewport: Scrolling to top-left corner...")
-    Loop 6 {
-        if !IsRunning && !IsCalibrating
-            break
-        RunADBSwipeAt(
-            Round(viewport.x + viewport.width * 0.25), Round(viewport.y + viewport.height * 0.25),
-            Round(viewport.x + viewport.width * 0.75), Round(viewport.y + viewport.height * 0.75),
-            200,
-            100
-        )
-        RandomizedDelay(100)
+    global IsRunning, IsCalibrating, IsStarting
+    try {
+        viewport := GetADBClientViewportRect()
+        LogMessage("Viewport: Sending ADB focus tap inside the Android display...")
+        ADBClickFraction(0.8, 0.3)
+        RandomizedDelay(300)
+        LogMessage("Viewport: Zooming all the way out...")
+        RunADBPinchAt(viewport.x + viewport.width // 2, viewport.y + viewport.height // 2, 300)
+        RandomizedDelay(300)
+        LogMessage("Viewport: Scrolling to top-left corner...")
+        Loop 3 {
+            if !IsRunning && !IsCalibrating && !IsStarting
+                break
+            RunADBSwipeAt(
+                Round(viewport.x + viewport.width * 0.25), Round(viewport.y + viewport.height * 0.25),
+                Round(viewport.x + viewport.width * 0.75), Round(viewport.y + viewport.height * 0.75),
+                200,
+                100
+            )
+            RandomizedDelay(100)
+        }
+        RandomizedDelay(300)
+    } catch as err {
+        LogMessage("ResetViewport warning: " err.Message)
     }
-    RandomizedDelay(300)
 }
 ZoomOutBB() {
     viewport := GetADBClientViewportRect()
@@ -5314,18 +5414,27 @@ Space:: {
     global Side3StartX, Side3StartY, Side3EndX, Side3EndY
     global Side4StartX, Side4StartY, Side4EndX, Side4EndY
     global Sides
-    if IsWaitingForReset
+    if IsWaitingForReset {
+        if (CalibStep == 21) {
+            RunSidesReset()
+            return
+        } else if (CalibStep == 30) {
+            RunCollectorReset()
+            return
+        }
         return
+    }
     CoordMode "Mouse", "Client"
-    if !WinExist(TargetWindowTitle) {
+    targetHwnd := FindTargetWindow()
+    if !targetHwnd {
         LogMessage("Calibration Error: Target window not found.")
         return
     }
-    WinGetClientPos ,, &clientWidth, &clientHeight, TargetWindowTitle
+    WinGetClientPos ,, &clientWidth, &clientHeight, targetHwnd
     MouseGetPos &mx, &my
     if (CalibStep == 1) {
-        if (mx < 0 || my < 0 || mx >= clientWidth || my >= clientHeight) {
-            LogMessage("Calibration Error: Top-left viewport point must be inside the emulator client.")
+        if (mx < 0 || my < 0) {
+            LogMessage(Format("Calibration Error: Top-left point ({}, {}) cannot be negative.", mx, my))
             return
         }
         PendingViewportLeft := mx
@@ -5336,8 +5445,18 @@ Space:: {
         return
     }
     if (CalibStep == 2) {
+        if (mx <= PendingViewportLeft || my <= PendingViewportTop) {
+            LogMessage(Format("Calibration Error: Bottom-right ({}, {}) must be below and to the right of top-left ({}, {}).", mx, my, PendingViewportLeft, PendingViewportTop))
+            ShowToolTip(Format("Bottom-right must be below/right of ({}, {}). Select again.", PendingViewportLeft, PendingViewportTop))
+            return
+        }
+        if (clientWidth <= mx)
+            clientWidth := mx + 1
+        if (clientHeight <= my)
+            clientHeight := my + 1
+
         if !IsADBViewportValid(PendingViewportLeft, PendingViewportTop, mx, my, clientWidth, clientHeight) {
-            LogMessage("Calibration Error: Bottom-right viewport point must be below/right of the top-left and inside the client.")
+            LogMessage(Format("Calibration Error: Viewport ({}, {})-({}, {}) is invalid in {}x{} client.", PendingViewportLeft, PendingViewportTop, mx, my, clientWidth, clientHeight))
             ShowToolTip("Invalid Android viewport. Select the bottom-right game pixel again.")
             return
         }
@@ -5382,39 +5501,46 @@ Space:: {
     ; Store client-relative coordinates only; ADB translation occurs at each read/input boundary.
     switch CalibStep {
         case 3:
-            DarkElixirBarThreshX := mx
-            DarkElixirBarThreshY := my
-            LogMessage(Format("Calibrated Dark Elixir Bar Thresh: {}, {}", mx, my))
+            WarLogoX := mx
+            WarLogoY := my
+            try {
+                WarLogoColor := GetADBPixelColor(mx, my, true)
+            } catch {
+                WarLogoColor := 0x2E242F
+            }
+            if (!WarLogoColor || WarLogoColor == 0)
+                WarLogoColor := 0x2E242F
+            LogMessage(Format("Calibrated Village Identifier (Dark Elixir): {}, {} (Color: 0x{:06X})", mx, my, WarLogoColor))
             CalibStep := 4
             UpdateCalibrationUI()
         case 4:
-            ElixirBarThreshX := mx
-            ElixirBarThreshY := my
-            LogMessage(Format("Calibrated Elixir Bar Thresh: {}, {}", mx, my))
+            DarkElixirBarThreshX := mx
+            DarkElixirBarThreshY := my
+            LogMessage(Format("Calibrated Dark Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 5
             UpdateCalibrationUI()
         case 5:
-            GoldBarThreshX := mx
-            GoldBarThreshY := my
-            LogMessage(Format("Calibrated Gold Bar Thresh: {}, {}", mx, my))
+            ElixirBarThreshX := mx
+            ElixirBarThreshY := my
+            LogMessage(Format("Calibrated Elixir Bar Thresh: {}, {}", mx, my))
             CalibStep := 6
             UpdateCalibrationUI()
         case 6:
-            BuilderFaceX := mx
-            BuilderFaceY := my
-            LogMessage(Format("Calibrated Builder Face: {}, {}", mx, my))
+            GoldBarThreshX := mx
+            GoldBarThreshY := my
+            LogMessage(Format("Calibrated Gold Bar Thresh: {}, {}", mx, my))
             CalibStep := 7
             UpdateCalibrationUI()
         case 7:
-            BuilderMenuBottomX := mx
-            BuilderMenuBottomY := my
-            LogMessage(Format("Calibrated Builder Menu Bottom: {}, {}", mx, my))
+            BuilderFaceX := mx
+            BuilderFaceY := my
+            LogMessage(Format("Calibrated Builder Count Badge: {}, {}", mx, my))
             CalibStep := 8
             UpdateCalibrationUI()
         case 8:
             LabFaceX := mx
             LabFaceY := my
-            LogMessage(Format("Calibrated Lab Face: {}, {}", mx, my))
+            LogMessage(Format("Calibrated Lab Count Badge: {}, {}", mx, my))
             CalibStep := 9
             UpdateCalibrationUI()
         case 9:
@@ -5454,31 +5580,24 @@ Space:: {
             CalibStep := 15
             UpdateCalibrationUI()
         case 15:
-            WarLogoX := mx
-            WarLogoY := my
-            WarLogoColor := GetADBPixelColor(mx, my, true)
-            LogMessage(Format("Calibrated War Logo: {}, {} (Color: {})", mx, my, WarLogoColor))
-            CalibStep := 16
-            UpdateCalibrationUI()
-        case 16:
             AttackBtnX := mx
             AttackBtnY := my
             LogMessage(Format("Calibrated Attack Btn: {}, {}", mx, my))
-            CalibStep := 17
+            CalibStep := 16
             UpdateCalibrationUI()
-        case 17:
+        case 16:
             FindMatchBtnX := mx
             FindMatchBtnY := my
             LogMessage(Format("Calibrated Find Match Btn: {}, {}", mx, my))
-            CalibStep := 18
+            CalibStep := 17
             UpdateCalibrationUI()
-        case 18:
+        case 17:
             AttackStartBtnX := mx
             AttackStartBtnY := my
             LogMessage(Format("Calibrated Attack Start Btn: {}, {}", mx, my))
-            CalibStep := 19
+            CalibStep := 18
             UpdateCalibrationUI()
-        case 19:
+        case 18:
             GoldIconX := mx
             GoldIconY := my
             GoldAreaX := mx + LootCropOffsetX
@@ -5486,9 +5605,9 @@ Space:: {
             GoldAreaW := LootCropW
             GoldAreaH := LootCropH
             LogMessage(Format("Calibrated Gold Coin Symbol: {}, {}", mx, my))
-            CalibStep := 20
+            CalibStep := 19
             UpdateCalibrationUI()
-        case 20:
+        case 19:
             ElixirIconX := mx
             ElixirIconY := my
             ElixirAreaX := mx + LootCropOffsetX
@@ -5496,57 +5615,57 @@ Space:: {
             ElixirAreaW := LootCropW
             ElixirAreaH := LootCropH
             LogMessage(Format("Calibrated Elixir Drop Symbol: {}, {}", mx, my))
-            CalibStep := 21
+            CalibStep := 20
             UpdateCalibrationUI()
-        case 21:
+        case 20:
             NextMatchBtnX := mx
             NextMatchBtnY := my
             LogMessage(Format("Calibrated Next Match Btn: {}, {}", mx, my))
-            CalibStep := 22
+            CalibStep := 21
             UpdateCalibrationUI()
-        case 22:
+        case 21:
             Side1StartX := mx
             Side1StartY := my
             LogMessage(Format("Calibrated Side1 Start: {}, {}", mx, my))
-            CalibStep := 23
+            CalibStep := 22
             UpdateCalibrationUI()
-        case 23:
+        case 22:
             Side1EndX := mx
             Side1EndY := my
             LogMessage(Format("Calibrated Side1 End: {}, {}", mx, my))
-            CalibStep := 24
+            CalibStep := 23
             UpdateCalibrationUI()
-        case 24:
+        case 23:
             Side2StartX := mx
             Side2StartY := my
             LogMessage(Format("Calibrated Side2 Start: {}, {}", mx, my))
-            CalibStep := 25
+            CalibStep := 24
             UpdateCalibrationUI()
-        case 25:
+        case 24:
             Side2EndX := mx
             Side2EndY := my
             LogMessage(Format("Calibrated Side2 End: {}, {}", mx, my))
-            CalibStep := 26
+            CalibStep := 25
             UpdateCalibrationUI()
-        case 26:
+        case 25:
             Side3StartX := mx
             Side3StartY := my
             LogMessage(Format("Calibrated Side3 Start: {}, {}", mx, my))
-            CalibStep := 27
+            CalibStep := 26
             UpdateCalibrationUI()
-        case 27:
+        case 26:
             Side3EndX := mx
             Side3EndY := my
             LogMessage(Format("Calibrated Side3 End: {}, {}", mx, my))
-            CalibStep := 28
+            CalibStep := 27
             UpdateCalibrationUI()
-        case 28:
+        case 27:
             Side4StartX := mx
             Side4StartY := my
             LogMessage(Format("Calibrated Side4 Start: {}, {}", mx, my))
-            CalibStep := 29
+            CalibStep := 28
             UpdateCalibrationUI()
-        case 29:
+        case 28:
             Side4EndX := mx
             Side4EndY := my
             LogMessage(Format("Calibrated Side4 End: {}, {}", mx, my))
@@ -5558,13 +5677,19 @@ Space:: {
                 {startX: Side4StartX, startY: Side4StartY, endX: Side4EndX, endY: Side4EndY}
             ]
             LogMessage("Reconstructed Sides array with newly calibrated points.")
-            CalibStep := 30
+            CalibStep := 29
             UpdateCalibrationUI()
-        case 30:
+        case 29:
             ReturnHomeClickX := mx
             ReturnHomeClickY := my
-            ReturnHomeClickColor := GetADBPixelColor(mx, my, true)
-            LogMessage(Format("Calibrated Return Home Click: {}, {} (Color: {})", mx, my, ReturnHomeClickColor))
+            try {
+                ReturnHomeClickColor := GetADBPixelColor(mx, my, true)
+            } catch {
+                ReturnHomeClickColor := 0xFFFFFF
+            }
+            if (!ReturnHomeClickColor || ReturnHomeClickColor == 0)
+                ReturnHomeClickColor := 0xFFFFFF
+            LogMessage(Format("Calibrated Return Home Click: {}, {} (Color: 0x{:06X})", mx, my, ReturnHomeClickColor))
             ; Auto-calculate cloud points inside the Android viewport, excluding emulator chrome.
             if (ADBViewportRight > ADBViewportLeft && ADBViewportBottom > ADBViewportTop) {
                 global CloudPt1X, CloudPt1Y, CloudPt2X, CloudPt2Y, CloudPt3X, CloudPt3Y, CloudPt4X, CloudPt4Y
@@ -5582,16 +5707,16 @@ Space:: {
             }
             ; Reset dynamic arrays before the final collector step.
             CollectorCoords := []
-            CalibStep := 31
+            CalibStep := 30
             UpdateCalibrationUI()
-        case 31:
+        case 30:
             CollectorCoords.Push({x: mx, y: my})
             LogMessage(Format("Added Resource Collector #{}: {}, {}", CollectorCoords.Length, mx, my))
             UpdateCalibrationUI()
     }
 }
 Enter:: {
-    if (CalibStep == 31) {
+    if (CalibStep == 30) {
         FinishCalibration()
     }
 }
@@ -5611,7 +5736,8 @@ Space:: {
     global BBSides
     global TargetWindowTitle
     CoordMode "Mouse", "Client"
-    if !WinExist(TargetWindowTitle) {
+    targetHwnd := FindTargetWindow()
+    if !targetHwnd {
         LogMessage("Calibration Error: Target window not found.")
         return
     }
@@ -5719,14 +5845,18 @@ Esc:: {
 #HotIf
 #HotIf !IsCalibrating && !IsBBCalibrating
 UnifiedStart() {
-    global IsRunning, IsBBRunning, TimerDurationMs, TimerStartTick
+    global IsRunning, IsBBRunning, IsStarting, TimerDurationMs, TimerStartTick
     global SessionCompletedAttacks
-    global DDHours, DDMinutes, StatusText
-    if (IsRunning || IsBBRunning) {
+    global DDHours, DDMinutes, StatusText, StartBtn, PauseBtn
+    if (IsRunning || IsBBRunning || IsStarting) {
         LogMessage("Start ignored: bot is already running. Use Ctrl+Shift+F2 to stop it.")
         return
     }
 
+    IsStarting := true
+    StatusText.Value := "Status: Starting"
+    StartBtn.Enabled := false
+    PauseBtn.Enabled := false
     try {
         hours := Integer(DDHours.Text)
         minutes := Integer(DDMinutes.Text)
@@ -5744,7 +5874,11 @@ UnifiedStart() {
         IsRunning := false
         IsBBRunning := false
         StatusText.Value := "Status: Start Failed"
+        StartBtn.Enabled := true
+        PauseBtn.Enabled := false
         LogMessage("Startup flow stopped: " err.Message)
+    } finally {
+        IsStarting := false
     }
 }
 
@@ -5823,10 +5957,10 @@ LegacyUnifiedStart() {
     StopClickVisualizerStage()
 }
 ^!+F1:: {
-    MsgBox("Run Main Calibration from ADBcoc_bot.ahk. This standalone visualizer never writes calibration.", "Visualizer")
+    HandleManualVisualizerCalibration("calibrate_main")
 }
 ^!+F2:: {
-    MsgBox("Builder Base staging is intentionally disabled in this Main Village visualizer.", "Visualizer")
+    HandleManualVisualizerCalibration("calibrate_bb")
 }
 
 #HotIf

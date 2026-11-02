@@ -3,8 +3,8 @@
 ; test_adb_refactor_interactions.ahk.
 
 global ADBRefactorSupportLoaded := true
-; Main Village spells move 150 ADB pixels per axis toward the display center.
-global MAIN_SPELL_INWARD_OFFSET_PIXELS := 150
+; Main Village spells move 75 ADB pixels per axis toward the display center.
+global MAIN_SPELL_INWARD_OFFSET_PIXELS := 75
 global ADBScaleX := 0.0
 global ADBScaleY := 0.0
 global ADBRefactorViewportLeft := 0
@@ -440,6 +440,10 @@ class ADBMainFlowSections {
                 return this.CollectResources(args[1])
             case "check_resource_thresholds":
                 return this.CheckResourceThresholds()
+            case "check_pet_house":
+                return this.CheckPetHouse()
+            case "run_pet_upgrade":
+                return this.RunPetUpgrade(args[1])
             case "run_builder_upgrade":
                 return this.RunBuilderUpgrade(args[1], args[2])
             case "run_wall_upgrades":
@@ -511,6 +515,14 @@ class ADBMainFlowSections {
         return thresholds
     }
 
+    CheckPetHouse() {
+        return this.Primitives.Do("check_pet_house")
+    }
+
+    RunPetUpgrade(thresholds) {
+        return this.Primitives.Do("run_pet_upgrade", thresholds)
+    }
+
     RunBuilderUpgrade(thresholds, wallUpgradesEnabled) {
         if !this._AllThresholdsMet(thresholds) {
             this._Log(
@@ -557,6 +569,7 @@ class ADBMainFlowSections {
         suggestion := this.Primitives.Do("ocr_builder_suggestion")
         if !this._HasSuggestion(suggestion) {
             this._Log("Builder upgrade skipped: OCR found no suggestion.")
+            this.Primitives.Do("close_drawer")
             return false
         }
         this._Log(
@@ -564,25 +577,6 @@ class ADBMainFlowSections {
                 "'."
         )
         this.Primitives.Do("tap_builder_suggestion", suggestion)
-        this._Log(
-            "Builder upgrade: capturing one fresh frame for the Info button."
-        )
-        infoFrame := this._CaptureFreshFrame("builder_info")
-        info := this.Primitives.Do("find_builder_info_from_frame", infoFrame)
-        if !this._HasSuggestion(info) {
-            this._Log(
-                "Builder upgrade skipped: the single Info template attempt "
-                    "found no match."
-            )
-            this._Log("Builder upgrade: clearing the selected building.")
-            this.Primitives.Do("clear_tap")
-            return false
-        }
-        this._Log(
-            "Builder upgrade: Info template matched at client ("
-                info.x ", " info.y ")."
-        )
-        this.Primitives.Do("tap_builder_info", info)
         this._Log(
             "Builder upgrade: tapping the calibrated confirmation "
                 "(1 of 2)."
@@ -607,7 +601,7 @@ class ADBMainFlowSections {
             return false
         }
         this.Primitives.Do("wait", 1500)
-        this._Log("Builder upgrade: clearing the selection with 3 taps.")
+        this._Log("Builder upgrade: clearing the selection on both sides.")
         this.Primitives.Do("clear_tap")
         this._Log("Builder upgrade attempt complete.")
         return true
@@ -689,6 +683,7 @@ class ADBMainFlowSections {
         suggestion := this.Primitives.Do("ocr_lab_suggestion")
         if !this._HasSuggestion(suggestion) {
             this._Log("Lab upgrade skipped: OCR found no suggestion.")
+            this.Primitives.Do("close_drawer")
             return false
         }
         this._Log(
@@ -703,7 +698,7 @@ class ADBMainFlowSections {
             return false
         }
         this.Primitives.Do("wait", 1500)
-        this._Log("Lab upgrade: clearing the selection with 3 taps.")
+        this._Log("Lab upgrade: clearing the selection on both sides.")
         this.Primitives.Do("clear_tap")
         this._Log("Lab upgrade attempt complete.")
         return true
@@ -743,6 +738,10 @@ class ADBMainFlowSections {
                 )
                 if !cloudsPresent
                     break
+                if (cloudCheck >= 40) {
+                    this._Log("Clouds timed out after 40 checks; proceeding.")
+                    break
+                }
                 this._Log("Clouds remain; waiting 2000 ms before rechecking.")
                 this.Primitives.Do("wait", 2000)
             }
@@ -809,6 +808,10 @@ class ADBMainFlowSections {
         }
         this._Log("Deploying siege machine z on " sideName ".")
         this.Primitives.Do("deploy_main", "z", sideName)
+        for key in ["1", "2", "3"] {
+            this._Log("Deploying troop slot " key " on " sideName ".")
+            this.Primitives.Do("deploy_main", key, sideName)
+        }
         for key in ["a", "s"] {
             this._Log(
                 "Deploying spell " key " on " sideName
@@ -821,10 +824,6 @@ class ADBMainFlowSections {
                 sideName,
                 MAIN_SPELL_INWARD_OFFSET_PIXELS
             )
-        }
-        for key in ["1", "2", "3"] {
-            this._Log("Deploying troop slot " key " on " sideName ".")
-            this.Primitives.Do("deploy_main", key, sideName)
         }
         this._Log("Battle in progress; waiting 30000 ms.")
         this.Primitives.Do("wait", 30000)
@@ -863,14 +862,14 @@ class ADBMainFlowSections {
             )
             if atHome
                 break
-            if (attempt >= 25) {
+            if (attempt >= 50) {
                 this._Log(
-                    "Return Home reached 25 failed attempts; checking for a reload popup."
+                    "Return Home reached 50 failed attempts; checking for a reload popup."
                 )
                 if this._RecoverReturnHomeAfterRetryLimit()
                     break
                 throw Error(
-                    "Return Home failed after 25 attempts and no reload action restored Main Village."
+                    "Return Home failed after 50 attempts and no reload action restored Main Village."
                 )
             }
         }
@@ -1135,19 +1134,14 @@ class ADBRefactorFlowController {
         } else {
             operations.Do("log", "Startup: auto-stop timer is disabled.")
         }
-        operations.Do(
-            "log",
-            "Clear tap: sending 3 randomized taps before village detection."
-        )
+        operations.Do("log", "Startup: clearing menus and resetting the viewport before village detection.")
         operations.Do("clear_tap")
-        operations.Do("log", "Clear tap complete.")
-        operations.Do(
-            "log",
-            "Startup: restoring the calibrated viewport before village detection."
-        )
         operations.Do("reset_main_viewport")
-
         village := operations.Do("detect_village")
+        if (village != "main" && village != "builder") {
+            operations.Do("wait", 2000)
+            village := operations.Do("detect_village")
+        }
         if (village == "main") {
             operations.Do(
                 "log",
@@ -1167,28 +1161,52 @@ class ADBRefactorFlowController {
         throw Error("Village detection did not return main or builder.")
     }
 
-    RunMainLoop(operations, state) {
+    VerifyMainReady(operations) {
+        operations.Do("verify_emulator")
+        operations.Do("verify_calibration")
+        operations.Do("verify_main_calibration")
+    }
+
+    RunHomeStage(operations, state) {
+        this.VerifyMainReady(operations)
+        operations.Do("clear_tap")
+        operations.Do("reset_main_viewport")
+        village := operations.Do("detect_village")
+        if (village != "main") {
+            operations.Do("wait", 2000)
+            village := operations.Do("detect_village")
+        }
+        if (village != "main")
+            throw Error("Home stage requires the Main Village; detected " village ".")
         operations.Do("reset_main_viewport")
         operations.Do("collect_resources", state.collectorCount)
         thresholds := operations.Do("check_resource_thresholds")
-        operations.Do(
-            "run_builder_upgrade",
-            thresholds,
-            state.wallUpgradesEnabled
-        )
-        operations.Do(
-            "run_wall_upgrades",
-            thresholds,
-            state.wallUpgradesEnabled
-        )
+        operations.Do("run_builder_upgrade", thresholds, state.wallUpgradesEnabled)
+        operations.Do("run_wall_upgrades", thresholds, state.wallUpgradesEnabled)
         operations.Do("run_lab_upgrade", thresholds)
-        operations.Do("enter_main_battle")
-        minGold := state.HasOwnProp("minGold") ? state.minGold : 500000
-        minElixir := state.HasOwnProp("minElixir") ? state.minElixir : 500000
-        operations.Do("find_eligible_base", minGold, minElixir)
+        operations.Do("tap_main_attack")
+        operations.Do("tap_find_match")
+    }
+
+    RunAttackStage(operations, state) {
+        this.VerifyMainReady(operations)
+        operations.Do("tap_attack_start")
+        operations.Do("find_eligible_base", state.minGold, state.minElixir)
         operations.Do("attack_main_base")
         operations.Do("return_main_home")
-        operations.Do("finish_main_cycle")
+    }
+
+    RunMainCycle(operations, state, completeLifecycle := false) {
+        operations.Do("log", "Shared Main cycle: Home stage.")
+        this.RunHomeStage(operations, state)
+        operations.Do("log", "Shared Main cycle: Attack stage.")
+        this.RunAttackStage(operations, state)
+        if completeLifecycle
+            operations.Do("finish_main_cycle")
+    }
+
+    RunMainLoop(operations, state) {
+        return this.RunMainCycle(operations, state, true)
     }
 
     RunCycleCompletion(operations, state) {

@@ -115,126 +115,98 @@ def run_hammer_match(img_path, client_height):
     else:
         print(f"FAILED (Best Match Score: {best_val:.2f})")
 
+def binary_template_match(region, template, whole_region=False):
+    if region.shape[0] < template.shape[0] or region.shape[1] < template.shape[1]:
+        return 0.0, (0, 0)
+    region = region.astype(np.float32)
+    template = template.astype(np.float32)
+    intersection = cv2.matchTemplate(region, template, cv2.TM_CCORR)
+    foreground = float(region.sum()) if whole_region else cv2.matchTemplate(region, np.ones_like(template), cv2.TM_CCORR)
+    union = foreground + float(template.sum()) - intersection
+    scores = intersection / np.maximum(union, 1.0)
+    _, score, _, location = cv2.minMaxLoc(scores)
+    return score, location
+
+
+def read_fraction_ocr(img, mode):
+    if mode not in ("builders", "lab"):
+        raise ValueError("Unsupported fraction mode: " + mode)
+    template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "OCRimages", "cropped images")
+    templates = {}
+    for name in ["slash"] + [str(digit) for digit in range(8)]:
+        template = cv2.imread(os.path.join(template_dir, name + ".png"), cv2.IMREAD_UNCHANGED)
+        if template is None or template.ndim != 3 or template.shape[2] != 4:
+            raise ValueError("Missing alpha template: " + name)
+        templates[name] = (template[:, :, 3] > 128).astype(np.uint8)
+
+    best = None
+    for target_height in ([36, 44, 32, 40, 48, 52, 56] if mode == "builders" else [44, 36, 32, 40, 48, 52, 56]):
+        scale = target_height / img.shape[0]
+        resized = cv2.resize(img, (max(1, round(img.shape[1] * scale)), target_height), interpolation=cv2.INTER_LANCZOS4)
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        contrast = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4)).apply(gray)
+        # Counts are white; suppress colored portraits, hammer art and overlay borders.
+        neutral = cv2.cvtColor(resized, cv2.COLOR_BGR2HSV)[:, :, 1] <= 90
+        for variant, source in [("grayscale", gray), ("contrast", contrast)]:
+            for threshold in [150, 170, 130, 190, 210]:
+                mask = ((source >= threshold) & neutral).astype(np.uint8)
+                mask[:round(target_height * 0.10), :] = 0
+                slash_score, (slash_x, _) = binary_template_match(mask, templates["slash"])
+                if slash_score < 0.30:
+                    continue
+                slash_width = templates["slash"].shape[1]
+                left = mask[:, max(0, slash_x - 32):min(mask.shape[1], slash_x + 3)]
+                right = mask[:, max(0, slash_x + slash_width - 7):min(mask.shape[1], slash_x + slash_width + 32)]
+                free_digits = range(3) if mode == "lab" else range(8)
+                total_digits = range(1, 3) if mode == "lab" else range(1, 8)
+                free, free_score = max(((digit, binary_template_match(left, templates[str(digit)], whole_region=True)[0]) for digit in free_digits), key=lambda item: item[1])
+                total, total_score = max(((digit, binary_template_match(right, templates[str(digit)], whole_region=True)[0]) for digit in total_digits), key=lambda item: item[1])
+                if free_score <= 0.30 or total_score <= 0.30 or free > total:
+                    continue
+                score = slash_score + free_score + total_score
+                if best is None or score > best["score"]:
+                    best = {"free": free, "total": total, "score": score,
+                            "variant": variant, "threshold": threshold,
+                            "height": target_height, "mask": mask * 255}
+    return best
+
+
 def run_fraction_ocr(img_path, client_height, mode):
     img = cv2.imread(img_path)
     if img is None:
         print(f"ERROR: Could not load image from {img_path}")
         sys.exit(1)
-
-    h, w = img.shape[:2]
-    # Mode-dependent target height: 44 for lab (scrH=44), 36 for builders (scrH=30)
-    target_height = 44 if mode == "lab" else 36
-    scale = target_height / h
-    new_w = int(w * scale)
-    resized = cv2.resize(img, (new_w, target_height), interpolation=cv2.INTER_LANCZOS4)
-    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_dir = script_dir
-    template_dir = os.path.join(workspace_dir, "OCRimages", "cropped images")
-
-    def load_template_mask(filename):
-        path = os.path.join(template_dir, filename)
-        if not os.path.exists(path):
-            return None
-        t_img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if t_img is None:
-            return None
-        alpha = t_img[:, :, 3]
-        _, mask = cv2.threshold(alpha, 128, 1, cv2.THRESH_BINARY)
-        return mask
-
-    slash_mask = load_template_mask("slash.png")
-    if slash_mask is None:
-        print("ERROR: slash.png template not found.")
+    try:
+        result = read_fraction_ocr(img, mode)
+    except ValueError as error:
+        print("ERROR: " + str(error))
         sys.exit(1)
+    if result is None:
+        print("FAILED: No contrast/threshold pass yielded a valid count")
+        return
+    diagnostic_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch")
+    os.makedirs(diagnostic_dir, exist_ok=True)
+    cv2.imwrite(os.path.join(diagnostic_dir, f"availability_{mode}_ocr.png"), result["mask"])
+    cv2.imwrite(os.path.join(diagnostic_dir, f"availability_{mode}_crop.png"), img)
+    print(f"SUCCESS: {result['free']}/{result['total']}")
+    print(f"PREPROCESS: {result['variant']}, binary={result['threshold']}, height={result['height']}, score={result['score']:.3f}")
 
-    best_result = None
-    best_overall_score = 0.0
 
-    for thresh_val in [150, 170, 130, 190, 110]:
-        _, thresh_img = cv2.threshold(gray, thresh_val, 1, cv2.THRESH_BINARY)
-        
-        # Shave off top part containing horizontal line
-        shave_y = int(target_height * 0.12)
-        thresh_img[0:shave_y, :] = 0
+def run_upgrade_contrast(img_path):
+    img = cv2.imread(img_path)
+    if img is None:
+        raise ValueError(f"Could not load image from {img_path}")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    contrast = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
+    output_path = os.path.splitext(img_path)[0] + "_contrast.png"
+    if not cv2.imwrite(output_path, contrast):
+        raise OSError(f"Could not write contrast image to {output_path}")
+    # White lettering has black outlines that CLAHE can merge into the drawer.
+    text_path = os.path.splitext(img_path)[0] + "_text.png"
+    if not cv2.imwrite(text_path, cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)[1]):
+        raise OSError(f"Could not write text image to {text_path}")
+    print("SUCCESS: " + output_path)
 
-        best_slash_score = 0.0
-        best_slash_loc = (-1, -1)
-        sh_h, sh_w = slash_mask.shape
-        th_h, th_w = thresh_img.shape
-
-        for y in range(th_h - sh_h + 1):
-            for x in range(th_w - sh_w + 1):
-                sub_win = thresh_img[y:y+sh_h, x:x+sh_w]
-                intersection = np.sum(np.logical_and(slash_mask, sub_win))
-                union = np.sum(np.logical_or(slash_mask, sub_win))
-                if union > 0:
-                    score = intersection / union
-                    if score > best_slash_score:
-                        best_slash_score = score
-                        best_slash_loc = (x, y)
-
-        if best_slash_score < 0.28:
-            continue
-
-        slash_x, slash_y = best_slash_loc
-        left_region = thresh_img[0:th_h, max(0, slash_x - 32):min(th_w, slash_x + 3)]
-        # The slash template includes transparent padding on its right edge.
-        # Start seven pixels before its nominal edge so the denominator's
-        # leading strokes remain available to the digit matcher.
-        right_region = thresh_img[0:th_h, max(0, slash_x + sh_w - 7):min(th_w, slash_x + sh_w + 32)]
-
-        def find_digit_iou(region, allowed_digits):
-            scores = {}
-            r_h, r_w = region.shape
-
-            for digit in allowed_digits:
-                d_mask = load_template_mask(f"{digit}.png")
-                if d_mask is None:
-                    continue
-                d_h, d_w = d_mask.shape
-                if r_w < d_w or r_h < d_h:
-                    continue
-
-                best_score_for_digit = 0.0
-                for y in range(r_h - d_h + 1):
-                    for x in range(r_w - d_w + 1):
-                        sub_win = region[y:y+d_h, x:x+d_w]
-                        intersection = np.sum(np.logical_and(d_mask, sub_win))
-                        union = np.sum(np.logical_or(d_mask, sub_win))
-                        if union > 0:
-                            score = intersection / union
-                            if score > best_score_for_digit:
-                                best_score_for_digit = score
-                scores[digit] = best_score_for_digit
-
-            best_digit = -1
-            best_score = 0.0
-            for d, s in scores.items():
-                if s > best_score:
-                    best_score = s
-                    best_digit = d
-                    
-            return best_digit, best_score
-
-        if mode == "lab":
-            free_digit, free_score = find_digit_iou(left_region, [0, 1, 2])
-            total_digit, total_score = find_digit_iou(right_region, [1, 2])
-        else: # builders
-            free_digit, free_score = find_digit_iou(left_region, [0, 1, 2, 3, 4, 5, 6, 7])
-            total_digit, total_score = find_digit_iou(right_region, [1, 2, 3, 4, 5, 6, 7])
-
-        if free_digit != -1 and total_digit != -1 and free_score > 0.25 and total_score > 0.25 and free_digit <= total_digit:
-            combined_score = free_score + total_score + best_slash_score
-            if combined_score > best_overall_score:
-                best_overall_score = combined_score
-                best_result = (free_digit, total_digit)
-
-    if best_result is not None:
-        print(f"SUCCESS: {best_result[0]}/{best_result[1]}")
-    else:
-        print(f"FAILED: No threshold yielded valid builder fraction")
 
 def main():
     if len(sys.argv) < 4:
@@ -245,7 +217,9 @@ def main():
     img_path = sys.argv[2]
     client_height = int(sys.argv[3])
 
-    if mode == "hammer":
+    if mode == "upgrade_contrast":
+        run_upgrade_contrast(img_path)
+    elif mode == "hammer":
         run_hammer_match(img_path, client_height)
     elif mode == "info":
         run_info_match(img_path, client_height)

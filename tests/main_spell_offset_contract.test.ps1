@@ -9,20 +9,20 @@ $support = Get-Content -Raw $supportPath
 $main = Get-Content -Raw $mainPath
 $visualizer = Get-Content -Raw $visualizerPath
 
-if ($support -notmatch '(?m)^global MAIN_SPELL_INWARD_OFFSET_PIXELS := 150\s*$') {
-    throw 'Shared Main Village spell deployment must define a single 150-pixel-per-axis inward offset.'
+if ($support -notmatch '(?m)^global MAIN_SPELL_INWARD_OFFSET_PIXELS := 75\s*$') {
+    throw 'Shared Main Village spell deployment must define a single 75-pixel-per-axis inward offset.'
 }
 
 if ($support -notmatch '(?s)AttackMainBase\(\).*?global MAIN_SPELL_INWARD_OFFSET_PIXELS.*?deploy_spell.*?MAIN_SPELL_INWARD_OFFSET_PIXELS') {
-    throw 'AttackMainBase must pass the shared 150-pixel offset to deploy_spell.'
+    throw 'AttackMainBase must pass the shared 75-pixel offset to deploy_spell.'
 }
 
-$visibleEntryPointNote = 'Main Village spells use a 150-pixel-per-axis inward ADB shift'
+$visibleEntryPointNote = 'Main Village spells use a 75-pixel-per-axis inward ADB shift'
 if (!$main.Contains($visibleEntryPointNote)) {
-    throw 'ADBcoc_bot.ahk must visibly document its shared 150-pixel Main Village spell offset.'
+    throw 'ADBcoc_bot.ahk must visibly document its shared 75-pixel Main Village spell offset.'
 }
 if (!$visualizer.Contains($visibleEntryPointNote)) {
-    throw 'The standalone visualizer must visibly document the same shared 150-pixel spell offset.'
+    throw 'The standalone visualizer must visibly document the same shared 75-pixel spell offset.'
 }
 
 $trackedTextFiles = @(& git -C $repoRoot ls-files -- '*.ahk' '*.md' '*.ps1' '*.txt')
@@ -48,4 +48,4 @@ if ($staleReferences.Count -gt 0) {
     throw ('Tracked spell documentation/code still references the legacy offset: ' + ($staleReferences -join ', '))
 }
 
-Write-Output 'PASS: Main Village spells use one documented 150-pixel-per-axis inward offset.'
+Write-Output 'PASS: Main Village spells use one documented 75-pixel-per-axis inward offset.'

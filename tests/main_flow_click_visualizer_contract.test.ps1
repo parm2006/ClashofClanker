@@ -143,40 +143,54 @@ function Get-StageCodeBlock([string]$code, [string]$stageName) {
 }
 
 # -----------------------------------------------------------------------------
-# 4. Automatic Loop and Stage-Boundary Clearing
+# 4. Manual-only execution and review controls
 # -----------------------------------------------------------------------------
-$hasClearMarks = $source -match '(?i)(ClearMarks|ClearOverlay|ClearDrawings|ClearAnnotations|GdipGraphicsClear)'
-if (!$hasClearMarks) {
-    throw 'Visualizer must define a mark-clearing mechanism (e.g., ClearMarks, ClearOverlay, or GdipGraphicsClear).'
+if ($source -match '(?i)SetTimer\s*\(\s*StartAutomaticVisualizerLoop\s*,') {
+    throw 'Opening the visualizer must not schedule an automatic farming loop.'
 }
-
-if ($source -notmatch '(?i)SetTimer\s*\(\s*StartAutomaticVisualizerLoop\s*,\s*-\d+\s*\)') {
-    throw 'Visualizer must automatically start its stage loop after launch.'
+$manualPath = Join-Path $PSScriptRoot '..\visualizer_manual_actions.ahk'
+$manual = Get-Content -Raw -LiteralPath $manualPath
+if ($source -notmatch '#include "visualizer_manual_actions.ahk"') {
+    throw 'Visualizer must load the manual action panel.'
 }
-
-$stageRunners = @(Get-AhkFunctionBodies $source 'RunSelectedVisualizerStage')
-if ($stageRunners.Count -ne 1) {
-    throw 'Visualizer must define exactly one RunSelectedVisualizerStage function.'
+foreach ($control in 'QueueVisualizerAction', 'RunManualVisualizerAction', 'RecordVisualizerVerdict', 'StopClickVisualizerStage') {
+    if ($manual -notmatch "$control\(") { throw "Missing manual control: $control" }
 }
-$stageRunner = $stageRunners[0].Body
-$clearMatch = [regex]::Match($stageRunner, '(?i)ClearOverlayMarks\s*\(')
-$stageOpMatch = [regex]::Match($stageRunner, '(?i)(RunVisualizerHomeStage|RunVisualizerAttackStage)\s*\(')
-if (!$clearMatch.Success -or !$stageOpMatch.Success -or $clearMatch.Index -gt $stageOpMatch.Index) {
-    throw 'Every automatic stage must clear prior marks before executing its Home or Attack work.'
+if ($manual -match 'SetTimer\(RunManualVisualizerAction, -(?:2000|250)\)') {
+    throw 'Manual test completion must not schedule another action.'
 }
-if ($stageRunner -notmatch '(?i)SetTimer\s*\(\s*RunSelectedVisualizerStage\s*,\s*-2000\s*\)') {
-    throw 'Visualizer must preserve marks for 2 seconds, then automatically schedule the next stage.'
+foreach ($pathId in 'path_builder', 'path_lab', 'path_walls', 'path_return', 'cast:a', 'cast:s', 'ability:q', 'bb_phase2') {
+    if ($manual -notmatch [regex]::Escape($pathId)) { throw "Missing independently testable path: $pathId" }
 }
-if ($stageRunner -notmatch '(?i)VisualizerStage\s*:=\s*"attack"' -or
-    $stageRunner -notmatch '(?i)VisualizerStage\s*:=\s*"home"') {
-    throw 'Automatic visualizer loop must alternate forever between Home and Attack stages.'
+$groups = @(Get-AhkFunctionBodies $manual 'ManualVisualizerGroups')[0].Body
+if ($groups -notmatch '(?s)return\s*\[\s*\{name: "Overview"') {
+    throw 'The visualizer must open on the complete-path Overview page.'
+}
+$cycle = @(Get-AhkFunctionBodies $manual 'RunManualVisualizerCycle')[0].Body
+if ($cycle -notmatch 'ADBRefactorFlowAPI.RunMainCycle\(' -or $cycle -match 'SetTimer|while\s') {
+    throw 'The full-cycle button must run Home then Attack once, honor cancellation, and never start a loop.'
+}
+if ($manual -notmatch 'visualizer_review\.tsv' -or $manual -notmatch 'visualizer_inputs\.log') {
+    throw 'Manual verdicts and exact ADB inputs must be saved for review.'
+}
+if ($manual -notmatch 'SetTimer\(RunManualVisualizerAction, 0\)') {
+    throw 'Stop must cancel queued manual tests.'
+}
+$stop = @(Get-AhkFunctionBodies $manual 'StopClickVisualizerStage')[0].Body
+if ($stop -notmatch 'Reload\(\)') {
+    throw 'Stop must reset the controller so a blocked path cannot keep all buttons disabled.'
+}
+if ($source -notmatch 'AddVisualizerADBReadRegion\(adbRect.x, adbRect.y, adbRect.width, adbRect.height\)' -or
+    $source -notmatch 'DrawVisualizerEye\(') {
+    throw 'OCR crops must have read boxes and eye icons.'
 }
 
 # -----------------------------------------------------------------------------
 # 5. Home Stage Contract
 # -----------------------------------------------------------------------------
 # Home stage runs through tap_main_attack and tap_find_match, then pauses before tap_attack_start
-$homeBlock = Get-StageCodeBlock $source 'home'
+$sharedFlow = Get-Content -Raw (Join-Path $PSScriptRoot '..\ADBcocbotrefactor_support.ahk')
+$homeBlock = @(Get-AhkFunctionBodies $sharedFlow 'RunHomeStage')[0].Body
 if ($null -eq $homeBlock) {
     throw 'Visualizer must define a Home stage flow or handler.'
 }
@@ -209,7 +223,7 @@ if ($homeAttackStartMatch.Success) {
 # 6. Attack Stage Contract
 # -----------------------------------------------------------------------------
 # Attack stage begins with tap_attack_start and contains find_eligible_base, attack_main_base, and return_main_home in that order
-$attackBlock = Get-StageCodeBlock $source 'attack'
+$attackBlock = @(Get-AhkFunctionBodies $sharedFlow 'RunAttackStage')[0].Body
 if ($null -eq $attackBlock) {
     throw 'Visualizer must define an Attack stage flow or handler.'
 }
