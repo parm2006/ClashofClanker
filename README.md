@@ -1,101 +1,157 @@
-# Clash of Clans Automation Bot
+# Clash of Clanker
 
-An AutoHotkey v2.0 bot for Clash of Clans using **100% background-safe Android Debug Bridge (ADB)** execution.
+A Windows desktop bot for Clash of Clans, built with AutoHotkey v2. It automates Main Village farming and Builder Base attacks through Android Debug Bridge (ADB), with a controller GUI and a separate manual click visualizer.
 
-## Available Scripts
+Gameplay taps, swipes, keyevents, and screenshots use ADB, so normal operation does not take over your Windows mouse or keyboard. Initial calibration requires the emulator to be visible on the active desktop.
 
-1. **`ADBcoc_bot.ahk` (Background ADB Mode)**:
-   - **100% Background Safe**: Sends taps, drags, zooms, and keyevents directly to Android via ADB without taking mouse focus or interrupting host Windows keyboard input.
-   - **Background OCR & Pixel Checks**: Captures frame buffers directly via ADB for loot OCR and status detection.
-   - **Smart Battle Timing**: Un-nested 15s Return Home timers and 5s status polling, with a 2-minute 10-second stage fallback.
-   - **Background Hero Ability Triggers**: Sends `q`, `w`, `e`, `r` keyevents via ADB in the background 30 seconds after deployment without touching host keyboard.
+## Requirements
 
-## Features
-- **Client-Relative & ADB Touch Coordinates**: Immune to window movement, scaling, or background state.
-- **Auto Loot Search**: Scans and parses Gold and Elixir counts in matchmaking using OCR.
-- **Smart Deployment**: Deploys troops, siege machines, heroes, and spells sequentially.
-- **Automated Suggested Upgrades**: Scans the builder dropdown to find suggested building/hero upgrades via Python template matching.
-- **Automated Wall Upgrades**: Upgrades walls dynamically based on custom resource thresholds.
-- **Builder Base Support**: Fully automated Builder Base attacks (Phase 1 & Phase 2 support) with evenly spaced troop slot distribution (`Q` + slots `1`–`8` at 10% ratio steps).
-- **Interactive Calibration**: Wizards to calibrate click targets relative to your game viewport for both Main Village and Builder Base.
+- **Windows and [AutoHotkey v2](https://www.autohotkey.com/)**. AutoHotkey v1 cannot run these scripts.
+- **An ADB-enabled emulator with Clash of Clans installed.** The GUI provides targets for Habumi, [Google Play Games Developer Emulator](https://developer.android.com/games/playgames/emulator), and BlueStacks. The regular Google Play Games desktop app is not the Developer Emulator.
+- **`adb.exe`**, available on `PATH` or in an emulator installation folder recognized by the script.
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)** for the vision runtime. The repository requires Python 3.13 and manages OpenCV through `pyproject.toml` and `uv.lock`; a global `pip install` is unnecessary.
+- Internet access for initial dependency setup. Keep the complete repository, including `OCRimages/` and the bundled pinch-helper APKs in `pinch_test/dist/`.
 
----
+## Quick start
 
-## Prerequisites
-1. **AutoHotkey v2.0+**: Ensure you have AHK v2 installed on your system.
-2. **Game Window**: The Clash of Clans emulator window (e.g., Google Play Games PC, BlueStacks, LDPlayer) must be open.
-3.  Google Play Games needs the Developer Emulator for ADB. You can download it at https://developer.android.com/games/playgames/emulator or  search for "google play games developer emulator". Please make sure not to click on a fake link.
+1. Download and extract the [main branch ZIP](https://github.com/parm2006/ClashofClanker/archive/refs/heads/main.zip), or clone the repository:
 
----
+   ```powershell
+   git clone https://github.com/parm2006/ClashofClanker.git
+   cd ClashofClanker
+   ```
 
-## Getting Started & Calibration
+2. Install the requirements, then prepare the vision environment from the repository folder:
 
-Because screen sizes and window placements differ, **you must calibrate the bot before running it**. The local `config.ini` settings are ignored by Git so that each installation has its own customized settings.
+   ```powershell
+   uv sync --locked
+   ```
 
-### Main Village Calibration Steps (`Ctrl + Shift + Alt + F1`)
-1. Double-click `ADBcoc_bot.ahk` to launch the bot GUI.
-2. Click **Start Calibration** in the GUI or press **`Ctrl + Shift + Alt + F1`**.
-3. Switch to the game window. Follow the onscreen tooltips to calibrate the 26 targets:
-   - **Steps 1–3 (Home Village - Storage & Focus)**: Gold Storage Bar Threshold, Elixir Storage Bar Threshold, Builder Face.
-   - **Steps 4–8 (Home Village - Wall Upgrades)**: Upgrade More, Add Wall (+1), Remove Wall (-1), Gold Upgrade, Elixir Upgrade.
-   - **Step 9 (Home Village - Upgrade Confirmation)**: Upgrade Confirm Button (Hover over the green 'Upgrade' confirmation button on a standard building's confirmation popup and press SPACE).
-   - **Steps 10–12 (Navigation Menus)**: Attack, Find Match, Green Attack Start.
-   - **Steps 13–15 (In-Battle Metrics)**: Loot Gold Area, Loot Elixir Area, Next Match.
-   - **Step 16 (Base Detection)**: Main Village Logo (War/Season Challenge icon).
-   - **Steps 17–24 (Deployment Sides)**: Starting and ending points for Sides 1, 2, 3, and 4.
-   - **Step 25 (Battle End)**: Return Home Button.
-   - **Step 26 (Resource Collectors)**: Hover over your Gold Mines, Elixir Collectors, or Dark Elixir Drills and press **`SPACE`** to add each one. Press **`ENTER`** to finish and save.
+   This creates the local `.venv`. The bot also runs a locked sync when it first needs the Python vision runtime.
 
-### Builder Base Calibration Steps (`Ctrl + Shift + Alt + F2`)
-1. In the Builder Base, press **`Ctrl + Shift + Alt + F2`** to start calibration.
-2. Follow the tooltips to calibrate the 5 targets:
-   - **Step 1**: BB Attack Button
-   - **Step 2**: BB Find Match Button
-   - **Steps 3-5**: The 3 stars at the top of the battle screen (used to detect phase transition).
+3. Open Clash of Clans and double-click **`ADBcoc_bot.ahk`**. In **Control**, set **Target Window Title** to match the emulator window. In **ADB**, select your emulator and click **Test Connection**.
+4. Run **Main Calib** in **Calibration**. Also run **BB Calib** for Builder Base attacks. Read the [calibration guide](#calibration) before starting.
+5. Review **Farming** and **Settings**, return to a village home screen, and click **Start Bot**. Watch the **Activity Log** during the first cycle. Use **Pause Bot** to stop the loop.
 
----
+Settings and calibration are saved locally in `config.ini`, which Git ignores. `config.ini.example` illustrates the format; its coordinates are not a calibration for your emulator. Back up your own `config.ini` before replacing an installation.
 
-## GUI Customization (Settings & Farming)
+## Controller GUI
 
-The bot GUI includes tabs that allow you to customize configuration variables at runtime. **Note: You must click the "Save Settings" button at the bottom of the tab for any changes to be implemented.**
+The production entry point is **`ADBcoc_bot.ahk`**, which opens **CoC Bot Controller** with five tabs. Valid settings save automatically: checkboxes apply immediately and edited fields save after a short typing delay. There is no Save Settings button. Invalid or temporarily empty fields retain the previous settings; check the Activity Log for save errors.
 
-### Farming Tab
-- **Enable Auto Loot Search**: Toggles OCR loot checking during matchmaking. Checked by default.
-- **Minimum Gold / Elixir Limits**: Sets the minimum threshold (default: `500,000` each). The bot will click 'Next Match' if the base doesn't meet either of these limits.
-- **Enable Auto Wall Upgrade**: Toggles automatic wall upgrading. Checked by default. When storage bar threshold points are full, the bot will automatically dump resources into upgrading walls.
-- **Resource Collection**: Displays the total count of registered resource collectors (Gold Mines, Elixir Collectors, DE Drills).
+| Tab | Controls |
+| --- | --- |
+| **Control** | Target window title, Start Bot, Pause Bot, status, Activity Log, and an optional hours/minutes auto-stop timer. Leave it at `0 : 0` for no time limit; set it before starting. |
+| **Calibration** | Main Village and Builder Base calibration buttons and the current step prompt. Follow the changing prompt: the static tab summary still describes an older sequence. |
+| **Farming** | Auto Loot Search, minimum Gold and Elixir limits (initially `500000` each), Auto Wall Upgrade, and the calibrated collector count. |
+| **Settings** | Battle Load Delay in milliseconds, Builder Base clicks per troop slot, button/deployment position variance, troop 1–3 deployment click counts, and **No upgrades**. No upgrades disables resource-threshold eligibility for the automatic upgrade paths. |
+| **ADB** | Emulator provider, target serial where applicable, Test Connection, and connection status. |
 
-### Settings Tab
-- **Delays (ms)**: Fine-tune timing durations:
-  - **Troop Spam Click Delay**: Cooldown between clicks during troop deployment.
-  - **Battle Load Delay**: How long to wait for the battle map to load before deploying.
-  - **Home Load Delay**: Wait duration when transitioning back to home village.
-- **Randomization Offsets (pixels)**: Adds human-like click variance:
-  - **Button Click Variance**: Random pixel variance added to button click positions.
-  - **Troop Deploy Variance**: Random pixel variance added when deploying troops.
-- **Troop Deployment Clicks**: Sets the number of clicks/spams for Troop 1, Troop 2, and Troop 3.
+### Emulator targets
 
----
+| Provider | Default ADB serial |
+| --- | --- |
+| Habumi | `127.0.0.1:15555` |
+| Google Play Games Developer Emulator | `localhost:6520` (fixed by the controller) |
+| BlueStacks | `127.0.0.1:5555` (change to your instance's local port) |
+
+Enable ADB in the emulator first and select the serial for the instance running the game. One emulator is controlled at a time; multi-instance and simultaneous control are not supported. The bot and visualizer share a controller lock, so close one before opening the other.
+
+## Calibration
+
+Keep the emulator visible on the active Windows desktop. Hover over each requested point and press **Space**; navigate the game manually when a prompt asks for another menu or screen. **Esc** cancels the active wizard. Follow zoom/reset prompts before recording the next point.
+
+### Main Village: 30 steps
+
+Start **Main Calib** or press **Ctrl + Shift + Alt + F1**.
+
+| Steps | Targets |
+| --- | --- |
+| 1–2 | Top-left and bottom-right of the visible Android picture, excluding emulator toolbars, sidebars, and black borders. |
+| 3 | Village identifier: the Dark Elixir drop icon or bar. |
+| 4–6 | Dark Elixir, Elixir, and Gold storage threshold points, in that order. Choose the fill level at which upgrade eligibility should trigger. |
+| 7–8 | Builder count badge and laboratory count badge. |
+| 9–14 | Upgrade More, Add Wall, Remove Wall, Gold wall upgrade, Elixir wall upgrade, and upgrade confirmation. |
+| 15–17 | Battle/Attack, Find a Match, and the green Attack start button. |
+| 18–20 | Center of the Gold coin icon, center of the Elixir drop icon during matchmaking, and Next Match. OCR regions are derived from the icon positions. |
+| 21–28 | Start/end points for four deployment lines: bottom-right, bottom-left, top-left, top-right. |
+| 29 | Return Home button. |
+| 30 | Resource collectors: press Space for each Gold Mine, Elixir Collector, or Dark Elixir Drill, then **Enter** to finish and save. |
+
+Keep deployment lines outside the red no-deploy area, including the entire line between endpoints, with at least **10 Android/ADB pixels** of clearance. Do not move the game view while recording collectors.
+
+### Builder Base: 13 steps
+
+Complete Main calibration first so the Android viewport is known. Open the Builder Base and start **BB Calib** or press **Ctrl + Shift + Alt + F2**.
+
+| Steps | Targets |
+| --- | --- |
+| 1–2 | Builder Base Attack and Find a Match. |
+| 3–5 | Centers of the three stars on the Overall Damage results screen. |
+| 6–13 | Start/end points for the four Builder Base deployment lines, in the same side order as Main Village. |
+
+Record the last endpoint with Space, then press **Enter** to finish and save.
+
+Recalibrate after switching provider/device, changing the Android display resolution, or changing the viewport/window layout. Calibration is tied to the selected provider, serial, and viewport. Moving a window alone does not require new points.
+
+Loot search skips a base only when **both** Gold and Elixir are below their limits; meeting either limit is enough to proceed. Disabling Auto Loot Search bypasses this filter.
+
+## Automated behavior
+
+- **Main Village:** resource collection, resource-threshold checks, available builder/laboratory upgrade paths, matchmaking, optional Gold/Elixir loot filtering, troop/siege/hero/spell deployment, hero abilities, and Return Home.
+- **Wall upgrades:** controlled by Enable Auto Wall Upgrade and calibrated storage threshold checks.
+- **Builder Base:** village detection, attack entry, two-phase deployment, results checks, and return/retry handling.
+- **Recovery:** reload detection and Clash app recovery, plus provider-specific Habumi watchdog handling. Failures and retries appear in the Activity Log.
+
+Upgrade actions can spend in-game resources. Pet and workshop upgrade paths are unfinished in the manual visualizer and should not be treated as supported automated features.
+
+## Manual click visualizer
+
+Close the production controller and launch **`ADBcoc_bot_click_visualizer.ahk`** to open **CoC Manual Click Visualizer**. It shares local calibration and runtime helpers with the bot.
+
+| Area | Purpose |
+| --- | --- |
+| **Overview** | Run a selected path once: a full cycle, resource collection, upgrades, deployment, recovery, or a Builder Base attack. Paths do not repeat automatically. |
+| **Inspect** | Read connection/calibration status, screenshots, village, resource thresholds, builders, laboratory, loot, and other game state. |
+| **Navigation, Upgrades, Walls, Slots, Deploy, Abilities, Builder** | Run individual actions. Prepare the matching game screen first. |
+| **Calibration** | Run the wizards and save to the same `config.ini`. |
+| **InTesting** | Unfinished pet/workshop actions. |
+
+Overlay colors identify **pink taps**, **cyan gestures**, and **yellow read regions**. This tool sends real game inputs: upgrade confirmations can spend resources and deployment actions can deploy troops. It is not a simulation.
 
 ## Hotkeys
 
 | Hotkey | Action |
 | --- | --- |
-| **`Ctrl + Shift + F1`** | Unified Start (Detects Base and Starts Loop) |
-| **`Ctrl + Shift + F2`** | Pause Bot Loop |
-| **`Ctrl + Shift + Alt + F1`** | Start / Cancel Main Village Calibration |
-| **`Ctrl + Shift + Alt + F2`** | Start / Cancel Builder Base Calibration |
-| **`ESC`** | Exit Bot |
+| Ctrl + Shift + F1 | Start; detect the current village and select its loop. |
+| Ctrl + Shift + F2 | Pause the bot loop. |
+| Ctrl + Shift + Alt + F1 | Start/cancel Main Village calibration. |
+| Ctrl + Shift + Alt + F2 | Start/cancel Builder Base calibration. |
+| Space | Record the requested calibration point. |
+| Enter | Finish calibration at its final step. |
+| Esc | Cancel active calibration; otherwise exit when the bot GUI has focus. |
 
-## Virtual Desktop Use
+## Background operation and troubleshooting
 
-After calibration, you can place the bot and emulator on another Windows virtual desktop. Runtime checks use ADB to confirm that the selected device is online and that Clash of Clans is the foreground Android app; they do not require the emulator's Windows window to be visible. Calibration still requires the emulator window to be on the active desktop.
+After calibration, the bot and emulator can run on another Windows virtual desktop. Runtime checks use ADB to verify the selected device and that Clash of Clans is the foreground **Android app**. Calibration still requires a visible emulator on the active desktop.
 
----
+| Problem | Check |
+| --- | --- |
+| ADB connection fails | Enable emulator ADB, check provider/serial, and use Test Connection. If `adb.exe` is not discovered, add its folder to `PATH` and restart the bot. |
+| Target window is not found | Match Target Window Title to the emulator's actual Windows title and keep it visible during calibration. |
+| Calibration is rejected or taps miss | Re-run Main calibration with correct Android viewport bounds. Also run BB calibration for Builder Base targets. Check for resolution/layout changes. |
+| Vision setup fails | Confirm uv is installed and run `uv sync --locked` from the repository folder. Read the Activity Log error. |
+| Loot or upgrade reads are wrong | Check calibrated icon/threshold points and game layout. Use the visualizer's Inspect actions to examine reads before restarting the loop. |
+| Another controller is already running | Close the other bot/visualizer instance before starting a new one. |
 
-## License
-This project is licensed under the GPL v3 License - see the `LICENSE` file for details.
+## Updating and reporting issues
 
-## Disclaimer
+For a Git checkout, stop the bot and run `git pull --ff-only`, then `uv sync --locked`. For a ZIP installation, extract the full new copy and preserve your local `config.ini`. Re-test the ADB connection and recalibrate if the new code requests it or your emulator layout changed.
 
-This project is for educational purposes only. Automated botting is strictly against Supercell's Terms of Service. Using this bot or any automated script may result in a temporary ban or permanent suspension of your Clash of Clans account. The creators and contributors of this project are not responsible for any actions taken against your account or any damages incurred. Use at your own risk.
+The [tutorial](Tutorial.md) links to the existing video; use this README for current GUI labels and setup. [Report issues](https://github.com/parm2006/ClashofClanker/issues) with your emulator/provider, display resolution, reproduction steps, and relevant Activity Log output. Contributions should explain the behavior changed and checks run; do not commit personal `config.ini`, `.venv`, or scratch screenshots.
+
+## License and disclaimer
+
+Licensed under [GNU GPL v3](LICENSE).
+
+This project is for educational purposes. Automated botting is against Supercell's Terms of Service and can result in temporary or permanent account suspension. Use at your own risk; the authors and contributors are not responsible for account actions or damages.

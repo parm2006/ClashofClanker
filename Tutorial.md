@@ -1,43 +1,20 @@
-# Clash of Clanker Video Tutorial
+# Clash of Clanker tutorial
 
-Watch the video tutorial on YouTube:
-[Clash of Clanker Video Tutorial](https://youtu.be/OE67o9Qc3Jw)
+The existing [video tutorial on YouTube](https://youtu.be/OE67o9Qc3Jw) is a companion reference. Its GUI labels, calibration sequence, and setup may differ from the current code. Follow the [README](README.md) for current instructions.
 
----
+## Current setup and first run
 
-## Prerequisites
+1. Install AutoHotkey v2, an ADB-enabled emulator, and uv. Download the complete repository and run `uv sync --locked` inside its folder. The vision runtime uses Python 3.13 and the locked OpenCV dependency; a global `pip install` is unnecessary.
+2. Open Clash of Clans and launch `ADBcoc_bot.ahk`. Set **Target Window Title** in **Control**. Select Habumi, Google Play Games Developer Emulator, or BlueStacks in **ADB**, check the target serial, and click **Test Connection**.
+3. Open **Calibration** and run **Main Calib**. The current wizard has **30 steps**, starting with the Android viewport corners. Hover over each requested point and press **Space**. At the collector step, record each collector with Space and finish with **Enter**. Follow the changing prompt; the static tab summary is older than the wizard.
+4. For Builder Base, also run the **13-step BB Calib** wizard. It records attack buttons, the three results-screen stars, and four deployment lines. Record the final endpoint, then press Enter to save.
+5. Review **Farming** and **Settings**. Valid edits save automatically to local `config.ini`; there is no Save Settings button. **No upgrades** in Settings disables resource-threshold eligibility for automatic upgrades.
+6. Return to a village home screen. Optionally set the auto-stop timer in **Control**, then click **Start Bot**. Watch the Activity Log and use **Pause Bot** or **Ctrl + Shift + F2** to stop.
 
-Before running the bot, make sure you have the following installed on your system:
+See the [calibration tables](README.md#calibration), [GUI reference](README.md#controller-gui), and [troubleshooting guide](README.md#background-operation-and-troubleshooting) for details.
 
-1. **AutoHotkey v2.0+**: Essential to run the `.ahk` scripts. You can download it from the official [AutoHotkey Website](https://www.autohotkey.com/).
-2. **Python 3.x** (with dependencies): Required for the vision/OCR system (building upgrade detection). 
-   - Install Python and check **"Add Python to PATH"** during installation.
-   - Install the required packages by running this command in your command prompt/terminal:
-     ```bash
-     pip install opencv-python numpy
-     ```
-3. **Clash of Clans PC Emulator**: Ensure you have Clash of Clans running on an emulator (e.g., Google Play Games on PC, BlueStacks, LDPlayer).
+## Inspecting actions
 
----
+Close the production controller and launch `ADBcoc_bot_click_visualizer.ahk` for the manual visualizer. **Inspect** reads game state; **Overview** runs a selected path once; the other action tabs expose individual inputs. It shares `config.ini` with the production bot.
 
-## Tutorial
-
-1) **Launch the Bot:** Download the entire GitHub repository (preferably as a ZIP file and extract it). Once all files are contained in the same folder, double-click `ADBcoc_bot.ahk` to run the bot and open the GUI.
-2) **Configure Limits:** Set your farming limits in the GUI (e.g. 500k Gold/Elixir minimum, and toggle Wall Upgrades on/off). **Note: You must click the 'Save Settings' button at the bottom of the tab to save and apply any changes.** 
-3) **Run Calibration (`Ctrl + Shift + Alt + F1`):** The bot will maximize the game window and guide you through 26 calibration steps:
-   - **Step 1–2:** Gold and Elixir storage thresholds (tells the bot when your storages are full).
-   - **Step 3:** The Builder Head icon (top-center of the screen).
-   - **Steps 4–8:** Wall upgrade menu coordinates (Upgrade More, Add Wall, Remove Wall, Gold/Elixir upgrade buttons).
-   - **Step 9:** **Upgrade Confirm Button** (Hover over the green 'Upgrade' confirmation button on a standard building's confirmation popup and press SPACE).
-   - **Steps 10–12:** Navigation menu buttons (Attack, Find a Match, Green Start Attack).
-   - **Steps 13–15:** Matchmaking loot scanning and Next button.
-   - **Step 16:** Base detection logo (War/Season logo above the attack button).
-   - **Steps 17–24:** Deploy starting and ending coordinates for the 4 deployment lines surrounding the base.
-   - **Step 25:** Return Home button at the end of the battle.
-   - **Step 26:** Resource Collectors (Hover over your Gold Mines, Elixir Collectors, or DE drills and press SPACE for each. Press ENTER to save).
-4) **Suggested Upgrades Flow:**
-   - The bot automatically scans your builder menu. If a builder is free **and both Gold and Elixir storages are past their threshold**, it clicks the first suggested upgrade.
-   - For **Heroes**, it goes straight to the confirm coordinates.
-   - For **Buildings**, it uses Python template matching (`upgrade_button_hook.py`) with your magenta template (`hammer_template_trans.png`) to locate the Upgrade button center.
-   - By default, it hovers on the confirmation coordinates and clears the selection (skipping the actual click for testing safety).
-5) **Builder Base Calibration (`Ctrl + Shift + Alt + F2`):** Run this if you want the bot to farm the Builder Base (it spams attacks and switches phases).
+The visualizer controls the real game. Upgrade confirmations can spend resources, and battle actions can deploy troops. Pet and workshop upgrade actions marked unfinished are not implemented.
