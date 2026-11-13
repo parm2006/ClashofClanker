@@ -7,6 +7,12 @@ Check(value, message) {
         throw Error(message)
 }
 try {
+    wallRows := [Row("Suggested upgrades", 0), Row("Wall x 100", 40), Row("Monolith", 80)]
+    Check(SelectUpgradeRow(wallRows, "wall").name == "Wall x 100", "Wall path selects walls in new drawer")
+    Check(SelectUpgradeRow(wallRows, "builder").name == "Monolith", "Building path skips walls")
+    Check(SelectUpgradeRow(wallRows, "lab").name == "Wall x 100", "Lab selection unchanged")
+    Check(!SelectUpgradeRow([Row("Suggested upgrades", 0), Row("Monolith", 40)], "wall").found, "Wall path cannot select buildings")
+    Check(!SelectUpgradeRow([Row("Wall", 40)], "wall").found, "Wall path requires upgrade section")
     rows := [Row("Laboratory", 10), Row("Suggested upgrades", 50),
         Row("Barbarian King", 80), Row("245 000", 100), Row("Grand Warden", 130),
         Row("Builder's Hut x 5", 180), Row("Other upgrades", 230), Row("Monolith", 270)]

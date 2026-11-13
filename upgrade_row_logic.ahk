@@ -3,6 +3,10 @@ UpgradeRowName(text) {
     return StrLower(RegExReplace(text, "[^A-Za-z]", ""))
 }
 
+IsUpgradeWall(text) {
+    return RegExMatch(text, "i)^\s*[vw][aAeEoOuU01iI][lLiI1t]{1,2}s?(?:\b|\s|$)") != 0
+}
+
 UpgradeNameSimilarity(left, right) {
     previous := []
     Loop StrLen(right) + 1
@@ -89,6 +93,10 @@ SelectUpgradeRow(lines, kind, continued := false, scale := 1, heroRows := false,
             continue
         }
         if !inSection || (!continued && line.y / scale < sectionTop) || Trim(line.Text) == ""
+            continue
+        ; Walls use their own resource-gated path, never the building confirmation.
+        if (kind == "wall" && !IsUpgradeWall(line.Text))
+            || (kind == "builder" && IsUpgradeWall(line.Text))
             continue
         ; Price/time lines and the green New sublabel are not row names.
         if RegExMatch(line.Text, "i)^\s*\d[\d\W]*(?:[dhms]\b|$)")

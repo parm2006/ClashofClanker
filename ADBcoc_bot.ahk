@@ -2694,55 +2694,11 @@ CollectResources() {
     }
 }
 FindAnyWallInDropdown() {
-    global BuilderFaceX, BuilderFaceY, BuilderMenuBottomY, LabFaceX, LabFaceY, UpgradeConfirmX, UpgradeConfirmY
-    viewport := GetADBClientViewportRect()
-    w := viewport.width
-    h := viewport.height
-    menuLeft := BuilderFaceX - (w * 0.18)
-    menuWidth := w * 0.36
-    menuTop := viewport.y + h * 0.12
-    menuHeight := h * 0.75
-    imgName := A_Temp "\coc_refactor_wall_menu.png"
-    ; Scroll until the first row below Suggested Upgrades is a Wall.
-    Loop 4 {
-        framePath := CaptureADBFrame(true)
-        adbCrop := SaveADBFrameRegionToPNG(
-            framePath,
-            menuLeft,
-            menuTop,
-            menuWidth,
-            menuHeight,
-            imgName
-        )
-        for sc in [2.5, 2.0, 3.0] {
-            try {
-                result := OCR.FromFile(imgName, {scale: sc})
-                selected := SelectFirstSuggestedUpgradeOCRWord(result.Lines)
-                if !IsObject(selected) || !IsWallSuggestedUpgrade(selected)
-                    continue
-                selected := NormalizeBuilderOCRMatch(selected, sc)
-                LogMessage(Format("Farming: Found Wall suggestion: '{}' (using scale {})", selected.lineText, sc))
-                clientPoint := ADBFramePointToClient(
-                    adbCrop,
-                    selected.centerX,
-                    selected.centerY
-                )
-                ClientClickPoint(clientPoint.x, clientPoint.y, 2)
-                try FileDelete(imgName)
-                return true
-            }
-            catch as err {
-                LogMessage("Farming: OCR error in suggestions dropdown: " err.Message)
-            }
-        }
-        ; Three ADB swipes produce four OCR passes without requiring window focus.
-        if (A_Index < 4) {
-            RunADBSwipeAt(BuilderMenuBottomX, BuilderMenuBottomY, BuilderFaceX, BuilderFaceY, 200)
-            Sleep 800
-        }
-    }
-    try FileDelete(imgName)
-    return false
+    global EnableWallUpgrade
+    if !EnableWallUpgrade
+        return false
+    ; Read the updated right-side builder drawer and select only a wall row.
+    return IsObject(FindUpgradeRow("wall", true))
 }
 UpgradeWalls(wallState := "") {
     global EnableWallUpgrade, IsRunning, TargetWindowTitle
